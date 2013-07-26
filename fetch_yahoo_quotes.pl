@@ -14,6 +14,7 @@ use Scalar::Util qw(looks_like_number);
 use strict;
 use warnings;
 
+isMarketOpen();
 
 yesterdays_quotes();
 
@@ -334,4 +335,20 @@ sub yesterdays_quotes {
 
 }
 
+sub isMarketOpen() {
 
+  my $connection = DBI->connect( "DBI:mysql:database=stockdata;host=localhost", "root", "r00t", {'RaiseError' => 1} );
+
+  my $sth = $connection->prepare( "SELECT date, market_is_open FROM calendar WHERE date=CURRENT_DATE()" );
+  $sth->execute();
+  my $sql_result = $sth->fetchrow_hashref();
+  $sth->finish();
+
+	if ( $sql_result->{'market_is_open'} == 0 ) {
+		print "*****************************************************************\n";
+		print "\t\tThe Market is Closed Today - " . $sql_result->{'date'};
+		print "\n*****************************************************************";
+		exit(0);
+	}
+
+}

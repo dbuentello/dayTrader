@@ -1,0 +1,70 @@
+BW 15:16:14:756 JTS-Main: Created on: 20130224
+BW 15:16:14:760 JTS-Main: ------------------------------- TWS RESTART --------------------------------
+BW 15:16:14:824 JTS-Main: Jts dir is ./
+BW 15:16:15:173 JTS-Main: PROXY Installed custom selector
+BW 15:16:15:186 JTS-MiscUlrsRequester-4: Connecting gw4.ibllc.com:4000 timeout=0
+BW 15:16:15:292 JTS-Main: Region:America dr:false
+BW 15:16:15:292 JTS-Main: Locale from OS: en_US
+BW 15:16:15:292 JTS-Main: Property locale_to_use=en
+BW 15:16:15:292 JTS-Main: JTS Locale=en_US  country=United States  variant=
+BW 15:16:15:293 JTS-Main: Locale=en_US  country=United States  variant=
+BW 15:16:15:293 JTS-Main: Error no jar:/home/nathan/dayTrader/IB/IBJts/language.jar
+BW 15:16:15:293 JTS-Main: prohibiting class lookup [ji18n.Language]
+BW 15:16:15:740 JTS-MiscUlrsRequester-4: Connected to gw4.ibllc.com:4000 on local port 0 socket local addrs:port /192.168.1.76:36840
+BW 15:16:15:865 JTS-Main: prohibiting class lookup [ji18n.Language_en]
+BW 15:16:15:867 JTS-MISC URLsListener-5: Starting
+BW 15:16:15:868 JTS-MISC URLsListener-5: Initial listener buffer size is 43690
+BW 15:16:15:868 JTS-Main: prohibiting class lookup [ji18n.Language_en_US]
+BW 15:16:15:868 JTS-Main: prohibiting resource lookup [ji18n/Language_en_US.properties]
+BW 15:16:15:868 JTS-Main:   actual locale: 
+BW 15:16:15:942 JTS-MiscUlrsRequester-4: Sending MiscUrls request
+BW 15:16:15:942 JTS-AuthDispatcher-6: Starting
+BW 15:16:15:994 JTS-Main: prohibiting class lookup [org.jfree.chart.LocalizationBundle]
+BW 15:16:16:022 JTS-MiscUlrsRequester-4: LOGIN_TIME_MONITOR	 false 15:16:16:001 since start = 49 thread delay = 49 global delay = 0 tag=null, cls=AuthDispatcher method=send
+BW 15:16:16:024 JTS-Main: prohibiting class lookup [org.jfree.chart.LocalizationBundle_en]
+BW 15:16:16:024 JTS-Main: prohibiting resource lookup [org/jfree/chart/LocalizationBundle_en.properties]
+BW 15:16:16:024 JTS-Main: prohibiting class lookup [org.jfree.chart.LocalizationBundle_en_US]
+BW 15:16:16:024 JTS-Main: prohibiting resource lookup [org/jfree/chart/LocalizationBundle_en_US.properties]
+BW 15:16:16:025 JTS-Main: prohibiting class lookup [org.jfree.chart.plot.LocalizationBundle]
+BW 15:16:16:025 JTS-Main: prohibiting class lookup [org.jfree.chart.plot.LocalizationBundle_en]
+BW 15:16:16:025 JTS-Main: prohibiting resource lookup [org/jfree/chart/plot/LocalizationBundle_en.properties]
+BW 15:16:16:026 JTS-Main: prohibiting class lookup [org.jfree.chart.plot.LocalizationBundle_en_US]
+BW 15:16:16:026 JTS-Main: prohibiting resource lookup [org/jfree/chart/plot/LocalizationBundle_en_US.properties]
+BW 15:16:16:027 JTS-AuthResponseMonitor-7: Starting 
+BW 15:16:16:186 JTS-AuthDispatcher-6: Received NS_MISC_URLS
+BW 15:16:18:429 JTS-AuthDispatcher-6: Received URLs ='{ib_system_status=http://status.interactivebrokers.net/cgi-bin/bb_status.pl, pass_change_ib=https://gdcdyn.interactivebrokers.com/sso/Login?service=AM.LOGIN&MSG=PWD, gold_help=http://www.interactivebrokers.com/en/general/goldHelp.php, ssl=1, java_upgrade_howto=http://www.interactivebrokers.com/en/software/downloadPlugin.php?ib_entity=llc, customer_service=http://www.interactivebrokers.com/en/p.php?f=customerService&ib_entity=llc, bingo_help=http://www.interactivebrokers.com/en/general/bingoHelp.php, alpine_help=http://www.interactivebrokers.com/en/general/alpineHelp.php}'
+BW 15:16:18:433 JTS-AuthDispatcher-6: Disconnecting gw4.ibllc.com:4000 with status DISCONNECT_BY_DESIGN
+BW 15:16:18:434 JTS-AuthDispatcher-6: Terminating
+BW 15:16:18:435 JTS-AuthResponseMonitor-7: Terminating
+BW 15:16:18:476 JTS-MISC URLsListener-5: Socket for connection gw4.ibllc.com:4000 was closed by another thread
+BW 15:16:18:477 JTS-MISC URLsListener-5: Terminating
+BW 15:16:18:947 JTS-Main: jfreechart version =1.0.8
+BW 15:16:18:947 JTS-Main: jcommon version =1.0.12
+BW 15:16:18:949 JTS-Main: plugin support version =1.0
+BW 15:16:18:951 JTS-Main: JDOMFactory Class =interface org.jdom.JDOMFactory
+BW 15:16:19:050 JTS-Main: hsqldb jdbc =class org.hsqldb.jdbcDriver 2.2
+BW 15:16:19:053 JTS-Main: Build 935.3, Jan 17, 2013 6:32:55 PM
+BW 15:16:19:062 JTS-Main: Can't paint Translucent Window: class com.sun.awt.AWTUtilities isn't available for java 1.6.0_18
+BW 15:16:19:152 JTS-Main: LookAndFeelChangedListener installed
+BW 15:16:19:167 JTS-Main: JtsLookAndFeel initialized
+BW 15:16:20:212 JTS-Main: Current LAF: TWS LAF
+BW 15:16:20:215 JTS-Main: java.lang.UnsupportedOperationException: Toolkit.getLockingKeyState
+BW 15:16:23:791 AWT-EventQueue-0: Started on 20130224-23:16:23
+BW 15:16:23:827 AWT-EventQueue-0: Default timezone:America/Los_Angeles name:Pacific Standard Time dst:3600000
+BW 15:16:23:827 AWT-EventQueue-0: java version = 1.6.0_18
+BW 15:16:23:827 AWT-EventQueue-0: sun.arch.data.model = 32
+BW 15:16:23:827 AWT-EventQueue-0: os = Linux
+BW 15:16:23:827 AWT-EventQueue-0: runtime = OpenJDK Runtime Environment
+BW 15:16:23:827 AWT-EventQueue-0: vendor = Sun Microsystems Inc.
+BW 15:16:23:827 AWT-EventQueue-0: vm name = OpenJDK Server VM
+BW 15:16:23:994 AWT-EventQueue-0: WebRegionURL Path:/java/classes/locales.jar URL:http://www.interactivebrokers.com/java/classes/locales.jar
+BW 15:16:23:995 AWT-EventQueue-0: downloading file: /home/nathan/dayTrader/IB/IBJts/locales.jar from http://www.interactivebrokers.com/java/classes/locales.jar
+BW 15:16:23:995 AWT-EventQueue-0: Starting to download 'http://www.interactivebrokers.com/java/classes/locales.jar' using HotBackup 'http://www.interactivebrokers.com/java/classes/locales.jar'
+BW 15:16:25:142 AWT-EventQueue-0: Finished downloading file: /java/classes/locales.jar
+BW 15:16:26:324 AWT-EventQueue-0: Basic init done. Login window shown
+BW 15:16:27:009 AWT-EventQueue-0: Error getting caps lock state - java.lang.UnsupportedOperationException: Toolkit.getLockingKeyState
+BW 15:16:27:039 AWT-EventQueue-0: Error getting caps lock state - java.lang.UnsupportedOperationException: Toolkit.getLockingKeyState
+BW 15:16:55:630 AWT-EventQueue-0: Error getting caps lock state - java.lang.UnsupportedOperationException: Toolkit.getLockingKeyState
+BW 15:16:55:653 AWT-EventQueue-0: Error getting caps lock state - java.lang.UnsupportedOperationException: Toolkit.getLockingKeyState
+BW 15:17:33:627 AWT-EventQueue-0: Cancel login
+BW 15:17:33:634 AWT-EventQueue-0: Application exit

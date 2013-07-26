@@ -1,0 +1,19 @@
+1. Retrieve the exchanges symbol listing from: http://www.nasdaq.com/screening/company-list.aspx
+2. Open the new and the old list in OOCalc
+2a. Get the old list by executing the following SQL Query: 
+		SELECT * INTO OUTFILE '<exchange>_<date>.csv' FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n' FROM <table>;
+3. Paste all the symbols from the old list below that of the new list
+4. After the last column, add the exchange name in the next blank column and fill down
+5. Ensure the rows in your spreadsheet are in the following order left to right: Symbol, Name, MarketCap, Sector, Industry, Exchange
+6. Delete all rows except Symbol, Name, MarketCap, Sector, and Industry. Delete the header row
+7. Insert an empty colum in column B
+8. Sort the spreadsheet on the symbol column
+9. Enter this formula in cell B1: =OR(IF(A1=A2,1,0), IF(A2=A1,1,0))
+10. Enter this formula in cell B2: =OR(IF(A2=A3,1,0), IF(A1=A2,1,0))
+11. Hold Crtl and double click the fill down corner of cell B2
+12. Copy Column B and Paste Special numbers only
+13. Sort on Column B
+14. Delete all rows with a 1 in column B. Remove duplicates on column A just to be safe.
+15. Delete column B and save as and .csv file
+16. Execute the following SQL query: 
+		LOAD DATA INFILE '<file_name>' INTO TABLE symbols COLUMNS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n' (symbol, name, market_cap, sector, industry, exchange);

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<jnlp codebase="http://download2.interactivebrokers.com/java/classes/" href="http://www.interactivebrokers.com/java/classes/edemo.jnlp">
+	<information>
+		<title>TWS Demo</title>
+		<vendor>Interactive Brokers</vendor>
+    		<homepage href="http://www.interactivebrokers.com"/>
+		<icon width="64" height="64" href="tws64x64.jpg"/>	
+		<description>Interactive Brokers Trader Workstation Demo</description>
+	</information>
+	
+	<security>
+		<all-permissions/>
+	</security>
+	
+	<resources>
+		<j2se java-vm-args="-Dsun.java2d.noddraw=true -Xmx768M -XX:MaxPermSize=128M" version="1.5+"/>
+		<jar href="jts.jar"/>
+		<jar href="total.2012.jar"/>
+		<property name="sun.java2d.noddraw" value="true"/> 
+		<property name="jnlp.gendate" value="Mon Feb 11 23:44:04 2013"/>
+	</resources>
+
+	<application-desc main-class="jclient.LoginFrame"> 
+		<argument>username=edemo</argument>
+		<argument>password=demouser</argument>
+		<argument>c:\ibjts</argument>
+		<argument>gw1.ibllc.com:4000</argument>
+	</application-desc>
+</jnlp>

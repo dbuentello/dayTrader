@@ -1,0 +1,14 @@
+Some general notes on the structure of the program. 
+
+The application will enter with the DayTrader_T class. The main() method of this class should invoke the initialize() method which in turn will invoke all the intialize() methods for the appropriate managers/classes. Once initialization is complete the run() method should be called to enter the running state of the application. The DayTrader_T.run() method will invoke the run method for all the other managers/classes. 
+
+We should create wrapper classes for all the IB classes that we need to interact with. This will provide a layer of abstraction between our application and the IB API should the API change or we ever decide to use another API.
+
+
+Coding standards:
+
+All classes should be appended with "_T" (for Type) to distinguish our classes from IB API classes. Similarly, interfaces should end with "_IF" and enums with "_E"
+
+
+
+

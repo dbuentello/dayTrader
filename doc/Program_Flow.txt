@@ -1,0 +1,31 @@
+General Tasks:
+
+-Get biggest losers: start monitoring the entire exchange towards the end of the market day (e.g. 3pm ET). Determine the top 30 biggest percentage losers for the day and buy those positions towards the market close. 
+	a. We need to determine the criteria for which positions to buy. Right now my criteria is in order 1. Biggest percentage loser 2. 3 day moving average needs to be above a certain threshold to give a high assurance level we will be able to sell that position (still need to determine what that threshold is 10,000? 100,000? 1 million?)
+	b. We need to determine what time to put our purchase orders in. 15min before market close? 30min? 1hr? I'm thinking 30m should be safe, but that's pure conjecture.
+	c. We'll want to store all information we retrieve to the database for future analysis
+
+
+-Calculate sell triggers and monitor stock activity: We will need to constantly monitor the price of the positions we own throughout the course of the day to determine when to sell our positions.
+	Current thinking:
+	a. Calculate high and low sell point triggers for each position we own. Trigger points should be based of percentage values so that actual stock prices are transparent. 
+	b. Continuously monitor our positions we have to know when a sell point trigger has been activated and execute a sell order.
+	c. The high trigger will be at the XX percentile of the average high point for the 30 biggest losers. I think it's important to use median number here, not averages. We want to know at what percentage point do, e.g. 60% of the biggest losers recover to the next day. Anything higher than a 50% median sell point should (in theory) yield a profit. This of course assumes that more than 50% of all loser have some kind of recovery, but I believe they do. This sell order should be a trailing limit order to maximize our gains.
+  d. The low trigger will need to be determined. Similar to how we determine the high trigger, we need to decide at what point we accept our loses and trigger an immediate sell oder. I have a basic data set of the max low for each of the losers, but I haven't really analyzed that data. Again, I think the median point need to be determined and the trigger should be based off that data point. Whether this should be placed as a stop-limit order at the beginning of the day or be executed in real time as a market sell orderneeds to be decided. 
+	e. Finally we don't want to hold any position more than 24hrs. So if neither a high nor low trigger has been tripped during the day, sell the stock regardless before buying the next day's position. (We need to sell before we buy to ensure there's money in the account). This trigger will most likely be time based and depend on what time we need to place our buy orders in by.
+	
+
+CAVEATS!!! Our biggest unknown/risk right now is the following scenario: What if many of these losers start the day by dropping in price and then only make their recover in the afternoon? If we sell to early we risk selling at a loss when we could be selling at a gain. If we don't see that stock could continue to plummet and become a large loss.
+		Mitigation Plans:
+		1. Use the paper trading option offered by IB to test our program over the course of serval weeks to gain a higher confidence level
+		2. Streaming loser data. This allows us to constantly monitor the price of our biggest losers. We can save this information to plot graphs to better analyse the data. We would probably need some kind of mechanism to compress/move off disk this data as I could see it quickly filling up our harddrive
+		3. Have a primary and secondary low trigger. The primary trigger would have some additional (unknown) criteria. Additional criteria could be based of the time of day, a certain trading volume, the day of the week? Some other unknow factor? Secondary trigger would be a set percentage loss (6%? 8%? 15%?) that a sell would be executed regardless.
+		4. Find median gain/loss of all losers. Do more stocks close up or down? If more close up but less than the high trigger we would still be making a profit since we will
+
+MISC NOTES:
+
+The application should have a concept of operational state. During market hours the application will be in the run() state. It is in the run state that the above described tasks will be performed. After market hours the program will enter the sleep() state which could be used to idle the application and perform data analysis. The wakeup() state will be used to transition from the sleep() state to the run() state. This state can be used to re-initialize our connections each day and determine sell trigger points. The intialize() and terminate() states will provide for graceful startup and termination. 
+
+It will be important to keep good log files and we should persist as much data to the database as possible. All positions, trades and quotes should be stored in the database. Any alerts or errors shall be logged to a log file. As the application becomes more sophisticated we can add automated e-mail alerts for fatal faults, but to start that will be a manual task. The same goes for maintenance tasks. The will be manual to start and become automated as the application develops. 
+
+We always need to maintain at balance of $25,000 in our account  according to SEC regulation so we can never buy more positions than our 25K delta.

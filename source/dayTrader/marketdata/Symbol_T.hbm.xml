@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<!DOCTYPE hibernate-mapping PUBLIC
+        "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+        "http://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
+
+<hibernate-mapping package="org.hibernate.tutorial.domain">
+    <class name="MarketData_T" table="MarketData">
+        <id name="id" column="id">
+            <!-- a native generator allows the DB to generate the primary key,
+             do we want the application to generate the primary key instead? -->
+            <generator class="native"/> 
+	</id>
+	
+	<!-- the name attribute should match that of the java class attribute --> 
+	<!-- if column attribute is not specified hibernate assuse the column name = name attribute -->
+	    
+	    
+	<!--        <property name="bidSize" type="java.lang.Double" column="bidSize" />-->
+
+	
+
+        
+    </class>
+</hibernate-mapping>

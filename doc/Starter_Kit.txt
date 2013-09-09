@@ -1,0 +1,110 @@
+Accounts:
+
+Linode.com access: (linode.com hosts our server)
+username: ltrade
+password: ask me
+
+Linode Server access
+server IP: 74.207.244.99
+username: steve
+password: ask me
+
+InteractiveBrokers.com access:
+username: ltrade718
+password: ask me
+
+MySQL access: (on the linode server)
+username: root
+password: ask me
+
+TD Ameritrade.com and API access:
+username: Ladd3113
+password: ask me
+Source ID: NALA
+
+TDAmeritrade API Forums:
+username: Ladd31
+password: ask me
+
+Install the following packages on your laptop (or verify you have them) using apt-get:
+Command (as root):
+# apt-get install <package>
+Packages:
+perl - perl scripting language
+curl - utility to retrieve website from the command line
+mysql-server - MySQL server (includes mysql-client as well)
+libmysqlclient-dev - MySQL developer libraries needed for the DBD::mysql perl module
+git - git version control system, tons of resource available with a simple google search
+eclipse - eclipse IDE, I'm most familiar with Eclipse and like it, but you can use which IDE/editor you like best
+gcc - C++ compiler
+java-common - Java installation
+chmsee - utility for view *.chm files
+
+Install the following perl modules using cpan:
+Command (recommended to do as root but not required):
+# cpan install <module>
+Modules:
+Data::Dumper
+DBI
+DBD::mysql
+JSON
+LWP::Simple
+URI::Escape
+Datetime
+Datetime::Format::Strptime
+Switch
+Scalar::Util
+
+Install ArgoUML on your laptop: http://argouml.tigris.org/
+
+Configure git (should should have already installed the git package):
+$ git --config user.name="Steve Ladd"
+$ git --config user.email="<your email>"
+
+Clone the dayTrader repository to your laptop:
+$ git clone steve@74.207.244.99:/opt/git/dayTrader.git ~/dayTrader
+
+Feel free to make a copy of the repository in the home directory on the linode server as well, I have one. Read the git clone --help for more info if it's not self-explanatory on how to do that.
+
+
+Here's an overview of what's in the repositry:
+./fetch_yahoo_quotes.pl - get the day's biggest losers from yahoo to collect quote data. I have a cron job scheduled on the server to automatically execute this script everyday the market is open. It creates a log file in the ./logs directory (as well as stores the raw html files retrieved from yahoo in the ./html_source directory)
+./model/GayTrader.zargo - ArgoUML model of the application. Just class diagrams right now. I have a couple very simple sequence diagrams on paper that I haven't put into the model yet. Feel free to edit/update just make sure to push your changes back out the repository when you're done (see below for push instruc.)
+./IB/doc - contains a bunch of API guides to the Interactive Brokerers (IB) API that we'll be using as our brokerage. Recommend reading these, especially the APIprintable.pdf
+./IB/IBJTs/java - the com/ directory contains the source files reference in the IB API guide. It's been imported into the model as well.
+./TDAmeritrade - I haven't explored much in this directory, but this is the API as downloaded from TDAmeritrade so we need to figure out how to use this to stream data. To open the TDA-API.chm file, use the chmsee program you installed in the package list above. Another good resource is the TDAmeritrade forums: http://apiforums.tdameritrade.com/tda-board/ubbthreads.php. The TDAmeritrade API source still needs to be imported into the model (and maybe downloaded?)
+./source - will contain the source code for our application. Right now just has a few source files that I created to test ArgoUML's ability to create source files.
+./symbolListing - contains the amex, nasdaq, and nyse complete symbol listings. This changes with IPOs and companies dropping of the exchange so is something we should have updated regularly within our application. The symbol list can be downloaded off the web (I'll have to find the URL again)
+./scripts - attempts at various php and perl scripts, but nothing really useful
+./try - synonymous with trash
+
+
+To retrieve latest updates from repository:
+$ cd ~/dayTrader
+$ git pull
+
+To commit your updates to the repository (you can see a list of modified files with 'git status': use the git status --help command for more info):
+$ cd ~/dayTrader
+$ git add <modified files>
+$ git commit
+$ git push
+
+If you want to create a local version of the database you can do so with the following commands:
+Login to the server:
+$ ssh steve@74.207.244.99
+Dump the database:
+$ mysqldump -u root -p --database stockdata > /home/steve/temp/mysqldump_<mm-dd-yyyy>.sql
+On your local machine copy the dumped database:
+$ scp steve@74.207.244.99:/home/steve/dayTrader/database/mysqldump_<mm-dd-yyyy>.sql ~/dayTrader/database/.
+Login to the local mysql database and delete the current database:
+$ mysql -u <username> -p
+mysql> DROP DATABASE stockdata;
+mysql> exit
+Import the database:
+$ mysql -u <username> -p --database stockdata < /home/steve/dayTrader/database/mysqldump_<mm-dd-yyyy>.sql
+The tables of interest and are current working tables in the database are:
+amex_max_losers, nasdaq_max_losers, nyse_max_losers - raw quote data from the days biggest loser for each exchange
+amex_gains_losses, nasdaq_gains_losses, nyse_gains_losses - percent gains and losses for the previous day's biggest losers
+averages - running average of the cumulative % gain/loss for each exchage
+You'll have to look at the fetch_yahoo_quotes.pl perl script to really understand what's in these tables.
+

@@ -1,0 +1,75 @@
+
+ALL COMMANDS SHOULD BE EXECUTED WITHIN YOUR REPOSITORY DIRECTORY OR WITHIN A SUBDIRECTORY OF YOUR REPOSITORY
+
+First verify that you have a remote repository configured by executing:
+	
+	$ git remote
+
+This command should out put "origin", if you see something diffent substitute the output for "origin" for all applicable commands
+
+Next check the status of your local repository with command:
+
+	$ git status
+
+This command will have 4 different looks to its output:
+	1) "nothing to commit (working branch clean)
+	2) "Changes to be committed: (use git reset HEAD <file> to unstage)
+	3) "Untracked files: (use git add <file> to include)
+	4) Both 2 and 3
+#1 means that you have made no local changes in your repository since you last merged the remote repository
+#2 means you have changes ready to be merged to your local repo with a git commit command (explained below)
+#3 means you have new files in your local repository that have not yet been added to version control
+
+To merge your local changes into the latest version of the file, execute:
+
+	$ git commit <file> <file> ...
+
+You can undo any changes that are not yet merged with the command:
+	$ git reset HEAD <file> <file> ...
+HEAD is a special keyword for git that is synominous with the last version of a file
+
+To add new files to your local repository, execute:
+
+	$ git add <file> <file> ...
+
+Once you've added a file, you will still have to commit it to complete the checkin process and truly add it to the repo
+
+Once your happy with the updates to your local repo, push it back up to the remote repo:
+
+	$ git push origin
+
+This command merges the latest version of your local repo files to the latest version of the remote repo. This will only push the files that have been committed to you local repo with the git commit command. Any files that have not been commited nor added will not be pushed to the remote repo
+
+
+To sync your local repo with the latest version of the remote repo
+
+	$ git pull origin
+
+When doing a pull command, things can get tricky if you have un-committed changes to your local repo, especially if there's a merge conflict. As long as files have been committed, regardless of if you've yet to push your latest changes to the remote repo, you should be safe. So I recommend to always commit all changes to your local repo before performing a git pull command
+
+If you want to get the latest changes from the remote repo, but don't want to merge them into your local repo, execute:
+
+	$ git fetch origin
+
+This command will stage the latest version of the remote repo into your local repo, such that you will still need to execute a git add or git commit command to merge the changes into your local repo. A git pull command it the equivalent of sequential git fetch and git commit commands
+
+
+To check the status of the remote repository (see if everything is checked in or not [it always should be])
+
+	$git status origin
+
+To see what's different between your local repo and the remote repo, execute:
+
+	$ git diff master origin/master
+
+
+I set up the following aliases to help me keep it all straight (and you typically want to execute them in this order:
+
+alias gitdiffremote='git diff master origin/master'
+alias gitfetch='git fetch origin'
+alias gitadd='git add'
+alias gitcommit='git commit'
+alias gitpush='git push origin'
+alias gitpull='git pull origin'
+
+I haven't gone into branching at all and I don't think that will be necessary for quite some time. For now let's just keep everything on the master branch and be cognizant of regularly pushing to and pulling from the remote repo so things don't get too far out of sync.

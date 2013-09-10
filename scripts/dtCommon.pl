@@ -31,9 +31,21 @@ use warnings;
   our $logfileLocation = "./";
 
 # global variables
-our $sessionId;
-our $connection;
+  our $sessionId;
+  our $connection;
 
+# global parameters
+  our $MIN_VOLUME = -1;
+  our $MAX_LOSERS = 10;
+
+# debugging
+  # 1 = standard debugging; 2 include DT return data (lots!)
+  our $_dbg = 1;
+  our $dbgfileLocation = "./";
+  our $dbgfileName = "dt.dbg";
+
+  # set this if the market is closed (for testing)
+  our $_marketClosed = 0;
 
 #=================================================
 # return a valid session Id if login is successful
@@ -50,6 +62,7 @@ sub login
     unless $resp->is_success;
 
 #print "\nLogin results: ", $resp->content, "\n";
+  print "\nLogged in to TD Ameritrade...\n";
 
   my $sid = simpleParse( $resp->content, "session-id" );
   return $sid;
@@ -65,7 +78,8 @@ sub logout
   die "logout error ", $getContent
     unless defined $getContent;
 
-print "\nLogout results: ", $getContent, "\n";
+#print "\nLogout results: ", $getContent, "\n";
+  print "\nLogged out from TD Ameritrade...\n";
 }
 
 
@@ -105,7 +119,7 @@ sub simpleParse
   my $end   = index($xml, $tagb);
   if ($start==-1 || $end==-1)
   {
-print "\nParse error for tag $tag\n";
+warn "\nParse error for tag $tag\n";
      return "";
   }
 
@@ -142,4 +156,30 @@ sub timeStamp
 
   return "$date $time";
 }
+
+#========================================================
+sub symbolLookup
+{
+  my ($symbolid) = @_;
+
+  my $db = $connection->prepare( "SELECT symbol FROM symbols where id = $symbolid" );
+  $db->execute();
+
+  my $rows = $db->rows;
+
+  if ($rows!=1)
+  {
+    warn "\nsymbolLookup: Fatal DB error - cant find id $symbolid in symbol table\n";
+    return "";
+  }
+
+  my @data = $db->fetchrow_array();
+  my $symbol    = $data[0];
+#print "\nlookup $symbolid: $symbol";
+
+  $db->finish();
+  
+  return $symbol;
+}
+
 

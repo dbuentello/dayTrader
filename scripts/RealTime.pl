@@ -10,6 +10,13 @@ do 'dtCommon.pl';
 #==================main=======================================
 print "\n** Get Real Time Quotes from TD Ameritrade **\n";
 
+  #debugging
+  if ($_dbg) { 
+    print "\nDebugging Level $_dbg ON (to $dbgfileLocation"."$dbgfileName)\n";
+    if ($_marketClosed) {print "\n*** market is closed:  using calculated \%Chg\n"; print DBGFILE "\n*** market is closed:  using calculated \%Chg\n"; }
+  }
+  open(DBGFILE, ">>".$dbgfileLocation.$dbgfileName) || die "Error opening dbgfile!";
+
   #global log file
   open(LOGFILE, ">>".$logfileLocation."dayTrader.log") || die "Error opening logfile!";
 
@@ -17,16 +24,18 @@ print "\n** Get Real Time Quotes from TD Ameritrade **\n";
   $connection = DBI->connect( "DBI:mysql:database=stockdata;host=localhost", "root", "sal", {'RaiseError' => 1} );
 
   $sessionId = login();
-print "\nreturned sid = $sessionId";
+#print "\nreturned sid = $sessionId";
   if (length($sessionId) == 0)
   {
-     print "\nInvalid login\n";
+     warn "\nRealTime: Invalid login\n";
      exit;
   }
 
   #these are the ones we're interested in...
   my @losers = &getLosers();				#(& needed to avoid forward prototype error)
-print "\nlosers are: @losers";
+if ($_dbg) { print DBGFILE "\nRealTime: losers are  @losers"; }
+
+  print "\nRetrieving Real Time data for todays biggest losers (@losers)";
 
   foreach my $loser (@losers)
   {
@@ -43,6 +52,8 @@ print "\nlosers are: @losers";
 
   close LOGFILE;
 
+  close DBGFILE;
+
 print "\n**end**\n";
 
 #=================end main=====================================
@@ -54,22 +65,22 @@ print "\n**end**\n";
 
 sub getLosers()
 {
-  #my @losers = ("ORCL", "MSFT");
   my @losers;
 
   my $date = getDate();
   my $stmt = "SELECT symbol from Holdings WHERE buy_date = \"$date\"";
-print "\n getLosers: $stmt";
+if ($_dbg) { print DBGFILE "\nRealTime::getLosers(): $stmt"; }
 
   my $db = $connection->prepare($stmt);
   $db->execute();
 
   my $rows = $db->rows;
-print "\n", $rows, " fetched";
+#print "\n", $rows, " fetched";
 
   if ($rows==0)
   {
-    print "\nFatal DB error - no rows in Holdings table\n";
+    warn print "\nFatal DB error - no rows in Holdings table\n";
+    print LOGFILE "\nRealTime::getLosers() Fatal DB error - no rows in Holdings table\n";
     return @losers;
   }
 
@@ -95,7 +106,7 @@ sub realTimeUpdate
   my $symbol = simpleParse($data, "symbol");
   if ($symbol eq "")
   {
-     print "\n!!realTimeUpdate NULL symbol !!\n";
+     print LOGFILE "\n!!RealTime::realTimeUpdate() NULL symbol !!\n";
      return;
   }
 
@@ -111,7 +122,7 @@ sub realTimeUpdate
 
   # insert the data into the db
   my $insert_statement = "INSERT INTO RealTimeQuotes (symbol, date, price, volume) VALUES (\"$symbol\", \"$date\", $price, $volume)";
-#print "\n$insert_statement";
+#if ($_dbg) { "\nRealTime::realTimeUpdate(): $insert_statement"; }
 
   #TODO: error check
   $connection->do( $insert_statement );
@@ -128,7 +139,7 @@ sub shouldWeSell
   my $symbol = simpleParse($data, "symbol");
   if ($symbol eq "")
   {
-     print "\n!!shouldWeSell NULL symbol !!\n";
+     print LOGFILE "\n!!RealTime::shouldWeSell() NULL symbol !!\n";
      return;
   }
 
@@ -147,17 +158,17 @@ sub shouldWeSell
   my $per_incr  = shift(@crit);
 
   my $sell_price = $buy_price + ($buy_price * $per_incr);
-print "\nBuy/Sell $symbol: current: $price, sell at: $sell_price; we bought at: $buy_price, $per_incr% incr";
+#print "\nBuy/Sell $symbol: current: $price, sell at: $sell_price; we bought at: $buy_price, $per_incr% incr";
 
   #TODO: should we round to 2 decimal places?  val = int(val*100 + 0.5)/100;
   if ($price >= $sell_price)
   {
-     print LOGFILE "\n".timeStamp().": **SELL $symbol at $date";
-print "\n**SELL $symbol at $date\n";
+#if ($_dbg) { print DBGFILE "\n".timeStamp().": **SELL $symbol at $date"; }
+#print "\n**SELL $symbol at $date\n";
   }
   else
   {
-print "\n**HOLD $symbol at $date\n";
+#print "\n**HOLD $symbol at $date\n";
   }
 
 }
@@ -174,7 +185,7 @@ print "\n**HOLD $symbol at $date\n";
   # 0: buy price
   # 1: percent increase
   # 2: percent decrease
-  # 3: ...
+  # 3: ..."\nFatal DB error - incorrect nrows in Holdings table\n";
 
 sub getSellCriteria
 {
@@ -199,6 +210,7 @@ sub getSellCriteria
   if ($rows!=1)
   {
     warn "\nFatal DB error - incorrect nrows in Holdings table\n";
+    print LOGFILE "\nFatal DB error - incorrect nrows in Holdings table\n";
     return 0;
   }
 
@@ -209,7 +221,7 @@ sub getSellCriteria
   #push(@crit, $data[1]);
   push(@crit, .00);
 
-print "\n criteria for $symbol is @crit";
+#print "\n criteria for $symbol is @crit";
 
   return @crit;
 

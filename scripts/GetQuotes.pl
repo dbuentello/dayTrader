@@ -12,40 +12,60 @@ do 'dtCommon.pl';
 #==================main=======================================
 print "\n** Get End of Day Quotes from TD Ameritrade **\n";
 
+  #debugging select * from RealTimeQuotes
+  if ($_dbg) { 
+    print "\nDebugging Level $_dbg ON (to $dbgfileLocation"."$dbgfileName)\n";
+    if ($_marketClosed) {print "\n*** market is closed:  using calculated \%Chg\n"; print DBGFILE "\n*** market is closed:  using calculated \%Chg\n"; }
+  }
+  open(DBGFILE, ">>".$dbgfileLocation.$dbgfileName) || die "Error opening dbgfile!";
+
   #global log file
   open(LOGFILE, ">>".$logfileLocation."dayTrader.log") || die "Error opening logfile!";
 
   #connect to our database
-  $connection = DBI->connect( "DBI:mysql:database=stockdata;host=localhost", "root", "sal", {'RaiseError' => 1} );
+  $connection = DBI->co select * from RealTimeQuotesnnect( "DBI:mysql:database=stockdata;host=localhost", "root", "sal", {'RaiseError' => 1} );
 
 #for debuging
 #$connection->trace(1);
 
   $sessionId = login();
-print "\nreturned sid = $sessionId";
+#print "\nreturned sid = $sessionId";
   if (length($sessionId) == 0)
   {
      warn "\nFATAL: Invalid login\n";
      exit;
   }
 
+  print "\nGetting todays quotes...\n";
   getQuotes();
+
   my @biggest_losers = biggestLosers();
-print "\nBiggest losers are: @biggest_losers";
+  print "\nTodays biggest losers are: "; for (my $i=0; $i<$MAX_LOSERS; $i++) { print " ".symbolLookup($biggest_losers[$i]); } print "\n";
+
+if ($_dbg) {
+print "\nBiggest losers are: @biggest_losers\n";
+for (my $i=0; $i<$MAX_LOSERS; $i++) { print " ".symbolLookup($biggest_losers[$i]); } print "\n"; }
 
   #update our holdings table with stocks to buy (just symbol and date)
+  print "\nUpdating holdings...\n";
   updateHoldings(@biggest_losers);
 
   # calcualate buy positions and update DB
   updateBuyPositions(@biggest_losers);
 
-  # execute orders (and update buy price, if different than calculated)
+  # execute orders (anLOGFILEd update buy price, if different than calculated)
 
+  #update our Analysis/History DB (still need TD)
+  print "\nUpdating History...";
+  updateAnalysis();
+
+  #logout from TD Ameritrade
   logout();
 
   $connection->disconnect;
 
   close LOGFILE;
+  close DBGFILE;
 
 print "\n**end**\n";
 
@@ -54,25 +74,18 @@ print "\n**end**\n";
 
 
 
-#=========================================================
-# get all the quotes from TD and load into end of day quote DB
-#
-# right now, this is done one quote at a time! and could take a while
-# TODO: fetch all at once, or in batches - can update our DB one at a time
-# this table could aslo get very big (7000+ entries per day)
 
+#================================================================
+# get 100 at a time
 sub getQuotes
 {
-#debug - and only use AMEX !!!!
-my $count = 0;
-my $MAX_QUOTES = 10;
+my $MAX_QUOTES = 100;
 
-  # clear the temp table first so we only have one entry per date
+  # clear the table first so we only have one entry per date
   my $date = getDate();
   my $stmt = "DELETE FROM EndOfDayQuotes WHERE date = \"$date\"";
   my $db = $connection->prepare( $stmt );
   $db->execute();
-
 
 
   #get the symbols from our database  (DEBUG                             \/ \/
@@ -88,56 +101,151 @@ my $MAX_QUOTES = 10;
     return 0;
   }
 
-  my @data;
-  while ( @data  = $db->fetchrow_array())
+  my $niters = int($rows/$MAX_QUOTES)+1;
+  my $modcnt = $rows % $MAX_QUOTES;	# last partial batch
+#print "\nniters=$niters, modcnt=$modcnt";
+
+#debug
+#$niters=3;
+
+  my $count;
+
+  my $symbols = '';
+  my %symbol_ids = ();	#hash table
+
+  for (my $it=0; $it<$niters; $it++)
   {
-     my $symbol_id = $data[0];
-     my $symbol    = $data[1];
-     my $exchange  = $data[6];
+     # get at least 100 symbols at a time
+     if ($it<$niters-1) { $count = $MAX_QUOTES; }
+     else               { $count = $modcnt;     }
+     
+     for (my $i=0; $i<$count; $i++)
+     {
+       my @data  = $db->fetchrow_array();
+ 
+       my $symbol_id = $data[0];
+       my $symbol    = $data[1];
+       my $exchange  = $data[6];
 #print "\n $symbol, $symbol_id, $exchange";
 
-     my $quote_data = getQuote($symbol);
-print LOGFILE "\n$quote_data";
+       $symbols .= $symbol;
+       $symbol_ids{$symbol} = $symbol_id;
 
-     #sanity check
-     my $q_symbol = simpleParse($quote_data, "symbol");
+       if ($i!=$count-1) { $symbols .= ',';  }
+     } # next symbol
 
-     my $open   = simpleParse($quote_data, "open");
-     my $close  = simpleParse($quote_data, "close");
-     my $low    = simpleParse($quote_data, "low");
-     my $high   = simpleParse($quote_data, "high");
-     my $price  = simpleParse($quote_data, "last");
-     my $volume = simpleParse($quote_data, "volume");
-     my $change = simpleParse($quote_data, "change");
-     my $chgper = simpleParse($quote_data, "change-percent");  
-     # TD returns a string with a trailing % we dont want that
-     $chgper =~ /(\-+[0-9]*\.+[0-9]*)/;
-     $chgper =~ s/[%]//g;
+if ($_dbg) {
+print DBGFILE "\nsymbol list= $symbols";
+print DBGFILE "\nsymbol ids = "; 
+while (($k, $v) = each (%symbol_ids)) { print DBGFILE "$k: $v  "; }
+}
+     
+     # process
+     my $quote_data = getQuote($symbols);
+if ($_dbg == 2) { print DBGFILE "\n$quote_data"; }
+
+     # look for the start of the next quote
+     my $qlstart = index($quote_data, "<quote-list>");
+     # sanity check
+     if ($qlstart == -1)
+     {
+        warn "\nGetQuotes: cant find start of quote-list";
+	return;
+     }
+
+     for (my $i=0; $i<$count; $i++)
+     {
+       my $qstart = index($quote_data, "<quote>");
+       if ($qstart == -1)
+       {
+         warn "\nGetQuotes: cant find start of quote";
+	 return;
+       }
+
+       # strip off beginning
+       $quote_data = substr($quote_data, $qstart);
+
+
+       #parse the return data
+
+       my $symbol = simpleParse($quote_data, "symbol");
+       my $open   = simpleParse($quote_data, "open");
+       my $close  = simpleParse($quote_data, "close");
+       my $low    = simpleParse($quote_data, "low");
+       my $high   = simpleParse($quote_data, "high");
+       my $price  = simpleParse($quote_data, "last");
+       my $volume = simpleParse($quote_data, "volume");
+       my $change = simpleParse($quote_data, "change");
+       my $chgper = simpleParse($quote_data, "change-percent");  
+       # TD returns a string with a trailing % we dont want that
+       $chgper =~ /(\-+[0-9]*\.+[0-9]*)/;
+       $chgper =~ s/[%]//g;
+
+       if ($price == 0 or $close == 0)
+       {
+         $change = '';
+         $chgper = '';
+       }
 
 # this is interesting!!!  TD is returning 0.00 and 0.00% for change and change-percent!!
 # is this because te markets are closed?  eg, price = close?
-# change = (prev)close - (current)price  %chg = change/(prev)close * 100
-# so calculate it ourselves
-     if ($open == 0 or $close == 0)
+# also price = close, which must mean that the last price is the previous close when the markets are closed!!!
+# change = (current)price - (prev)close -   %chg = change/(prev)close * 100
+# so calculate it ourselves- when the market is closed, used open instead of close
+if ($_marketClosed) {
+     if ($price == 0 or $open == 0)
      {
        $change = 0;
        $chgper = 0;
      }
      else
      {
-       $change = $open-$close;
-       $chgper = ($change/$open *100)."%";
+       $change = $price-$open;
+       $chgper = ($change/$open *100);
      }
+}
 
-print LOGFILE "\n$symbol: $open, $close, $low, $high, $price, $volume, $change, $chgper";
+       
+       #look for an error - this could be done first, bit little harm here
+       # note: they'll still be inserted, but with empty values and 0 % change
+       my $err = simpleParse($quote_data, "error");
+       if ($err ne "")
+       {
+          print LOGFILE "\nError in quote data for $symbol from AmeriTrade: $err";
+       }
 
-     #insert into our end of day quote DB
-     updateQuotes($symbol, $symbol_id, $open, $close, $low, $high, $price, $volume, $change, $chgper);
+print DBGFILE "\n$symbol ($symbol_ids{$symbol}): $open, $close, $low, $high, $price, $volume, $change, $chgper";
 
-#debug
-last if ($count++ == $MAX_QUOTES);
+       # however, this is fatal because we wont have an id to insert!
+       if (!defined($symbol_ids{$symbol}))
+       {
+          warn "\nCant find symbol id for $symbol! Not updating quote table!";
+          print LOGFILE "\nCant find symbol id for $symbol! Not updating quote table!";
+       }
+       else
+       {
+         #insert into our end of day quote DB
+         updateQuotes($symbol, $symbol_ids{$symbol}, $open, $close, $low, $high, $price, $volume, $change, $chgper);
+       }
 
-  }
+       # get ready to parse next quote
+       my $qend = index($quote_data, "</quote>");
+       if ($qend == -1)
+       {
+         warn "\nGetQuotes: cant find end of quote";
+	 return;
+       }
+
+       # strip off beginning
+       $quote_data = substr($quote_data, $qend);
+
+     }  # next quote
+
+     # start again
+     $symbols = '';
+     %symbol_ids = ();		# this isnt absolutely necessary, but it will save memory
+  
+  } # next batch
 
   $db->finish();
   return $rows;
@@ -153,9 +261,6 @@ sub updateQuotes
   my $date = getDate();
 
   #format certain fields so they insert in the database nicely
-  # BIG TODO: use a different date!  lastTradeDate & format
-  my $date = getDate();
-  
   #ensure all our values are correctly defined - TODO: check this
   if ( !defined $open   || $open eq "")    { $open = "NULL"; }
   if ( !defined $close  || $close eq "")   { $close = "NULL"; }
@@ -167,9 +272,9 @@ sub updateQuotes
   if ( !defined $chgper || $chgper eq "")  { $chgper = NULL; }
 
 
-  # insert the data into the db  - use prev close for %change
+  # insert the data into the EOD db
   my $insert_statement = "INSERT INTO EndOfDayQuotes (symbolid, symbol, date, open, close, high, low, price, volume, chng, chgper) VALUES ($sid, \"$symbol\", \"$date\", $open, $close, $high, $low, $price, $volume, $change, \"$chgper\")";
-print LOGFILE "\nupdateQuotes: $insert_statement";
+print DBGFILE "\nupdateQuotes: $insert_statement";
 
   #TODO: error check
   $connection->do( $insert_statement );
@@ -178,12 +283,10 @@ print LOGFILE "\nupdateQuotes: $insert_statement";
 
 #======================================================
 # return the top n biggest losers by percent change
-# note: limited to $nlosers=10 right now, without any criteria
+# note: limited to $MAX_LOSERS=10 right now, with only minVolume criteria
 
 sub biggestLosers
 {
-my $n_losers = 10;
-
   my @losers;
 
 
@@ -191,8 +294,8 @@ my $n_losers = 10;
   my $date = getDate();
 
   #get the symbols from our database (date based to retrieve most current)
-  my $select = "SELECT symbolId FROM EndOfDayQuotes WHERE date = \"$date\" ORDER BY chgper";
-print "\nbiggestLosers: ".$select;
+  my $select = "SELECT symbolId FROM EndOfDayQuotes WHERE date = \"$date\" AND volume > $MIN_VOLUME ORDER BY chgper";
+#print "\nbiggestLosers: ".$select;
 
   my $db = $connection->prepare( $select );
   $db->execute();
@@ -206,7 +309,7 @@ print "\nbiggestLosers: ".$select;
     return 0;
   }
 
-  for (my $i=0; $i<$n_losers; $i++)
+  for (my $i=0; $i<$MAX_LOSERS; $i++)
   {
     my @data = $db->fetchrow_array();
     push(@losers, $data[0]);
@@ -280,7 +383,7 @@ sub updateBuyPositions
 #=======================================================
 #get the most current price from ????
 # options: query TD right now
-#          use the previous query when all stocks were queried
+#          use the previous query when all stocks were queried  <<<--- this should be fine
 sub getCurrentPrice
 {
   my ($sid) = @_;
@@ -289,31 +392,100 @@ sub getCurrentPrice
   my $results = getQuote($symbol);
   my $price = simpleParse($results, "last");
 
+  if ($price == '')
+  {
+    warn "\ngetCurrentPrice for $symbol ($sid) is not valid";
+    return 0;
+  }
+
   return $price;
 }
 
 
-#========================================================
-sub symbolLookup
-{
-  my ($symbolid) = @_;
 
-  my $db = $connection->prepare( "SELECT symbol FROM symbols where id = $symbolid" );
+#=============================================================================
+# this is a copy of whats in Analyze.pl - should we do it here or separate module?
+# we already have our TD login here
+
+#=============================================================================
+# Read from the holdings table to get todays holdings, then
+# get complete history from TDAmeritrade
+
+sub updateAnalysis
+{
+  #TODO
+  my $date = getDate();
+
+  #only one entry per date allowed
+  my $stmt = "DELETE FROM Analysis WHERE date = \"$date\"";
+  $connection->do( $stmt );
+
+
+  #get the symbols from our database (date based to retrieve most current)
+# TODO: check this!!!! buy date may be tomorrow!!!
+  my $select = "SELECT symbol FROM Holdings WHERE buy_date = \"$date\"";
+  my $db = $connection->prepare( $select );
   $db->execute();
 
   my $rows = $db->rows;
-
-  if ($rows!=1)
+  if ($rows==0)
   {
-    warn "\nFatal DB error - no rows in symbol table\n";
-    return "";
+    warn "\nupdate Analysis: Fatal DB error - no rows in Holdings table\n";
+    return 0;
   }
 
-  my @data = $db->fetchrow_array();
-  my $symbol    = $data[0];
-#print "\nlookup $symbolid: $symbol";
+  
+  for (my $i=0; $i<$rows; $i++)
+  {
+    my @data = $db->fetchrow_array();
+#print "\nupdateAnaylsis data is @data";
+
+    my $symbolf = $data[0];
+
+    my $quote_data = getQuote($symbolf);
+if ($_dbg == 2) { print DBGFILE "\n$quote_data"; }
+
+
+    #parse the return data
+
+    my $symbol = simpleParse($quote_data, "symbol");
+
+    #sanity check
+    if ($symbol ne $symbolf)
+    {
+       warn "\nupdateAnalysis: discrpancy between symbols $symbolf:$symbol";
+    }
+
+    my $open   = simpleParse($quote_data, "open");
+    my $close  = simpleParse($quote_data, "close");
+    my $low    = simpleParse($quote_data, "low");
+    my $high   = simpleParse($quote_data, "high");
+    my $price  = simpleParse($quote_data, "last");
+    my $volume = simpleParse($quote_data, "volume");
+    my $change = simpleParse($quote_data, "change");
+    my $chgper = simpleParse($quote_data, "change-percent");  
+ 
+    # TD returns a string with a trailing % we dont want that
+    $chgper =~ /(\-+[0-9]*\.+[0-9]*)/;
+    $chgper =~ s/[%]//g;
+
+
+    #ensure all our values are correctly defined - TODO: check this
+    if ( !defined $close  || $close eq "")   { $close = 0; }
+    if ( !defined $low    || $low eq "")     { $low = 0; }
+    if ( !defined $high   || $high eq "")    { $high = 0; }
+    if ( !defined $price  || $price eq "")   { $price = 0; }
+    if ( !defined $volume || $volume eq "" ) { $volume = 0; }
+    if ( !defined $chgper || $chgper eq "")  { $chgper = 0; }
+
+    my $stmt = "INSERT INTO Analysis (symbol, date, close, high, low, price, volume, chgper ) VALUES (\"$symbol\", \"$date\",$close, $high, $low, $price, $volume, $chgper)"; 
+if ($_dbg) { print DBGFILE "\nupdateAnalysis: $stmt"; }
+
+    #TODO: error check
+    $connection->do( $stmt );
+
+  } #next quote
 
   $db->finish();
-  
-  return $symbol;
 }
+

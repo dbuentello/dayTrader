@@ -4,24 +4,39 @@
 
 # right now, they are queried one at a time - could query in a batch for efficiency, or stream in binary
 
-do 'dtCommon.pl';
-
+do '/home/dayTrader/bin/dtCommon.pl';
+#do 'dtCommon.pl';
 
 #==================main=======================================
-print "\n** Get Real Time Quotes from TD Ameritrade **\n";
+print "\n\n*** Get RealTime Quotes ".strftime('%a %b %e %Y %H:%M',localtime)." ***\n\n";
+
+  # caution!
+  if ($_ignoreMarketClosed==1) { print "\nWARNING: you are overriding check for open market!\n";  }
 
   #debugging
   if ($_dbg) { 
     print "\nDebugging Level $_dbg ON (to $dbgfileLocation"."$dbgfileName)\n";
-    if ($_marketClosed) {print "\n*** market is closed:  using calculated \%Chg\n"; print DBGFILE "\n*** market is closed:  using calculated \%Chg\n"; }
   }
-  open(DBGFILE, ">>".$dbgfileLocation.$dbgfileName) || die "Error opening dbgfile!";
+  open(DBGFILE, ">>".$dbgfileLocation.$dbgfileName) || die "Error opening dbgfile ($dbgfileLocation.$dbgfileName) $!";
+  print DBGFILE "\n\n*** Get RealTime Quotes ".strftime('%a %b %e %Y %H:%M',localtime)." ***\n\n";
 
   #global log file
-  open(LOGFILE, ">>".$logfileLocation."dayTrader.log") || die "Error opening logfile!";
+  open(LOGFILE, ">>".$logfileLocation."dayTrader.log") || die "Error opening logfile ($logfileLocation.dayTrader.log) $!";
+  print LOGFILE "\n\n*** Get RealTime Quotes ".strftime('%a %b %e %Y %H:%M',localtime)." ***\n\n";
 
   #connect to our database
-  $connection = DBI->connect( "DBI:mysql:database=stockdata;host=localhost", "root", "sal", {'RaiseError' => 1} );
+  $connection = DBI->connect( "DBI:mysql:database=$dbname;host=localhost", "root", "sal", {'RaiseError' => 1} );
+
+
+  #before we do anything, lets make sure the market is open today...
+  # (for developing, we can set the ignore flag...)
+  my $isOpen = isMarketOpen();
+  if (!$_ignoreMarketClosed) {
+    if ($isOpen != 1) {
+      print "\nMarket is not open today.  Bye.\n";
+      exit;
+    }
+  }
 
   $sessionId = login();
 #print "\nreturned sid = $sessionId";
@@ -79,7 +94,7 @@ if ($_dbg) { print DBGFILE "\nRealTime::getLosers(): $stmt"; }
 
   if ($rows==0)
   {
-    warn print "\nFatal DB error - no rows in Holdings table\n";
+    warn "\nRealTime::getLosers() Fatal DB error - no rows in Holdings table\n";
     print LOGFILE "\nRealTime::getLosers() Fatal DB error - no rows in Holdings table\n";
     return @losers;
   }
@@ -128,8 +143,13 @@ sub realTimeUpdate
   $connection->do( $insert_statement );
 }
 
+
 #=======================================================
-# input is last trade data for a symbol
+# determine if we should sell the stock now
+#
+# input is the latest real time trade data for a symbol
+#
+# TODO: +/- increment now... can have separate increase/decrease
 
 sub shouldWeSell
 {
@@ -148,82 +168,131 @@ sub shouldWeSell
   my $date   = simpleParse($data, "last-trade-date");
 
   # an array of criteria
-  # 0: buy price
   # 1: percent increase
   # 2: percent decrease
   # 3: ...
-  my @crit = getSellCriteria($symbol);
-
-  my $buy_price = shift(@crit);
+  my @crit = getSellCriteria();
   my $per_incr  = shift(@crit);
+  my $per_decr  = shift(@crit);
 
-  my $sell_price = $buy_price + ($buy_price * $per_incr);
-#print "\nBuy/Sell $symbol: current: $price, sell at: $sell_price; we bought at: $buy_price, $per_incr% incr";
+  # get the buy price from Holdings table
+  my $buy_price = getBuyPrice($symbol);
 
-  #TODO: should we round to 2 decimal places?  val = int(val*100 + 0.5)/100;
-  if ($price >= $sell_price)
+  my $sell_price_diff = $buy_price * $per_incr;
+#print "\nBuy/Sell $symbol: current: $price, sell at +/-: $sell_price_diff; we bought at: $buy_price ($per_incr% incr)";
+
+  # round real time price to 3 digits
+  $price = int($price*1000 + 0.5)/1000;
+
+  # sell if it goes up or down       #per share
+  if (($price >= $buy_price + $sell_price_diff) || ($price < $buy_price - $sell_price_diff))
   {
-#if ($_dbg) { print DBGFILE "\n".timeStamp().": **SELL $symbol at $date"; }
-#print "\n**SELL $symbol at $date\n";
-  }
-  else
-  {
-#print "\n**HOLD $symbol at $date\n";
-  }
+      #update the Holdings Table with this info
+      if (updateSellPositions($symbol, $price, $date))
+      {
+        my $net = "EVEN";
+        if ($price > $buy_price + $sell_price_diff) { $net = "GAIN"; }
+        if ($price < $buy_price - $sell_price_diff) { $net = "LOSS"; }
+
+        print "\n".timeStamp().": *** SELL $symbol at a $net of \$$sell_price_diff ($price : $buy_price) at $date ***"; 
+        print LOGFILE "\n".timeStamp().": *** SELL $symbol at a $net of \$$sell_price_diff ($price : $buy_price)  at $date ***";
+if ($_dbg) { print DBGFILE "\n".timeStamp().": *** SELL $symbol at a $net of \$$sell_price_diff ($price : $buy_price) at $date ***"; }
+
+      } #only log if updated
+
+  } # we should sell
 
 }
 
-#==================================================
-# get the sell criteria from the Holdings DB.  This is an
-# XML string defining the criteria.  It can be different for
-# each stock and as complex as necessary.
-# to start it will be sell when price > buy_price * 2%
-# (for testing its 0% - eg sell now)
+#================================================================
+# get the sell criteria from the criteria file (TODO). This is an
+# XML string defining the criteria.  It is the same for all stocks
+# to start it will be sell when price increases or decreases by 2%
+# over/under the buy_price
 
-# input is symbol
 # output is an array of criteria
-  # 0: buy price
   # 1: percent increase
   # 2: percent decrease
-  # 3: ..."\nFatal DB error - incorrect nrows in Holdings table\n";
+  # 3: ...
 
 sub getSellCriteria
 {
-  my ($symbol) = @_;
-
   my @crit;
+
+  push(@crit, .02);   # % increase
+  push(@crit, .02);   # % decrease
+
+#print "\nsell criteria is @crit";
+
+  return @crit;
+
+}
+
+#============================================================================
+# get the buy price for this symbol from the Holdings Table.  Get the last
+# holdings by previous date BIG TODO.  Now, return the most recent based on date
+# (which may be good enough)
+
+sub getBuyPrice
+{
+  my ($symbol) = @_;
 
 
 #get the buy price and criteria from the Holdings table from the day before
   # BIG TODO: use a different date!
-  my $date = getDate();
+  #my $date = getPreviousDate();
+  #my $date = getDate();
+  #my $select = "SELECT buy_price FROM Holdings WHERE symbol = \"$symbol\" AND buy_date = \"$date\"";
 
-  my $select = "SELECT buy_price, criteria FROM Holdings WHERE symbol = \"$symbol\" AND buy_date = \"$date\"";
-#print "\ngetSellCriteria: ".$select;
+  my $select = "SELECT buy_price FROM Holdings WHERE symbol = \"$symbol\" ORDER BY buy_date DESC LIMIT 1";
+#print "\ngetBuyPrice: ".$select;
 
   my $db = $connection->prepare( $select );
   $db->execute();
 
   my $rows = $db->rows;
-#print "\n", $rows, " fetched";
 
   if ($rows!=1)
   {
-    warn "\nFatal DB error - incorrect nrows in Holdings table\n";
-    print LOGFILE "\nFatal DB error - incorrect nrows in Holdings table\n";
+    warn "\ngetBuyPrice() cant retrieve buy price from Holdings for $symbol";
+    print LOGFILE "\getBuyPrice() cant retrieve buy price from Holdings for $symbol";
     return 0;
   }
 
   my @data = $db->fetchrow_array();
   $db->finish();
 
-  push(@crit, $data[0]);
-  #push(@crit, $data[1]);
-  push(@crit, .00);
+  $buy_price = $data[0];
 
-#print "\n criteria for $symbol is @crit";
+#print "\ngetBuyPrice for $symbol = $buy_price";
 
-  return @crit;
+  return $buy_price;
 
 }
+
+#==========================================================
+#TODO: add volume total
+# ?? use symbolId or symbol?
+# note: this assumes that all other sell orders for this symbol have already been executed,
+# eg there are only unique symbols with a null sell_date
+# it wont update if already sold  TODO: keep track if it keeps rising?
+
+sub updateSellPositions()
+{
+  my ($symbol, $price, $date) = @_;
+
+#     $stmt = "UPDATE Holdings SET sell_price = $price, buy_volume = $buy_volume, buy_total = $buy_total WHERE symbolid = $sid AND buy_date = \"$date\"";
+     $stmt = "UPDATE Holdings SET sell_price = $price, sell_date= \"$date\" WHERE symbol = \"$symbol\" AND sell_date is NULL";
+
+if ($_dbg) { print DBGFILE "\nupdateSellPositions: $stmt"; }
+
+     my $rows_changed = $connection->do( $stmt );
+
+if ($_dbg) {
+if ($rows_changed == 0) { print DBGFILE "\nnot updating $symbol because its already sold"; }
+}
+
+  return $rows_changed;
+}
+
 

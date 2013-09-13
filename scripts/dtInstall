@@ -1,0 +1,3 @@
+cp $1/GetQuotes.pl /home/dayTrader/bin/.
+cp $1/RealTime.pl /home/dayTrader/bin/.
+cp $1/dtCommon.pl /home/dayTrader/bin/.

@@ -9,12 +9,10 @@ use XML::Parser;
 
 use LWP;
 use LWP::Simple;
-use URI::Escape;
 
 use DateTime;
 use DateTime::Format::Strptime;
-use Switch;
-use Scalar::Util qw(looks_like_number);
+use POSIX qw/strftime/;
 
 use strict;
 use warnings;
@@ -22,30 +20,37 @@ use warnings;
 
 
 # global defines
+
+#TD connect parameters
   our $tdapi_base = "https://apis.tdameritrade.com/apps/100/";
   our $sourceId = "source=NALA";
   our $sourceInfo = $sourceId."&version=1.0";
   our $loginInfo  = "userid=Ladd3113&password=139WhitakerRd";
 
+#database connect parameters
+  our $dbname = "stockdata";
+
 # global logfile
-  our $logfileLocation = "./";
+#  our $logfileLocation = "./";
+  our $logfileLocation = "/home/dayTrader/logs/";
 
 # global variables
   our $sessionId;
   our $connection;
 
 # global parameters
-  our $MIN_VOLUME = -1;
+  our $MIN_VOLUME = 0;
   our $MAX_LOSERS = 10;
 
 # debugging
   # 1 = standard debugging; 2 include DT return data (lots!)
   our $_dbg = 1;
-  our $dbgfileLocation = "./";
+#  our $dbgfileLocation = "./";
+  our $dbgfileLocation = "/home/dayTrader/logs/";
   our $dbgfileName = "dt.dbg";
 
   # set this if the market is closed (for testing)
-  our $_marketClosed = 0;
+  our $_ignoreMarketClosed = 0;
 
 #=================================================
 # return a valid session Id if login is successful
@@ -130,24 +135,16 @@ warn "\nParse error for tag $tag\n";
 }
 
 #==================================================
+# the date format is compatible with our quote tables
 sub getDate
 {
-  (my $second, my $minute, my $hour, my $dayOfMonth, my $month, my $yearOffset, my $dayOfWeek, my $dayOfYear, my $daylightSavings) = localtime();
-  $month++;
-  my $year = 1900 + $yearOffset;
-
-  #my $date = $month . "_" . $dayOfMonth . "_" . $year;
-
-  # this one is compatible with amex_quotes table
-  my $date = $year . "-" .$month . "-" . $dayOfMonth;
-
+  my $dt = DateTime->now;
+  my $date = $dt->ymd;
   return $date;
-
 }
 
 
 #================================================================
-
 sub timeStamp
 {
   my $dt = DateTime->now;
@@ -155,6 +152,26 @@ sub timeStamp
   my $time = $dt->hms;
 
   return "$date $time";
+}
+
+#===========================================================
+# return 1 if open, 0 if closed TODO -1 on query error
+sub isMarketOpen
+{
+  #default is current date
+  my $date = "";
+  if (@_) { $date = $_[0]; }
+
+  my $stmt = "SELECT date, market_is_open FROM calendar WHERE date=CURRENT_DATE()";
+  if ($date ne "") { $stmt = "SELECT date, market_is_open FROM calendar WHERE date=\"$date\""; }
+#print "\n$stmt";
+
+  my $db = $connection->prepare($stmt);
+  $db->execute();
+  my $sql_result = $db->fetchrow_hashref();
+  $db->finish();
+
+  return ($sql_result->{'market_is_open'});
 }
 
 #========================================================

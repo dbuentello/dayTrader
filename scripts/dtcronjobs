@@ -1,0 +1,6 @@
+#daily quotes and losers - runs at 3:45 daily M-F
+45 15 * * 1-5  perl /home/dayTrader/bin/GetQuotes.pl >> /home/dayTrader/logs/dt.out 2>&1
+#real time update of losers between 9:35am and 3:40pm
+35,40,45,50,55 9 * * 1-5 perl /home/dayTrader/bin/RealTime.pl >> /home/dayTrader/logs/dt.out 2>&1
+*/5 10-14 * * 1-5 perl /home/dayTrader/bin/RealTime.pl >> /home/dayTrader/logs/dt.out 2>&1
+5,10,15,20,25,30,35,40 15 * * 1-5 perl /home/dayTrader/bin/RealTime.pl >> /home/dayTrader/logs/dt.out 2>&1

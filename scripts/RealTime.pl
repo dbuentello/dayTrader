@@ -4,41 +4,20 @@
 
 # right now, they are queried one at a time - could query in a batch for efficiency, or stream in binary
 
-do '/home/dayTrader/bin/dtCommon.pl';
-#do 'dtCommon.pl';
+do './dtCommon.pl';
+do './UpdateSellPositions.pl';
+
 
 #==================main=======================================
 print "\n\n*** Get RealTime Quotes ".strftime('%a %b %e %Y %H:%M',localtime)." ***\n\n";
 
-  # caution!
-  if ($_ignoreMarketClosed==1) { print "\nWARNING: you are overriding check for open market!\n";  }
+  getCommandLineArgs();
 
-  #debugging
-  if ($_dbg) { 
-    print "\nDebugging Level $_dbg ON (to $dbgfileLocation"."$dbgfileName)\n";
-  }
-  open(DBGFILE, ">>".$dbgfileLocation.$dbgfileName) || die "Error opening dbgfile ($dbgfileLocation.$dbgfileName) $!";
-  print DBGFILE "\n\n*** Get RealTime Quotes ".strftime('%a %b %e %Y %H:%M',localtime)." ***\n\n";
+  # open DB and log files
+  Initialize("Get Real Time Quotes");
 
-  #global log file
-  open(LOGFILE, ">>".$logfileLocation."dayTrader.log") || die "Error opening logfile ($logfileLocation.dayTrader.log) $!";
-  print LOGFILE "\n\n*** Get RealTime Quotes ".strftime('%a %b %e %Y %H:%M',localtime)." ***\n\n";
-
-  #connect to our database
-  $connection = DBI->connect( "DBI:mysql:database=$dbname;host=localhost", "root", "sal", {'RaiseError' => 1} );
-
-
-  #before we do anything, lets make sure the market is open today...
-  # (for developing, we can set the ignore flag...)
-  my $isOpen = isMarketOpen();
-  if (!$_ignoreMarketClosed) {
-    if ($isOpen != 1) {
-      print "\nMarket is not open today.  Bye.\n";
-      exit;
-    }
-  }
-
-  $sessionId = login();
+  # connect to TD Ameritrade
+  $sessionId = TDlogin();
 #print "\nreturned sid = $sessionId";
   if (length($sessionId) == 0)
   {
@@ -61,7 +40,7 @@ if ($_dbg) { print DBGFILE "\nRealTime: losers are  @losers"; }
   }
 
 
-  logout();
+  TDlogout();
 
   $connection->disconnect;
 
@@ -76,14 +55,17 @@ print "\n**end**\n";
 
 
 #==============================================================
-# get todays losers from our Holdings DB
+# get yesterdays (eg most recent) losers from our Holdings DB
 
 sub getLosers()
 {
   my @losers;
 
-  my $date = getDate();
-  my $stmt = "SELECT symbol from Holdings WHERE buy_date = \"$date\"";
+  my $date = getPreviousTradeDate();
+  my $stmt = "SELECT symbol from Holdings WHERE DATE(buy_date) = \"$date\"";
+
+  # this will select the most recent entries in our Holding table - TODO: be sure this is correct!
+  #my $stmt = "SELECT symbol from Holdings ORDER by buy_DATE DESC LIMIT $MAX_LOSERS";
 if ($_dbg) { print DBGFILE "\nRealTime::getLosers(): $stmt"; }
 
   my $db = $connection->prepare($stmt);
@@ -136,7 +118,8 @@ sub realTimeUpdate
 
 
   # insert the data into the db
-  my $insert_statement = "INSERT INTO RealTimeQuotes (symbol, date, price, volume) VALUES (\"$symbol\", \"$date\", $price, $volume)";
+  # TODO: check the IGNORE - its based on symbol and Last-Trade-date -- what happens if volume, ask or some other param changes?
+  my $insert_statement = "INSERT IGNORE INTO RealTimeQuotes (symbol, date, price, volume) VALUES (\"$symbol\", \"$date\", $price, $volume)";
 #if ($_dbg) { "\nRealTime::realTimeUpdate(): $insert_statement"; }
 
   #TODO: error check
@@ -170,7 +153,8 @@ sub shouldWeSell
   # an array of criteria
   # 1: percent increase
   # 2: percent decrease
-  # 3: ...
+  # 3: ...(implement trailing sell limit)
+  # 4: ...
   my @crit = getSellCriteria();
   my $per_incr  = shift(@crit);
   my $per_decr  = shift(@crit);
@@ -188,7 +172,7 @@ sub shouldWeSell
   if (($price >= $buy_price + $sell_price_diff) || ($price < $buy_price - $sell_price_diff))
   {
       #update the Holdings Table with this info
-      if (updateSellPositions($symbol, $price, $date))
+      if (updateSellPositions($symbol, $price, $date) != 0)
       {
         my $net = "EVEN";
         if ($price > $buy_price + $sell_price_diff) { $net = "GAIN"; }
@@ -239,13 +223,11 @@ sub getBuyPrice
 
 
 #get the buy price and criteria from the Holdings table from the day before
-  # BIG TODO: use a different date!
-  #my $date = getPreviousDate();
-  #my $date = getDate();
-  #my $select = "SELECT buy_price FROM Holdings WHERE symbol = \"$symbol\" AND buy_date = \"$date\"";
+  my $date = getPreviousTradeDate();
+  my $select = "SELECT buy_price FROM Holdings WHERE symbol = \"$symbol\" AND DATE(buy_date) = \"$date\"";
 
-  my $select = "SELECT buy_price FROM Holdings WHERE symbol = \"$symbol\" ORDER BY buy_date DESC LIMIT 1";
-#print "\ngetBuyPrice: ".$select;
+  #my $select = "SELECT buy_price FROM Holdings WHERE symbol = \"$symbol\" ORDER BY buy_date DESC LIMIT 1";
+if ($_dbg) { print DBGFILE "\ngetBuyPrice: ".$select; }
 
   my $db = $connection->prepare( $select );
   $db->execute();
@@ -270,29 +252,5 @@ sub getBuyPrice
 
 }
 
-#==========================================================
-#TODO: add volume total
-# ?? use symbolId or symbol?
-# note: this assumes that all other sell orders for this symbol have already been executed,
-# eg there are only unique symbols with a null sell_date
-# it wont update if already sold  TODO: keep track if it keeps rising?
-
-sub updateSellPositions()
-{
-  my ($symbol, $price, $date) = @_;
-
-#     $stmt = "UPDATE Holdings SET sell_price = $price, buy_volume = $buy_volume, buy_total = $buy_total WHERE symbolid = $sid AND buy_date = \"$date\"";
-     $stmt = "UPDATE Holdings SET sell_price = $price, sell_date= \"$date\" WHERE symbol = \"$symbol\" AND sell_date is NULL";
-
-if ($_dbg) { print DBGFILE "\nupdateSellPositions: $stmt"; }
-
-     my $rows_changed = $connection->do( $stmt );
-
-if ($_dbg) {
-if ($rows_changed == 0) { print DBGFILE "\nnot updating $symbol because its already sold"; }
-}
-
-  return $rows_changed;
-}
 
 

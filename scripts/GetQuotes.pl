@@ -2,8 +2,9 @@
 
 # Get End of Day Stock exchange quotes from TD ameritrade
 
-do '/home/dayTrader/bin/dtCommon.pl';
-#do 'dtCommon.pl';
+#do '/home/dayTrader/bin/dtCommon.pl';
+do './dtCommon.pl';
+do './UpdateSellPositions.pl';
 
 #============================================================
 # get end of day quotes and determine biggest losers
@@ -12,37 +13,13 @@ do '/home/dayTrader/bin/dtCommon.pl';
 #==================main=======================================
 print "\n\n*** Get End of Day Quotes ".strftime('%a %b %e %Y %H:%M',localtime)." ***\n\n";
 
-  # caution!
-  if ($_ignoreMarketClosed==1) { print "\nWARNING: you are overriding check for open market!\n";  }
+  getCommandLineArgs();
 
-  #debugging select * from RealTimeQuotes
-  if ($_dbg) { 
-    print "\nDebugging Level $_dbg ON (to $dbgfileLocation"."$dbgfileName)\n";
-  }
-  open(DBGFILE, ">>".$dbgfileLocation.$dbgfileName) || die "Error opening dbgfile ($dbgfileLocation.$dbgfileName) $!";
-  print DBGFILE "\n\n*** Get End of Day Quotes ".strftime('%a %b %e %Y %H:%M',localtime)." ***\n\n";
+  # open DB and log files
+  Initialize("Get End of Day Quotes");
 
-  #global log file
-  open(LOGFILE, ">>".$logfileLocation."dayTrader.log") || die "Error opening logfile ($logfileLocation.dayTrader.log) $!";
-  print LOGFILE "\n\n*** Get End of Day Quotes ".strftime('%a %b %e %Y %H:%M',localtime)." ***\n\n";
-
-  #connect to our database
-  $connection = DBI->connect( "DBI:mysql:database=$dbname;host=localhost", "root", "sal", {'RaiseError' => 1} );
-
-#for debuging
-#$connection->trace(1);
-
-  #before we do anything, lets make sure the market is open today...
-  # (for developing, we can set the ignore flag...)
-  my $isOpen = isMarketOpen();
-  if (!$_ignoreMarketClosed) {
-    if ($isOpen != 1) {
-      print "\nMarket is not open today.  Bye.\n";
-      exit;
-    }
-  }
-
-  $sessionId = login();
+  # connect to TD Ameritrade
+  $sessionId = TDlogin();
 #print "\nreturned sid = $sessionId";
   if (length($sessionId) == 0)
   {
@@ -50,19 +27,12 @@ print "\n\n*** Get End of Day Quotes ".strftime('%a %b %e %Y %H:%M',localtime)."
      exit;
   }
 
+  # get EndOfDay Quotes and update EODQuotes table (using last-trade-date and last trade price)
+if ($_simulate == 0) {
   print "\nGetting todays quotes...\n";
-  getQuotes();
+  getEODQuotes();
+}
 
-  my @biggest_losers = biggestLosers();
-  print "\nTodays biggest losers are: "; 
-  for (my $i=0; $i<$MAX_LOSERS; $i++) { print " ".symbolLookup($biggest_losers[$i]); } print "\n";
-
-  print LOGFILE "\nTodays biggest losers are:";
-  for (my $i=0; $i<$MAX_LOSERS; $i++) { print LOGFILE " ".symbolLookup($biggest_losers[$i]); } print "\n";
-
-if ($_dbg) {
-print DBGFILE "\nTodays biggest losers are: @biggest_losers\n";
-for (my $i=0; $i<$MAX_LOSERS; $i++) { print DBGFILE " ".symbolLookup($biggest_losers[$i]); } print "\n"; }
 
   # before we do any new transations,
   # sell all of our holdings now (if they didnt sell during the day)
@@ -73,21 +43,31 @@ for (my $i=0; $i<$MAX_LOSERS; $i++) { print DBGFILE " ".symbolLookup($biggest_lo
   # for all the stocks we just sold, calculate net standing
   calculateNet();
 
+
+  # now we can calculate todays biggest losers
+  my @biggest_losers = biggestLosers();
+  my $nlosers = @biggest_losers;
+  if ($nlosers < $MAX_LOSERS)
+  {
+     print "\nGetQuotes() FATAL- cant retrieve biggest losers (only $nlosers found)";
+     print LOGFILE "\nGetQuotes() FATAL- cant retrieve biggest losers (only $nlosers found)";
+     goto QUIT;
+  }
+
   #update our holdings table with stocks to buy today (just symbol and date)
   print "\nUpdating holdings...\n";
   updateHoldings(@biggest_losers);
 
-  # calcualate buy positions and update DB
+  # calcualate todays buy positions and update DB
   updateBuyPositions(@biggest_losers);
 
   # execute orders (and update buy price, if different than calculated)
 
-  #update our Analysis/History DB (still need TD)
-  print "\nUpdating History...";
-  updateAnalysis();
 
+
+QUIT:
   #logout from TD Ameritrade
-  logout();
+  TDlogout();
 
   $connection->disconnect;
 
@@ -103,14 +83,18 @@ print "\n**end**\n";
 
 
 #================================================================
+# get todays quotes and update EOD database
+# returns number of rows inserted, or 0 on error
+
 # get 100 at a time (300 max)
-sub getQuotes
+
+sub getEODQuotes
 {
 my $MAX_QUOTES = 100;
 
   # clear the table first so we only have one entry per date
-  my $date = getDate();
-  my $stmt = "DELETE FROM EndOfDayQuotes WHERE date = \"$date\"";
+  my $date = getCurrentTradeDate();
+  my $stmt = "DELETE FROM EndOfDayQuotes WHERE DATE(date) = \"$date\"";
   my $db = $connection->prepare( $stmt );
   $db->execute();
 
@@ -176,8 +160,8 @@ if ($_dbg == 2) { print DBGFILE "\n$quote_data"; }
      # sanity check
      if ($qlstart == -1)
      {
-        warn "\nGetQuotes: cant find start of quote-list";
-	return;
+        warn "\nFATAL GetQuotes: cant find start of quote-list";
+	return 0;
      }
 
      for (my $i=0; $i<$count; $i++)
@@ -185,8 +169,8 @@ if ($_dbg == 2) { print DBGFILE "\n$quote_data"; }
        my $qstart = index($quote_data, "<quote>");
        if ($qstart == -1)
        {
-         warn "\nGetQuotes: cant find start of quote";
-	 return;
+         warn "\nFATAL GetQuotes: cant find start of quote";
+	 return 0;
        }
 
        # strip off beginning
@@ -195,6 +179,7 @@ if ($_dbg == 2) { print DBGFILE "\n$quote_data"; }
 
        #parse the return data
 
+       my $date   = simpleParse($quote_data, "last-trade-date");
        my $symbol = simpleParse($quote_data, "symbol");
        my $open   = simpleParse($quote_data, "open");
        my $close  = simpleParse($quote_data, "close");
@@ -208,12 +193,22 @@ if ($_dbg == 2) { print DBGFILE "\n$quote_data"; }
        $chgper =~ /(\-+[0-9]*\.+[0-9]*)/;
        $chgper =~ s/[%]//g;
 
-       
-       #look for errors - this could be done first, bit little harm here
-       # dont write to DB
+       my $bid   = simpleParse($quote_data, "bid");
+       my $ask   = simpleParse($quote_data, "ask");
+       my $bas   = simpleParse($quote_data, "bid-ask-size");
+       # retured as bidXask, eg 200X400
+       my $x = index($bas, "X");
+       my $bidsize = substr($bas, 0, $x);
+       my $asksize = substr($bas, $x+1);
+       my $yearlo  = simpleParse($quote_data, "year-low");
+       my $yearhi  = simpleParse($quote_data, "year-high");
+
+       # look for errors - this could be done first, bit little harm here
+       # note that we could have parse errors previous to this error
+       # dont write to DB if there is a symbol error
        my $symerr = 0;
 
-       #TODO: also check for result (before the list!!!
+       #TODO: also check for result (before the list!!!)
        my $err = simpleParse($quote_data, "error");
        if ($err ne "")
        {
@@ -221,7 +216,8 @@ if ($_dbg == 2) { print DBGFILE "\n$quote_data"; }
           $symerr = 1;
        }
 
-if ($_dbg) { print DBGFILE "\n$symbol ($symbol_ids{$symbol}): $open, $close, $low, $high, $price, $volume, $change, $chgper"; }
+if ($_dbg) { print DBGFILE "\n$symbol ($symbol_ids{$symbol}): $date, $open, $close, $low, $high, $price, $volume, $change, $chgper"; }
+if ($_dbg==2) { print DBGFILE ", $bid, $ask, $bidsize, $asksize, $yearlo, $yearhi"; }
 
        # this is realbad because we wont have an id to insert!
        if (!defined($symbol_ids{$symbol}))
@@ -230,6 +226,8 @@ if ($_dbg) { print DBGFILE "\n$symbol ($symbol_ids{$symbol}): $open, $close, $lo
           print LOGFILE "\nCant find symbol id for $symbol! Not updating quote table!";
           $symerr = 1;
        }
+
+#TODO - check for a legit date - real important!
 
        # now check the contents of the return data TODO: why is this happening???
        if ($price eq "")
@@ -247,8 +245,8 @@ if ($_dbg) { print DBGFILE "\n$symbol ($symbol_ids{$symbol}): $open, $close, $lo
        # OK to write
        if ($symerr==0)
        {
-         #insert into our end of day quote DB
-         updateQuotes($symbol, $symbol_ids{$symbol}, $open, $close, $low, $high, $price, $volume, $change, $chgper);
+         #insert into our end of day quote DB using last-trade-date
+         updateQuotes($symbol, $symbol_ids{$symbol}, $date, $open, $close, $low, $high, $price, $volume, $change, $chgper, $bid, $ask, $bidsize, $asksize, $yearlo, $yearhi);
        }
 
        # get ready to parse next quote
@@ -256,7 +254,7 @@ if ($_dbg) { print DBGFILE "\n$symbol ($symbol_ids{$symbol}): $open, $close, $lo
        if ($qend == -1)
        {
          warn "\nGetQuotes: cant find end of quote";
-	 return;
+	 return 0;
        }
 
        # strip off beginning
@@ -278,10 +276,7 @@ if ($_dbg) { print DBGFILE "\n$symbol ($symbol_ids{$symbol}): $open, $close, $lo
 #update our end of day quote DB with all pertinent stock info
 sub updateQuotes
 {
-  my($symbol, $sid, $open, $close, $low, $high, $price, $volume, $change, $chgper) = @_;
-  
-#TODO: use last trade date!!
-  my $date = getDate();
+  my($symbol, $sid, $date, $open, $close, $low, $high, $price, $volume, $change, $chgper) = @_;
 
   #format certain fields so they insert in the database nicely
   #ensure all our values are correctly defined - TODO: check this
@@ -293,10 +288,15 @@ sub updateQuotes
   if ( !defined $volume || $volume eq "" ) { $volume = "NULL"; }
   if ( !defined $change || $change eq "")  { $change = 0; }
   if ( !defined $chgper || $chgper eq "")  { $chgper = NULL; }
-
+  if ( !defined $bid    || $bid eq "")     { $bid = NULL; }
+  if ( !defined $ask    || $ask eq "")     { $ask = NULL; }
+  if ( !defined $bidsize || $bidsize eq "") { $bidsize = NULL; }
+  if ( !defined $asksize || $asksize eq "") { $asksize = NULL; }
+  if ( !defined $yearlo || $yearlo eq "")  { $yearlo = NULL; }
+  if ( !defined $yearhi || $yearhi eq "")  { $yearhi = NULL; }
 
   # insert the data into the EOD db
-  my $insert_statement = "INSERT INTO EndOfDayQuotes (symbolid, symbol, date, open, close, high, low, price, volume, chng, chgper) VALUES ($sid, \"$symbol\", \"$date\", $open, $close, $high, $low, $price, $volume, $change, \"$chgper\")";
+  my $insert_statement = "INSERT INTO EndOfDayQuotes (symbolid, symbol, date, open, close, high, low, price, volume, chng, chgper, bid, ask, bidsize, asksize, yearlo, yearhi) VALUES ($sid, \"$symbol\", \"$date\", $open, $close, $high, $low, $price, $volume, $change, \"$chgper\", $bid, $ask, $bidsize, $asksize, $yearlo, $yearhi)";
 if ($_dbg==2) { print DBGFILE "\nupdateQuotes: $insert_statement"; }
 
   #TODO: error check
@@ -312,24 +312,29 @@ sub biggestLosers
 {
   my @losers;
 
-
-  # BIG TODO: use a different date!
-  my $date = getDate();
+  my $date = getCurrentTradeDate();
+  if ($date eq "")
+  {
+    warn "\nGetQuotes::biggestLosers() FATAL- cant get Current Trade Date";
+    print LOGFILE "\nGetQuotes::biggestLosers() FATAL- cant get Current Trade Date";
+    return 0;
+  }
 
   #get the symbols from our database (date based to retrieve most current)
-  my $select = "SELECT symbolId FROM EndOfDayQuotes WHERE date = \"$date\" AND volume > $MIN_VOLUME ORDER BY chgper";
-#print "\nbiggestLosers: ".$select;
+  my $select = "SELECT symbolId FROM EndOfDayQuotes WHERE DATE(date) = \"$date\" AND volume > $MIN_VOLUME AND price > $MIN_PRICE ORDER BY chgper LIMIT $MAX_LOSERS";
+if ($_dbg==2) { "\nbiggestLosers: ".$select; }
 
+  #TODO error check
   my $db = $connection->prepare( $select );
   $db->execute();
 
   my $rows = $db->rows;
-#print "\n", $rows, " fetched";
 
-  if ($rows==0)
+  if ($rows<$MAX_LOSERS)
   {
-    warn "\nFatal DB error - no rows in quotes table\n";
-    return 0;
+    warn "\nGetQuotes::biggestLosers() FATAL- $rows rows returned from EndOfDayQuotes table";
+    print LOGFILE "\nGetQuotes::biggestLosers() FATAL- $rows rows returned from EndOfDayQuotes table";
+    return @losers;   # empty
   }
 
   for (my $i=0; $i<$MAX_LOSERS; $i++)
@@ -339,6 +344,19 @@ sub biggestLosers
   }
 
   $db->finish();
+
+  # logging
+  print "\nTodays biggest losers are: "; 
+  for (my $i=0; $i<$MAX_LOSERS; $i++) { print " ".symbolLookup($losers[$i]); } print "\n";
+
+  print LOGFILE "\nTodays biggest losers are:";
+  for (my $i=0; $i<$MAX_LOSERS; $i++) { print LOGFILE " ".symbolLookup($losers[$i]); } print "\n";
+
+if ($_dbg) {
+print DBGFILE "\nTodays biggest losers are: @biggest_losers\n";
+for (my $i=0; $i<$MAX_LOSERS; $i++) { print DBGFILE " ".symbolLookup($losers[$i]); } print "\n"; }
+
+
   return @losers;
 }
 
@@ -346,16 +364,18 @@ sub biggestLosers
 # update our Holdings db with the stocks we want to buy today
 # TODO: include current price (which could be updated when the stock is actually bought) here?
 # its done in updateBuyPositions now
+# input is symbol list of biggest losers
 sub updateHoldings
 {
   my (@sid) = @_;
 
-  # BIG TODO: use a different date!
-  my $date = getDate();
+  my $date = getCurrentTradeDate();
+#print "\nupdateHoldings for $date";
 
-  #remove previous entires (really just needed for testing)
-  my $stmt = "DELETE FROM Holdings WHERE buy_date = \"$date\"";
+  #remove previous entires
+  my $stmt = "DELETE FROM Holdings WHERE DATE(buy_date) = \"$date\"";
   $connection->do( $stmt );
+#print $stmt;
 
   # now, add initial holdings data (symbol and date)
   foreach my $sid (@sid)
@@ -363,11 +383,14 @@ sub updateHoldings
      #for debugging - insert symbol too
      my $symbol = symbolLookup($sid);
 
-     my $insert_statement = "INSERT INTO Holdings (symbolId, symbol, buy_date) VALUES ($sid, \"$symbol\", \"$date\")";
-#print "\nupdateHoldings: $insert_statement";
+     my $stmt = "INSERT INTO Holdings (symbolId, symbol, buy_date) VALUES ($sid, \"$symbol\", \"$date\")";
+#print "\nupdateHoldings: $stmt";
 
      #TODO: error check
-     $connection->do( $insert_statement );
+     if ($connection->do($stmt) != 1)
+     {
+         print LOGFILE "\nFATAL ERROR: $stmt FAILED";
+     }
   }
 
 }
@@ -375,24 +398,27 @@ sub updateHoldings
 #========================================================
 # update our Holdings db with buy position of the the stocks we want to buy today
 # buy price, #of share, total $ amt
-# TODO: calcualate how much of each stock to buy
+# calcualate how much of each stock to buy
+# volume is declared as INT so only full shares are bought
 # TOD0: also create the sell criteria (sell price, %incr/decr, etc).  This will be an XML field.
-# TODO: volume is declared as INT so only full shares are bought now...
+# input is symbol list of biggest losers
 sub updateBuyPositions
 {
-# get latest capital from DB
+
+  # get latest capital from DB
   my $stmt = "SELECT price from DailyNet ORDER BY date DESC LIMIT 1";
   my $db = $connection->prepare( $stmt );
   $db->execute();
   if ($db->rows != 1)
   {
      warn "\nCant get starting capital value from DailyNet!\n";
-     exit;
+     return;
   }
   my @data = $db->fetchrow_array();
   $db->finish();
   my $capital = $data[0];
-print "\nStarting capital for today is \$$capital";
+#print "\nStarting capital for today is \$$capital";
+
 
   my (@sid) = @_;
 
@@ -401,8 +427,7 @@ print "\nStarting capital for today is \$$capital";
 
 # also, the sell criteria is to be added at this stage
 
-  # BIG TODO:  timestamp or last_date
-  my $date = getDate();
+  my $date = getCurrentTradeDate();
 
 
   my $buy_price, $buy_volume;
@@ -428,77 +453,19 @@ print "\nStarting capital for today is \$$capital";
 }
 
 
-#=======================================================
-#get the most current price from TD now
-sub getCurrentPrice_fromTD
-{
-  my ($sid) = @_;
-
-  my $symbol = symbolLookup($sid);
-  my $results = getQuote($symbol);
-  my $price = simpleParse($results, "last");
-
-  if ($price == '')
-  {
-    print LOGFILE "\ngetCurrentPrice_fromTD for $symbol ($sid) is not valid";
-if ($_dbg) { print DBGFILE "\ngetCurrentPrice_fromTD for $symbol ($sid) is not valid"; }
-
-    return 0;
-  }
-
-  # round to 3 digits
-  $price = int($price*1000 + 0.5)/1000;
-
-  return $price;
-}
 
 #=======================================================
-#get the most current price from the last RealTime Update
-# could just use symbol - id is one more step of indirection
-
-sub getCurrentPrice
-{
-  my ($sid) = @_;
-
-  my $symbol = symbolLookup($sid);
-
-  my $date = getDate();
-
-  my $stmt = "SELECT price from RealTimeQuotes where symbol = \"$symbol\" and date LIKE \"$date\%\" ORDER BY date DESC LIMIT 1";
-#print "\n$stmt";
-
-  my $db = $connection->prepare($stmt);
-  $db->execute();
-
-  if ($db->rows==0)
-  {
-    warn "\nGetQuotes::getCurrentPrice(): cant find $symbol in RealTime table - fallback to TD";
-    print LOGFILE"\nGetQuotes::getCurrentPrice(): cant find $symbol in RealTime table - fallback to TD";
-if ($_dbg) { print DBGFILE"\nGetQuotes::getCurrentPrice(): cant find $symbol in RealTime table - fallback to TD"; }
-
-    # fallback to TD - this shouldnt be necessary!!!  TODO
-    return getCurrentPrice_fromTD($sid);
-  }
-
-  my @data = $db->fetchrow_array();
-  my $price = $data[0];
-
-#print "\ngetCurrentPrice for $symbol = $price";
-
-  return $price;
-}
-
-#=======================================================
-#get the End of the Day price for this symbol from our DB
+# get the End of the Day price for this symbol from our DB
+# TODO: could use symbol instead of symbolid
 sub getEODPrice
 {
   my ($sid) = @_;
 
-  my $date = getDate();
+  my $date = getCurrentTradeDate();
 
   my $symbol = symbolLookup($sid);
  
-  my $stmt = "SELECT price from EndOfDayQuotes where symbol = \"$symbol\" AND date = \"$date\"";
+  my $stmt = "SELECT price from EndOfDayQuotes where symbol = \"$symbol\" AND DATE(date) = \"$date\"";
   my $db = $connection->prepare( $stmt );
   $db->execute();
 
@@ -518,163 +485,10 @@ sub getEODPrice
   return $price;
 }
 
-#=============================================================================
-# this is a copy of whats in Analyze.pl - should we do it here or separate module?
-# we already have our TD login here
 
-#=============================================================================
-# Read from the holdings table to get todays holdings, then
-# get complete history from TDAmeritrade
-# do this for yesterdays holdings first, then todays holdings
-# we could have dups if the same stock loses both days
-#
-# aslo calculate and update net standing
-
-sub updateAnalysis
-{
-  my $date = getDate();
-
-  #only one set of entries per date allowed
-  my $stmt = "DELETE FROM Analysis WHERE date = \"$date\"";
-  $connection->do( $stmt );
-
-  # get yesterdays Holdings symbols w/todays data
-  my @symbols = getYesterdaysLosers();
-  updateAnalysisTable(@symbols);
-
-  #get todays (current) losers
-  @symbols = getTodaysLosers();
-  updateAnalysisTable(@symbols);
-
-}
-
-#====================================================================
-sub getTodaysLosers()
-{
-  my @symbols;
-
-  my $date = getDate();
-
-  #get the symbols from our database (date based to retrieve most current)
-  my $select = "SELECT symbol FROM Holdings WHERE buy_date = \"$date\"";
-  my $db = $connection->prepare( $select );
-  $db->execute();
-
-  my $rows = $db->rows;
-  if ($rows==0)
-  {
-    warn "\nupdate Analysis: Fatal DB error - no rows in Holdings table\n";
-    return @symbols;
-  }
-  
-  for (my $i=0; $i<$rows; $i++)
-  {
-    my @data = $db->fetchrow_array();
-#print "\nupdateAnaylsis data is @data";
-
-    push(@symbols, $data[0]);
-  }
-
-  $db->finish();
-
-  return @symbols;
-}
-
-#=======================================================================
-# get the last 2 days of holdings - this depends on the fact that exaxtly MAX_LOSERS are
-# added to the DB each day!!!!
-# TODO:a better way would be to calculate 'yesterday' which would be the previous market day,
-# accounting for weekends and holidays.
-#
-# this will return an empty set the very first time it is run
-sub getYesterdaysLosers()
-{
-  my @symbols;
-
-  #get the symbols from our database (date based to retrieve most current)
-  my $select = "SELECT symbol FROM Holdings order by buy_date DESC LIMIT $MAX_LOSERS,$MAX_LOSERS";
-  my $db = $connection->prepare( $select );
-  $db->execute();
-
-  my $rows = $db->rows;
-  if ($rows==0)
-  {
-    warn "\nGetQuotes::getYesterdaysLosers() no rows in Holdings table\n";
-    return @symbols;
-  }
-  
-  for (my $i=0; $i<$rows; $i++)
-  {
-    my @data = $db->fetchrow_array();
-#print "\nupdateAnaylsis data is @data";
-
-    push(@symbols, $data[0]);
-  }
-
-  $db->finish();
-
-  return @symbols;
-}
-
-#=======================================================================
-# for each symbol (in the Holdings table for yesterday and today)
-# retrieve the most current info from TD and store
-# TODO - add more fields
- 
-sub updateAnalysisTable
-{
-  my (@symbols) = @_;
-
-  my $date = getDate();
-
-  foreach my $symbol (@symbols)
-  {
-    my $quote_data = getQuote($symbol);
-if ($_dbg==2) { print DBGFILE "\n$quote_data"; }
-
-    #parse the return data
-
-    my $psymbol = simpleParse($quote_data, "symbol");
-
-    #sanity check
-    if ($psymbol ne $symbol)
-    {
-       warn "\nupdateAnalysis: discrepancy between symbols $psymbolf:$symbol";
-    }
-
-    my $open   = simpleParse($quote_data, "open");
-    my $close  = simpleParse($quote_data, "close");
-    my $low    = simpleParse($quote_data, "low");
-    my $high   = simpleParse($quote_data, "high");
-    my $price  = simpleParse($quote_data, "last");
-    my $volume = simpleParse($quote_data, "volume");
-    my $change = simpleParse($quote_data, "change");
-    my $chgper = simpleParse($quote_data, "change-percent");  
- 
-    # TD returns a string with a trailing % we dont want that
-    $chgper =~ /(\-+[0-9]*\.+[0-9]*)/;
-    $chgper =~ s/[%]//g;
-
-
-    #ensure all our values are correctly defined - TODO: check this
-    if ( !defined $close  || $close eq "")   { $close = 0; }
-    if ( !defined $low    || $low eq "")     { $low = 0; }
-    if ( !defined $high   || $high eq "")    { $high = 0; }
-    if ( !defined $price  || $price eq "")   { $price = 0; }
-    if ( !defined $volume || $volume eq "" ) { $volume = 0; }
-    if ( !defined $chgper || $chgper eq "")  { $chgper = 0; }
-
-    my $stmt = "INSERT INTO Analysis (symbol, date, close, high, low, price, volume, chgper ) VALUES (\"$symbol\", \"$date\",$close, $high, $low, $price, $volume, $chgper)"; 
-if ($_dbg) { print DBGFILE "\nupdateAnalysis: $stmt"; }
-
-    #TODO: error check
-    $connection->do( $stmt );
-
-  } #next symbol
-}
 
 #=============================================================
-# this is only included now for Analysis
+# this is only included now for Analysis - it will be an IB execute module
 
 #sell everything that hasnt been sold today
 sub sellHoldings
@@ -687,6 +501,12 @@ if ($_dbg) { print DBGFILE "\nSelling all remaining holdings..."; }
   $db->execute();
 
   my $rows = $db->rows;
+  if ($rows == 0)
+  {
+    print LOGFILE "\nThere are no remaining Holdings to sell at the end of the day";
+print "\nThere are no remaining Holdings to sell at the end of the day";
+    return;
+  }
 
   for (my $i=0; $i<$rows; $i++)
   {
@@ -696,8 +516,8 @@ if ($_dbg) { print DBGFILE "\nSelling all remaining holdings..."; }
     my $symbolid = $data[1];
     my $buy_price = $data[2];
 
-    # get current price and date (TODO: from last RealTime update) - wont need id
-    my $price = getCurrentPrice($symbolid);
+    # get current price and date
+    my $price = getEODPrice($symbolid);
     my $date = timeStamp();
 
 #print "\nsell Holdings $symbol at $price, bought at $buy_price";
@@ -717,40 +537,23 @@ print LOGFILE "\n".timeStamp().": *** SELL $symbol at a $net of \$$diff ($price:
 
   }  # next unsold
 
-  $db->finish();2498.300
+  $db->finish();
 
 }
 
-
-#==========================================================
-#TODOadd to common - used by RealTime, too
-
-sub updateSellPositions()
-{
-  my ($symbol, $price, $date) = @_;
-
-     $stmt = "UPDATE Holdings SET sell_price = $price, sell_date= \"$date\" WHERE symbol = \"$symbol\" AND sell_date is NULL";
-
-if ($_dbg) { print DBGFILE "\nupdateSellPositions: $stmt"; }
-
-     my $rows_changed = $connection->do( $stmt );
-
-if ($_dbg) {
-if ($rows_changed == 0) { print DBGFILE "\nnot updating $symbol because its already sold"; }
-}
-
-  return $rows_changed;
-}
 
 #=============================================================================
-#for the most recent updates to Holdings, the net profit/loss field (now criteria)
-# will be empty.  Update the sell total, and calculate the net. Add this to our daily net table (TODO)
+# for the most recent updates to Holdings, the net profit/loss field (now criteria)
+# will be empty.  Update the sell total, and calculate the net. Add this to our daily net table
+# must be done before todays losers are determined
 
 sub calculateNet
 {
 
   my $cum_net = 0;
+  my $cum_vol = 0;
 
+  #	note: change the criteria field to net					\/ \/
   my $stmt = "SELECT id, buy_volume, buy_total, sell_price FROM Holdings WHERE criteria IS NULL";
   my $db = $connection->prepare( $stmt );
   $db->execute();
@@ -778,6 +581,7 @@ if ($rows != $MAX_LOSERS) { warn "\nsomething is fishy in Holdings... $rows retr
       $connection->do($stmt);
 
       $cum_net += $net;
+      $cum_vol += $buy_volume;
     }
     else
     {
@@ -788,7 +592,7 @@ if ($rows != $MAX_LOSERS) { warn "\nsomething is fishy in Holdings... $rows retr
 
   $db->finish();
 
-  #update daily table
+  # update daily table with net for today
 
   # get latest capital record from DB
   my $stmt = "SELECT id, price from DailyNet ORDER BY date DESC LIMIT 1";
@@ -805,16 +609,24 @@ if ($rows != $MAX_LOSERS) { warn "\nsomething is fishy in Holdings... $rows retr
   my $start_price = $data[1];
 #print "\nStarting capital for today is \$$capital";
 
-  #$stmt = "INSERT INTO DailyNet (date, price) VALUES (\"$date\", $cum_net)";
-  $stmt = "UPDATE DailyNet SET net=$cum_net WHERE id=$id;";
+  # update our net for today
+  $stmt = "UPDATE DailyNet SET net=$cum_net, totalVolume=$cum_vol WHERE id=$id;";
 #print "\n$stmt";
   $connection->do($stmt);
 
-  my $date = getDate();
-  # add new record
+  my $date = getNextTradeDate();
+  # add new record for starting point for tomorrow
+
+# we can do it two ways - cumulative or start fresh every day
+# TEST--- always start at 10000
+  $start_price = 10000; $cum_net=0;
+# TEST---
+
   $stmt = "INSERT INTO DailyNet (date, price) VALUES (\"$date\", $start_price+$cum_net)";
 #print "\n$stmt";
+
   $connection->do($stmt);
 
 }
+
 

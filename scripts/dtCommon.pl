@@ -5,7 +5,6 @@
 use Data::Dumper;
 use DBI;
 use DBD::mysql;
-use XML::Parser;
 
 use LWP;
 use LWP::Simple;
@@ -354,10 +353,10 @@ sub getNextTradeDate
   my $db = $connection->prepare($stmt);
   $db->execute();
   my @data = $db->fetchrow_array();
-  my $date = $data[0];
+  my $nextdate = $data[0];
   $db->finish();
 
-  return $date;
+  return $nextdate;
 }
 
 #========================================================
@@ -385,5 +384,7 @@ sub symbolLookup
   return $symbol;
 }
 
+# need to return true (1) for 'require'
+1
 
 

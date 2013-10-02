@@ -23,3 +23,7 @@ if ($rows_changed == 0) { print DBGFILE "\nnot updating $symbol because its alre
   return $rows_changed;
 }
 
+# return for require
+1
+
+

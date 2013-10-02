@@ -2,9 +2,8 @@
 
 # Get End of Day Stock exchange quotes from TD ameritrade
 
-#do '/home/dayTrader/bin/dtCommon.pl';
-do './dtCommon.pl';
-do './UpdateSellPositions.pl';
+require './dtCommon.pl';
+require './UpdateSellPositions.pl';
 
 #============================================================
 # get end of day quotes and determine biggest losers
@@ -545,11 +544,10 @@ print LOGFILE "\n".timeStamp().": *** SELL $symbol at a $net of \$$diff ($price:
 #=============================================================================
 # for the most recent updates to Holdings, the net profit/loss field (now criteria)
 # will be empty.  Update the sell total, and calculate the net. Add this to our daily net table
-# must be done before todays losers are determined
+# must be done before todays losers are determined, and the Holdings Table updated for the new losers
 
 sub calculateNet
 {
-
   my $cum_net = 0;
   my $cum_vol = 0;
 
@@ -592,6 +590,7 @@ if ($rows != $MAX_LOSERS) { warn "\nsomething is fishy in Holdings... $rows retr
 
   $db->finish();
 
+
   # update daily table with net for today
 
   # get latest capital record from DB
@@ -605,24 +604,30 @@ if ($rows != $MAX_LOSERS) { warn "\nsomething is fishy in Holdings... $rows retr
   }
   my @data = $db->fetchrow_array();
   $db->finish();
-  my $id          = $data[0];
-  my $start_price = $data[1];
-#print "\nStarting capital for today is \$$capital";
+  my $id            = $data[0];
+  my $start_capital = $data[1];
+#print "\nStarting capital for today is \$$start_capital";
 
   # update our net for today
   $stmt = "UPDATE DailyNet SET net=$cum_net, totalVolume=$cum_vol WHERE id=$id;";
 #print "\n$stmt";
   $connection->do($stmt);
 
-  my $date = getNextTradeDate();
+
+  # tell us about it
+  my $today = getCurrentTradeDate();
+  print LOGFILE "\nNet for $today is \$$cum_net on $cum_vol shares";
+
+
   # add new record for starting point for tomorrow
+  my $date = getNextTradeDate();
 
 # we can do it two ways - cumulative or start fresh every day
 # TEST--- always start at 10000
-  $start_price = 10000; $cum_net=0;
+  $start_capital = 10000; $cum_net=0;
 # TEST---
 
-  $stmt = "INSERT INTO DailyNet (date, price) VALUES (\"$date\", $start_price+$cum_net)";
+  $stmt = "INSERT INTO DailyNet (date, price) VALUES (\"$date\", $start_capital+$cum_net)";
 #print "\n$stmt";
 
   $connection->do($stmt);

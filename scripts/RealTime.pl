@@ -4,8 +4,8 @@
 
 # right now, they are queried one at a time - could query in a batch for efficiency, or stream in binary
 
-do './dtCommon.pl';
-do './UpdateSellPositions.pl';
+require './dtCommon.pl';
+require './UpdateSellPositions.pl';
 
 
 #==================main=======================================

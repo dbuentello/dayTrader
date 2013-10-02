@@ -1,0 +1,41 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!DOCTYPE hibernate-configuration PUBLIC
+        "-//Hibernate/Hibernate Configuration DTD 3.0//EN"
+        "http://www.hibernate.org/dtd/hibernate-configuration-3.0.dtd">
+
+<hibernate-configuration xmlns="http://www.hibernate.org/xsd/hibernate-configuration">
+
+    <session-factory name="java:hibernate/SessionFactory">
+
+        <!-- Database connection settings -->
+        <property name="connection.driver_class">com.mysql.jdbc.Driver</property>
+        <property name="connection.url">jdbc:mysql://localhost:3306/test_stockdata</property>
+        <property name="connection.username">root</property>
+        <property name="connection.password">r00t</property>
+
+        <!-- JDBC connection pool (use the built-in) -->
+        <property name="jdbc.use_get_generated_keys">true</property>
+
+        <!-- SQL dialect -->
+        <property name="dialect">org.hibernate.dialect.MySQLDialect</property>
+
+        <property name="c3p0.min_size">3</property>
+        <property name="c3p0.max_size">20</property>
+        <!-- When an idle connection is removed from the pool (in seconds). -->
+        <property name="c3p0.timeout">1800</property>
+        <!-- Number of prepared statements will be cached. Increase performance. -->
+        <property name="c3p0.max_statements">50</property>
+        <!-- Determines how many connections at a time c3p0 will try to acquire when the pool is exhausted. -->
+        <property name="c3p0.acquireIncrement">1</property>
+
+        <!-- Enable Hibernate's automatic session context management -->
+        <property name="current_session_context_class">thread</property>
+
+        <property name="hibernate.mapping.precedence">class, hbm</property>
+
+        <!-- Echo all executed SQL to stdout -->
+        <property name="show_sql">true</property>
+
+    </session-factory>
+
+</hibernate-configuration>

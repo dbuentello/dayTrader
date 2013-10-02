@@ -4,29 +4,32 @@
 
 # right now, they are queried one at a time - could query in a batch for efficiency, or stream in binary
 
-do 'dtCommon.pl';
+do './dtCommon.pl';
+do './UpdateSellPositions.pl';
 
 
 #==================main=======================================
-print "\n** Get Real Time Quotes from TD Ameritrade **\n";
+print "\n\n*** Get RealTime Quotes ".strftime('%a %b %e %Y %H:%M',localtime)." ***\n\n";
 
-  #global log file
-  open(LOGFILE, ">>".$logfileLocation."dayTrader.log") || die "Error opening logfile!";
+  getCommandLineArgs();
 
-  #connect to our database
-  $connection = DBI->connect( "DBI:mysql:database=stockdata;host=localhost", "root", "sal", {'RaiseError' => 1} );
+  # open DB and log files
+  Initialize("Get Real Time Quotes");
 
-  $sessionId = login();
-print "\nreturned sid = $sessionId";
+  # connect to TD Ameritrade
+  $sessionId = TDlogin();
+#print "\nreturned sid = $sessionId";
   if (length($sessionId) == 0)
   {
-     print "\nInvalid login\n";
+     warn "\nRealTime: Invalid login\n";
      exit;
   }
 
   #these are the ones we're interested in...
   my @losers = &getLosers();				#(& needed to avoid forward prototype error)
-print "\nlosers are: @losers";
+if ($_dbg) { print DBGFILE "\nRealTime: losers are  @losers"; }
+
+  print "\nRetrieving Real Time data for todays biggest losers (@losers)";
 
   foreach my $loser (@losers)
   {
@@ -37,11 +40,13 @@ print "\nlosers are: @losers";
   }
 
 
-  logout();
+  TDlogout();
 
   $connection->disconnect;
 
   close LOGFILE;
+
+  close DBGFILE;
 
 print "\n**end**\n";
 
@@ -50,26 +55,29 @@ print "\n**end**\n";
 
 
 #==============================================================
-# get todays losers from our Holdings DB
+# get yesterdays (eg most recent) losers from our Holdings DB
 
 sub getLosers()
 {
-  #my @losers = ("ORCL", "MSFT");
   my @losers;
 
-  my $date = getDate();
-  my $stmt = "SELECT symbol from Holdings WHERE buy_date = \"$date\"";
-print "\n getLosers: $stmt";
+  my $date = getPreviousTradeDate();
+  my $stmt = "SELECT symbol from Holdings WHERE DATE(buy_date) = \"$date\"";
+
+  # this will select the most recent entries in our Holding table - TODO: be sure this is correct!
+  #my $stmt = "SELECT symbol from Holdings ORDER by buy_DATE DESC LIMIT $MAX_LOSERS";
+if ($_dbg) { print DBGFILE "\nRealTime::getLosers(): $stmt"; }
 
   my $db = $connection->prepare($stmt);
   $db->execute();
 
   my $rows = $db->rows;
-print "\n", $rows, " fetched";
+#print "\n", $rows, " fetched";
 
   if ($rows==0)
   {
-    print "\nFatal DB error - no rows in Holdings table\n";
+    warn "\nRealTime::getLosers() Fatal DB error - no rows in Holdings table\n";
+    print LOGFILE "\nRealTime::getLosers() Fatal DB error - no rows in Holdings table\n";
     return @losers;
   }
 
@@ -95,7 +103,7 @@ sub realTimeUpdate
   my $symbol = simpleParse($data, "symbol");
   if ($symbol eq "")
   {
-     print "\n!!realTimeUpdate NULL symbol !!\n";
+     print LOGFILE "\n!!RealTime::realTimeUpdate() NULL symbol !!\n";
      return;
   }
 
@@ -110,15 +118,21 @@ sub realTimeUpdate
 
 
   # insert the data into the db
-  my $insert_statement = "INSERT INTO RealTimeQuotes (symbol, date, price, volume) VALUES (\"$symbol\", \"$date\", $price, $volume)";
-#print "\n$insert_statement";
+  # TODO: check the IGNORE - its based on symbol and Last-Trade-date -- what happens if volume, ask or some other param changes?
+  my $insert_statement = "INSERT IGNORE INTO RealTimeQuotes (symbol, date, price, volume) VALUES (\"$symbol\", \"$date\", $price, $volume)";
+#if ($_dbg) { "\nRealTime::realTimeUpdate(): $insert_statement"; }
 
   #TODO: error check
   $connection->do( $insert_statement );
 }
 
+
 #=======================================================
-# input is last trade data for a symbol
+# determine if we should sell the stock now
+#
+# input is the latest real time trade data for a symbol
+#
+# TODO: +/- increment now... can have separate increase/decrease
 
 sub shouldWeSell
 {
@@ -128,7 +142,7 @@ sub shouldWeSell
   my $symbol = simpleParse($data, "symbol");
   if ($symbol eq "")
   {
-     print "\n!!shouldWeSell NULL symbol !!\n";
+     print LOGFILE "\n!!RealTime::shouldWeSell() NULL symbol !!\n";
      return;
   }
 
@@ -137,81 +151,106 @@ sub shouldWeSell
   my $date   = simpleParse($data, "last-trade-date");
 
   # an array of criteria
-  # 0: buy price
   # 1: percent increase
   # 2: percent decrease
-  # 3: ...
-  my @crit = getSellCriteria($symbol);
-
-  my $buy_price = shift(@crit);
+  # 3: ...(implement trailing sell limit)
+  # 4: ...
+  my @crit = getSellCriteria();
   my $per_incr  = shift(@crit);
+  my $per_decr  = shift(@crit);
 
-  my $sell_price = $buy_price + ($buy_price * $per_incr);
-print "\nBuy/Sell $symbol: current: $price, sell at: $sell_price; we bought at: $buy_price, $per_incr% incr";
+  # get the buy price from Holdings table
+  my $buy_price = getBuyPrice($symbol);
 
-  #TODO: should we round to 2 decimal places?  val = int(val*100 + 0.5)/100;
-  if ($price >= $sell_price)
+  my $sell_price_diff = $buy_price * $per_incr;
+#print "\nBuy/Sell $symbol: current: $price, sell at +/-: $sell_price_diff; we bought at: $buy_price ($per_incr% incr)";
+
+  # round real time price to 3 digits
+  $price = int($price*1000 + 0.5)/1000;
+
+  # sell if it goes up or down       #per share
+  if (($price >= $buy_price + $sell_price_diff) || ($price < $buy_price - $sell_price_diff))
   {
-     print LOGFILE "\n".timeStamp().": **SELL $symbol at $date";
-print "\n**SELL $symbol at $date\n";
-  }
-  else
-  {
-print "\n**HOLD $symbol at $date\n";
-  }
+      #update the Holdings Table with this info
+      if (updateSellPositions($symbol, $price, $date) != 0)
+      {
+        my $net = "EVEN";
+        if ($price > $buy_price + $sell_price_diff) { $net = "GAIN"; }
+        if ($price < $buy_price - $sell_price_diff) { $net = "LOSS"; }
+
+        print "\n".timeStamp().": *** SELL $symbol at a $net of \$$sell_price_diff ($price : $buy_price) at $date ***"; 
+        print LOGFILE "\n".timeStamp().": *** SELL $symbol at a $net of \$$sell_price_diff ($price : $buy_price)  at $date ***";
+if ($_dbg) { print DBGFILE "\n".timeStamp().": *** SELL $symbol at a $net of \$$sell_price_diff ($price : $buy_price) at $date ***"; }
+
+      } #only log if updated
+
+  } # we should sell
 
 }
 
-#==================================================
-# get the sell criteria from the Holdings DB.  This is an
-# XML string defining the criteria.  It can be different for
-# each stock and as complex as necessary.
-# to start it will be sell when price > buy_price * 2%
-# (for testing its 0% - eg sell now)
+#================================================================
+# get the sell criteria from the criteria file (TODO). This is an
+# XML string defining the criteria.  It is the same for all stocks
+# to start it will be sell when price increases or decreases by 2%
+# over/under the buy_price
 
-# input is symbol
 # output is an array of criteria
-  # 0: buy price
   # 1: percent increase
   # 2: percent decrease
   # 3: ...
 
 sub getSellCriteria
 {
-  my ($symbol) = @_;
-
   my @crit;
+
+  push(@crit, .02);   # % increase
+  push(@crit, .02);   # % decrease
+
+#print "\nsell criteria is @crit";
+
+  return @crit;
+
+}
+
+#============================================================================
+# get the buy price for this symbol from the Holdings Table.  Get the last
+# holdings by previous date BIG TODO.  Now, return the most recent based on date
+# (which may be good enough)
+
+sub getBuyPrice
+{
+  my ($symbol) = @_;
 
 
 #get the buy price and criteria from the Holdings table from the day before
-  # BIG TODO: use a different date!
-  my $date = getDate();
+  my $date = getPreviousTradeDate();
+  my $select = "SELECT buy_price FROM Holdings WHERE symbol = \"$symbol\" AND DATE(buy_date) = \"$date\"";
 
-  my $select = "SELECT buy_price, criteria FROM Holdings WHERE symbol = \"$symbol\" AND buy_date = \"$date\"";
-#print "\ngetSellCriteria: ".$select;
+  #my $select = "SELECT buy_price FROM Holdings WHERE symbol = \"$symbol\" ORDER BY buy_date DESC LIMIT 1";
+if ($_dbg) { print DBGFILE "\ngetBuyPrice: ".$select; }
 
   my $db = $connection->prepare( $select );
   $db->execute();
 
   my $rows = $db->rows;
-#print "\n", $rows, " fetched";
 
   if ($rows!=1)
   {
-    warn "\nFatal DB error - incorrect nrows in Holdings table\n";
+    warn "\ngetBuyPrice() cant retrieve buy price from Holdings for $symbol";
+    print LOGFILE "\getBuyPrice() cant retrieve buy price from Holdings for $symbol";
     return 0;
   }
 
   my @data = $db->fetchrow_array();
   $db->finish();
 
-  push(@crit, $data[0]);
-  #push(@crit, $data[1]);
-  push(@crit, .00);
+  $buy_price = $data[0];
 
-print "\n criteria for $symbol is @crit";
+#print "\ngetBuyPrice for $symbol = $buy_price";
 
-  return @crit;
+  return $buy_price;
 
 }
+
+
 

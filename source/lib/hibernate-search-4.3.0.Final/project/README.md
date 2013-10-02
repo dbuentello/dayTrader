@@ -1,84 +1,71 @@
-# Hibernate Search
+How to build
+============
 
-*Version: 4.3.0.Final 08-06-2013*
+*Starting with development of version 4.0, Hibernate uses [Gradle](http://gradle.org) as its build tool.*
 
-## Description
+This README describes some of the basics developers and contributors new to Gradle need to know to get productive quickly.
 
-Full text search engines like Apache Lucene are very powerful technologies to add efficient free text search
-capabilities to applications. However, Lucene suffers several mismatches when dealing with object domain models.
-Amongst other things indexes have to be kept up to date and mismatches between index structure and domain model
-as well as query mismatches have to be avoided.
+Quickstart
+----------
 
-Hibernate Search addresses these shortcomings - it indexes your domain model with the help of a few annotations,
-takes care of database/index synchronization and brings back regular managed objects from free text queries.
+     git clone git://github.com/hibernate/hibernate-orm.git
+     cd hibernate-orm
+     ./gradlew clean build
+     
+If you are having problems with unresolved dependencies you need to configure access to the JBoss Nexus repository
+(see below).
 
-Hibernate Search is using [Apache Lucene](http://lucene.apache.org/) under the cover.
 
-## Requirements
+Resources
+---------
 
-This version of Hibernate Search requires:
+### General
 
-* Hibernate Core 4.2 and above
-* Apache Lucene 3.6
+* [Building Hibernate ORM](https://community.jboss.org/wiki/BuildingHibernateORM4x)
 
-## Instructions
+### JBoss Nexus
 
-### Maven 
+* [JBoss Nexus User Guide](http://community.jboss.org/wiki/MavenGettingStarted-Users) - explains how to set up _~/.m2/settings.xml_ to use JBoss Nexus repo.
 
-Include the following to your dependency list:
+### Gradle
 
-    <dependency>
-     <groupId>org.hibernate</groupId>
-     <artifactId>hibernate-search</artifactId>
-     <version>4.3.0.Final</version>
-    </dependency>
+* [Gradle User Guide](http://gradle.org/docs/current/userguide/userguide_single.html)
+* [Gradle DSL Guide](http://gradle.org/docs/current/dsl/index.html)
 
-### Sourceforge Bundle
+Executing Tasks
+---------------
 
-Download the distribution bundle from [SourceForge](http://sourceforge.net/projects/hibernate/files/hibernate-search) and unzip to installation directory. Then read the documentation available in *docs/reference*.
+Gradle uses the concept of build tasks (equivalent to Ant targets). You can get a list of available tasks 
+via 
 
-### Building from source
+    gradle tasks 
 
-    > git clone git@github.com:hibernate/hibernate-search.git
-    > cd hibernate-search
-    > mvn clean install -s settings-example.xml
+or using gradle wrapper
 
-#### Build options (profiles)
+	./gradlew tasks
 
-Per default the documentation is not built. To include it in the full build, run:
+### Executing Tasks Across All Modules
 
-    > mvn clean install -Pdocs -s settings-example.xml
+To execute a task across all modules, simply perform that task from the root directory.  Gradle will visit each
+subproject and execute that task if the subproject defines it.
 
-To build the distribution bundle run:
+### Executing Tasks In Specific Module
 
-    > mvn clean install -Pdist -s settings-example.xml
+To execute a task in a specific module you can either:
 
-Last but not least, if you want to run the performance test under _integration/performance_:
+1. `cd` into that module directory and execute the task
+2. name the "task path".  For example, in order to run the tests for the _hibernate-core_ module from the root directory you could say `gradle hibernate-core:test`
 
-    > mvn clean install -Pperf -s settings-example.xml
+### Common Java related tasks
 
-You can also build the above mentioned modules directly by changing into these directories and executing maven in the
-module directory.
-
-### Contributing
-    
-If you want to contribute, you find all you need to know in [Contributing to Hibernate Search](http://community.jboss.org/wiki/ContributingtoHibernateSearch)
-
-## Contact
-
-### Latest Documentation:
-
-* [http://search.hibernate.org](http://www.hibernate.org/subprojects/search/docs)
-
-### Bug Reports:
-
-* Hibernate JIRA [HSEARCH](https://hibernate.atlassian.net/browse/HSEARCH) (preferred)
-* hibernate-dev@lists.jboss.org
-
-### Free Technical Support:
-
-* [Hibernate Forum](http://forum.hibernate.org/viewforum.php?f=9)
-
-## License
-
-This software and its documentation are distributed under the terms of the FSF Lesser Gnu Public License (see lgpl.txt).
+* _build_ - Assembles (jars) and tests this project
+* _buildDependents_ - Assembles and tests this project and all projects that depend on it.  So think of running this in hibernnate-entitymanager, Gradle would assemble and test hibernate-entitymanager as well as hibernate-envers (because envers depends on entitymanager)
+* _classes_ - Compiles the main classes
+* _testClasses_ - Compiles the test classes
+* _jar_ - Generates a jar archive with all the compiled classes
+* _test_ - Runs the tests
+* _uploadArchives_ - Think Maven deploy
+* _install_ - Installs the project jar to your local maven cache (aka ~/.m2/repository)
+* _eclipse_ - Generates an Eclipse project
+* _idea_ - Generates an IntelliJ/IDEA project.
+* _clean_ - Cleans the build directory

@@ -1,19 +1,23 @@
 package managers;
 
-import interfaces.LifeState_IF;
+import interfaces.Manager_IF;
 
-public class LoggerManager_T implements LifeState_IF {
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
 
+public class LoggerManager_T implements Manager_IF {
+
+    
+    private static Logger logger = Logger.getLogger(LoggerManager_T.class.getName());
+    
     @Override
     public void initialize() {
-        // TODO Auto-generated method stub
 
     }
 
     @Override
     public void run() {
-        // TODO Auto-generated method stub
-
+        //Do nothing
     }
 
     @Override
@@ -33,5 +37,15 @@ public class LoggerManager_T implements LifeState_IF {
         // TODO Auto-generated method stub
 
     }
+    
+    
+    public static void logText(String text, Level level) {
+        logger.log(level, text);
+    }
+    
+    public static void logFault(String text, Throwable fault) {
+        logger.log(Level.FATAL, text, fault);
+    }
+    
 
 }

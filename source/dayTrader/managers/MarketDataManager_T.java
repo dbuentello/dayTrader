@@ -1,12 +1,5 @@
 package managers;
 
-import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLConnection;
-
-import javax.net.ssl.HttpsURLConnection;
 
 import marketdata.TDAmeritradeConnection_T;
 
@@ -17,11 +10,12 @@ import interfaces.Manager_IF;
 public class MarketDataManager_T implements Manager_IF, Connector_IF {
 
     
-    TDAmeritradeConnection_T dataSource;
+    final TDAmeritradeConnection_T dataSource = new TDAmeritradeConnection_T();
     
     
     @Override
     public void initialize() {
+        
         try {
             connect();
         } catch (ConnectionException e) {

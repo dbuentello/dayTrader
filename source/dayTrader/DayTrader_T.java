@@ -8,6 +8,7 @@ import java.util.List;
 import managers.BrokerManager_T;
 import managers.DatabaseManager_T;
 import managers.LoggerManager_T;
+import managers.MarketDataManager_T;
 
 
 public class DayTrader_T {
@@ -16,6 +17,7 @@ public class DayTrader_T {
     private static List<Manager_IF> serviceManager = new ArrayList<Manager_IF>();
     
     static DatabaseManager_T databaseManager = null;
+    static MarketDataManager_T marketDataManager = null;
     static BrokerManager_T brokerManager = null;
     static LoggerManager_T loggerManager = null;
 
@@ -37,10 +39,12 @@ public class DayTrader_T {
 	public static void initialize() {
 	    
 	    databaseManager = new DatabaseManager_T();
+	    marketDataManager = new MarketDataManager_T();
 		brokerManager = new BrokerManager_T();
 		loggerManager = new LoggerManager_T();
 		
 		serviceManager.add(databaseManager);
+		serviceManager.add(marketDataManager);
 		//serviceManager.add(brokerManager);
 		serviceManager.add(loggerManager);
 		

@@ -29,3 +29,32 @@ The application should have a concept of operational state. During market hours 
 It will be important to keep good log files and we should persist as much data to the database as possible. All positions, trades and quotes should be stored in the database. Any alerts or errors shall be logged to a log file. As the application becomes more sophisticated we can add automated e-mail alerts for fatal faults, but to start that will be a manual task. The same goes for maintenance tasks. The will be manual to start and become automated as the application develops. 
 
 We always need to maintain at balance of $25,000 in our account  according to SEC regulation so we can never buy more positions than our 25K delta.
+
+
+
+Basic sequence of events for program (assuming startup at beginning of trading day):
+
+Before market opens
+1a. Connect to database
+1b. Connect to TDAmeritrade
+1c. Connect to IB
+2. Get the current positions we are holding. Query IB with the reqAccountUpdates() method to get
+
+Continuous activities during the day
+3. Monitor time of day so we know when the market is closing soon. IB provides API to get time.
+4. Monitor realtime quotes for the positions we hold
+5. Continuously check the realtime data to determine if a sell point has been reached. Check should be 
+   performed anytime quote data changes
+6. When a sell point is reached, execute the appropriate sell order
+
+End of day
+7. Get a snapshot quote for every symbol in the exchange
+8. Determine largest losers for the exchange that conform to our buy criteria
+9. Execute buy orders
+10. Sell any positions that didn't reach a trigger point during the course of the day.
+
+After market closes
+10. For each holding calculate the high/low sell triggers
+11. Close connection to database, TDAmeritrade, and IB
+
+

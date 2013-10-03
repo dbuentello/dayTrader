@@ -1,27 +1,54 @@
 package marketdata;
 
+import interfaces.Persistable_IF;
+
 import java.util.Date;
 
+import javax.persistence.CascadeType;
+import javax.persistence.Entity;
+import javax.persistence.GeneratedValue;
+import javax.persistence.GenerationType;
+import javax.persistence.Id;
+import javax.persistence.JoinColumn;
+import javax.persistence.ManyToOne;
+import javax.persistence.Table;
+import javax.persistence.Temporal;
+import javax.persistence.TemporalType;
+import javax.persistence.Transient;
+
+import managers.DatabaseManager_T;
+
+import org.hibernate.HibernateException;
+import org.hibernate.Session;
+import org.hibernate.Transaction;
+
+
 /******************************************************
- * Class used to represent a snopshot of data
+ * Class used to represent a snapshot of data
  * 
  * @author nathan
  *
  */
-public class MarketData_T {
+
+@Entity
+@Table(name="EndOfDayQuotes")
+public class MarketData_T implements Persistable_IF {
   /* {src_lang=Java}*/
 
 
     //this is a persistable class so need an id attribute
     private long id;
     
+    private long symbolId;
     private Symbol_T symbol;
-    
     //these are the data fields we will store to persistence
     private Double bidSize = null;
+    // The highest price anyone has declared that they are willing to pay for a security.
     private Double bidPrice = null;
+    //  The lowest price anyone will offer to sell a security.  
     private Double askPrice = null;
     private Double askSize = null;
+    // The price of the last trade for this symbol.
     private Double lastPrice = null;
     private Double lastSize = null;
     private Double high = null;
@@ -29,17 +56,21 @@ public class MarketData_T {
     private Double volume = null;
     private Double close = null;
     private Double open = null;
+    private Date lastTradeTimestamp = null;
+    private Double change = null;
+    private Double percentChange = null;
+    private Double weekLow52 = null;
+    private Double weekHigh52 = null;
+    
+    
+/*    
+ These are additional fields that are provided by IB
+    private Double trades = null;
+    private Double avgVolume = null;
     private Double weekLow13 = null;
     private Double weekHigh13 = null;
     private Double weekLow26 = null;
     private Double weekHigh26 = null;
-    private Double weekLow52 = null;
-    private Double weekHigh52 = null;
-    private Double avgVolume = null;
-    private Date lastTimestamp = null;
-    private Double trades = null;
-    
-/*    
     private Double bidOptComp = null;
     private Double askOptComp = null;
     private Double lastOptComp = null;
@@ -87,11 +118,61 @@ public class MarketData_T {
         // TODO Auto-generated constructor stub
     }
 
+    @Override
+    public long insert() {
+        Session session = DatabaseManager_T.getSessionFactory().openSession();
+        Transaction tx = null;
+        long id;
+        
+        try {
+            tx = session.beginTransaction();
+            id = (Long) session.save(this);
+            tx.commit();
+        } catch (HibernateException e) {
+            //TODO: for now just print to stdout, we'll change this to a log file later
+            e.printStackTrace();
+            if (tx != null) tx.rollback();
+            throw e;
+        } finally {
+            session.close();
+        }
+        
+        return id;
+        
+    }
 
+
+    @Override
+    public void delete() {
+        Session session = DatabaseManager_T.getSessionFactory().openSession();
+        Transaction tx = null;
+        
+//        try {
+//            tx = session.beginTransaction();
+//            marketData = (MarketData_T) session.get(MarketData_T.class, id);
+//            tx.commit();
+//        } catch (HibernateException e) {
+//            //TODO: for now just print to stdout, we'll change this to a log file later
+//            e.printStackTrace();
+//            if (tx != null) tx.rollback();
+//        } finally {
+//            session.close();
+//        }
+        
+    }
+    
+    @Override
+    public void update() throws HibernateException {
+        // TODO Auto-generated method stub
+        
+    }
+    
     /**
      * @return the id
      */
-    public int getId() {
+    @Id
+    @GeneratedValue(strategy=GenerationType.IDENTITY)
+    public long getId() {
         return id;
     }
 
@@ -99,10 +180,55 @@ public class MarketData_T {
     /**
      * @param id the id to set
      */
-    private void setId(int id) {
+    private void setId(long id) {
         this.id = id;
     }
 
+
+   
+    /**
+     * @return the symbolId
+     */
+    public long getSymbolId() {
+        return symbolId;
+    }
+
+    /**
+     * @param symbolId the symbolId to set
+     */
+    public void setSymbolId(long symbolId) {
+        this.symbolId = symbolId;
+    }
+
+    @Transient
+    public Symbol_T getSymbol() {
+        
+        setSymbol();
+        
+        return symbol;
+    }
+    
+    public void setSymbol() {
+        if (symbol == null) {
+            symbol = (Symbol_T) DatabaseManager_T.retrieve(Symbol_T.class, this.symbolId);
+        }
+    }
+    
+    /**
+     * @return the lastTradeTimestamp
+     */
+    @Temporal(value = TemporalType.TIMESTAMP)
+    public Date getLastTimestamp() {
+        return lastTradeTimestamp;
+    }
+
+
+    /**
+     * @param lastTradeTimestamp the lastTradeTimestamp to set
+     */
+    public void setLastTimestamp(Date lastTimestamp) {
+        this.lastTradeTimestamp = lastTimestamp;
+    }
 
     /**
      * @return the bidSize
@@ -111,14 +237,12 @@ public class MarketData_T {
         return bidSize;
     }
 
-
     /**
      * @param bidSize the bidSize to set
      */
     public void setBidSize(Double bidSize) {
         this.bidSize = bidSize;
     }
-
 
     /**
      * @return the bidPrice
@@ -127,14 +251,12 @@ public class MarketData_T {
         return bidPrice;
     }
 
-
     /**
      * @param bidPrice the bidPrice to set
      */
     public void setBidPrice(Double bidPrice) {
         this.bidPrice = bidPrice;
     }
-
 
     /**
      * @return the askPrice
@@ -143,14 +265,12 @@ public class MarketData_T {
         return askPrice;
     }
 
-
     /**
      * @param askPrice the askPrice to set
      */
     public void setAskPrice(Double askPrice) {
         this.askPrice = askPrice;
     }
-
 
     /**
      * @return the askSize
@@ -159,14 +279,12 @@ public class MarketData_T {
         return askSize;
     }
 
-
     /**
      * @param askSize the askSize to set
      */
     public void setAskSize(Double askSize) {
         this.askSize = askSize;
     }
-
 
     /**
      * @return the lastPrice
@@ -175,14 +293,12 @@ public class MarketData_T {
         return lastPrice;
     }
 
-
     /**
      * @param lastPrice the lastPrice to set
      */
     public void setLastPrice(Double lastPrice) {
         this.lastPrice = lastPrice;
     }
-
 
     /**
      * @return the lastSize
@@ -191,14 +307,12 @@ public class MarketData_T {
         return lastSize;
     }
 
-
     /**
      * @param lastSize the lastSize to set
      */
     public void setLastSize(Double lastSize) {
         this.lastSize = lastSize;
     }
-
 
     /**
      * @return the high
@@ -207,14 +321,12 @@ public class MarketData_T {
         return high;
     }
 
-
     /**
      * @param high the high to set
      */
     public void setHigh(Double high) {
         this.high = high;
     }
-
 
     /**
      * @return the low
@@ -223,14 +335,12 @@ public class MarketData_T {
         return low;
     }
 
-
     /**
      * @param low the low to set
      */
     public void setLow(Double low) {
         this.low = low;
     }
-
 
     /**
      * @return the volume
@@ -239,14 +349,12 @@ public class MarketData_T {
         return volume;
     }
 
-
     /**
      * @param volume the volume to set
      */
     public void setVolume(Double volume) {
         this.volume = volume;
     }
-
 
     /**
      * @return the close
@@ -255,78 +363,12 @@ public class MarketData_T {
         return close;
     }
 
-
     /**
      * @param close the close to set
      */
     public void setClose(Double close) {
         this.close = close;
     }
-
-
-    /**
-     * @return the bidOptComp
-     */
-    public Double getBidOptComp() {
-        return bidOptComp;
-    }
-
-
-    /**
-     * @param bidOptComp the bidOptComp to set
-     */
-    public void setBidOptComp(Double bidOptComp) {
-        this.bidOptComp = bidOptComp;
-    }
-
-
-    /**
-     * @return the askOptComp
-     */
-    public Double getAskOptComp() {
-        return askOptComp;
-    }
-
-
-    /**
-     * @param askOptComp the askOptComp to set
-     */
-    public void setAskOptComp(Double askOptComp) {
-        this.askOptComp = askOptComp;
-    }
-
-
-    /**
-     * @return the lastOptComp
-     */
-    public Double getLastOptComp() {
-        return lastOptComp;
-    }
-
-
-    /**
-     * @param lastOptComp the lastOptComp to set
-     */
-    public void setLastOptComp(Double lastOptComp) {
-        this.lastOptComp = lastOptComp;
-    }
-
-
-    /**
-     * @return the modelOptComp
-     */
-    public Double getModelOptComp() {
-        return modelOptComp;
-    }
-
-
-    /**
-     * @param modelOptComp the modelOptComp to set
-     */
-    public void setModelOptComp(Double modelOptComp) {
-        this.modelOptComp = modelOptComp;
-    }
-
 
     /**
      * @return the open
@@ -335,7 +377,6 @@ public class MarketData_T {
         return open;
     }
 
-
     /**
      * @param open the open to set
      */
@@ -343,70 +384,33 @@ public class MarketData_T {
         this.open = open;
     }
 
-
     /**
-     * @return the weekLow13
+     * @return the change
      */
-    public Double getWeekLow13() {
-        return weekLow13;
+    public Double getChange() {
+        return change;
     }
 
-
     /**
-     * @param weekLow13 the weekLow13 to set
+     * @param change the change to set
      */
-    public void setWeekLow13(Double weekLow13) {
-        weekLow13 = weekLow13;
+    public void setChange(Double change) {
+        this.change = change;
     }
 
-
     /**
-     * @return the weekHigh13
+     * @return the percentChange
      */
-    public Double getWeekHigh13() {
-        return weekHigh13;
+    public Double getPercentChange() {
+        return percentChange;
     }
 
-
     /**
-     * @param weekHigh13 the weekHigh13 to set
+     * @param percentChange the percentChange to set
      */
-    public void setWeekHigh13(Double weekHigh13) {
-        weekHigh13 = weekHigh13;
+    public void setPercentChange(Double percentChange) {
+        this.percentChange = percentChange;
     }
-
-
-    /**
-     * @return the weekLow26
-     */
-    public Double getWeekLow26() {
-        return weekLow26;
-    }
-
-
-    /**
-     * @param weekLow26 the weekLow26 to set
-     */
-    public void setWeekLow26(Double weekLow26) {
-        weekLow26 = weekLow26;
-    }
-
-
-    /**
-     * @return the weekHigh26
-     */
-    public Double getWeekHigh26() {
-        return weekHigh26;
-    }
-
-
-    /**
-     * @param weekHigh26 the weekHigh26 to set
-     */
-    public void setWeekHigh26(Double weekHigh26) {
-        weekHigh26 = weekHigh26;
-    }
-
 
     /**
      * @return the weekLow52
@@ -415,14 +419,12 @@ public class MarketData_T {
         return weekLow52;
     }
 
-
     /**
      * @param weekLow52 the weekLow52 to set
      */
     public void setWeekLow52(Double weekLow52) {
-        weekLow52 = weekLow52;
+        this.weekLow52 = weekLow52;
     }
-
 
     /**
      * @return the weekHigh52
@@ -431,606 +433,14 @@ public class MarketData_T {
         return weekHigh52;
     }
 
-
     /**
      * @param weekHigh52 the weekHigh52 to set
      */
     public void setWeekHigh52(Double weekHigh52) {
-        weekHigh52 = weekHigh52;
+        this.weekHigh52 = weekHigh52;
     }
 
-
-    /**
-     * @return the avgVolume
-     */
-    public Double getAvgVolume() {
-        return avgVolume;
-    }
-
-
-    /**
-     * @param avgVolume the avgVolume to set
-     */
-    public void setAvgVolume(Double avgVolume) {
-        avgVolume = avgVolume;
-    }
-
-
-    /**
-     * @return the openInterest
-     */
-    public Double getOpenInterest() {
-        return openInterest;
-    }
-
-
-    /**
-     * @param openInterest the openInterest to set
-     */
-    public void setOpenInterest(Double openInterest) {
-        openInterest = openInterest;
-    }
-
-
-    /**
-     * @return the optionHistoricalVolatility
-     */
-    public Double getOptionHistoricalVolatility() {
-        return optionHistoricalVolatility;
-    }
-
-
-    /**
-     * @param optionHistoricalVolatility the optionHistoricalVolatility to set
-     */
-    public void setOptionHistoricalVolatility(Double optionHistoricalVolatility) {
-        optionHistoricalVolatility = optionHistoricalVolatility;
-    }
-
-
-    /**
-     * @return the optionImpliedVolatility
-     */
-    public Double getOptionImpliedVolatility() {
-        return optionImpliedVolatility;
-    }
-
-
-    /**
-     * @param optionImpliedVolatility the optionImpliedVolatility to set
-     */
-    public void setOptionImpliedVolatility(Double optionImpliedVolatility) {
-        optionImpliedVolatility = optionImpliedVolatility;
-    }
-
-
-    /**
-     * @return the optionBidExchStr
-     */
-    public Double getOptionBidExchStr() {
-        return optionBidExchStr;
-    }
-
-
-    /**
-     * @param optionBidExchStr the optionBidExchStr to set
-     */
-    public void setOptionBidExchStr(Double optionBidExchStr) {
-        optionBidExchStr = optionBidExchStr;
-    }
-
-
-    /**
-     * @return the optionAskExchStr
-     */
-    public Double getOptionAskExchStr() {
-        return optionAskExchStr;
-    }
-
-
-    /**
-     * @param optionAskExchStr the optionAskExchStr to set
-     */
-    public void setOptionAskExchStr(Double optionAskExchStr) {
-        optionAskExchStr = optionAskExchStr;
-    }
-
-
-    /**
-     * @return the optionCallOpenInterest
-     */
-    public Double getOptionCallOpenInterest() {
-        return optionCallOpenInterest;
-    }
-
-
-    /**
-     * @param optionCallOpenInterest the optionCallOpenInterest to set
-     */
-    public void setOptionCallOpenInterest(Double optionCallOpenInterest) {
-        optionCallOpenInterest = optionCallOpenInterest;
-    }
-
-
-    /**
-     * @return the optionPutOpenInterest
-     */
-    public Double getOptionPutOpenInterest() {
-        return optionPutOpenInterest;
-    }
-
-
-    /**
-     * @param optionPutOpenInterest the optionPutOpenInterest to set
-     */
-    public void setOptionPutOpenInterest(Double optionPutOpenInterest) {
-        optionPutOpenInterest = optionPutOpenInterest;
-    }
-
-
-    /**
-     * @return the optionCallVolume
-     */
-    public Double getOptionCallVolume() {
-        return optionCallVolume;
-    }
-
-
-    /**
-     * @param optionCallVolume the optionCallVolume to set
-     */
-    public void setOptionCallVolume(Double optionCallVolume) {
-        optionCallVolume = optionCallVolume;
-    }
-
-
-    /**
-     * @return the optionPutVolume
-     */
-    public Double getOptionPutVolume() {
-        return optionPutVolume;
-    }
-
-
-    /**
-     * @param optionPutVolume the optionPutVolume to set
-     */
-    public void setOptionPutVolume(Double optionPutVolume) {
-        optionPutVolume = optionPutVolume;
-    }
-
-
-    /**
-     * @return the indexFuturePremium
-     */
-    public Double getIndexFuturePremium() {
-        return indexFuturePremium;
-    }
-
-
-    /**
-     * @param indexFuturePremium the indexFuturePremium to set
-     */
-    public void setIndexFuturePremium(Double indexFuturePremium) {
-        indexFuturePremium = indexFuturePremium;
-    }
-
-
-    /**
-     * @return the bidExch
-     */
-    public Double getBidExch() {
-        return bidExch;
-    }
-
-
-    /**
-     * @param bidExch the bidExch to set
-     */
-    public void setBidExch(Double bidExch) {
-        this.bidExch = bidExch;
-    }
-
-
-    /**
-     * @return the askExch
-     */
-    public Double getAskExch() {
-        return askExch;
-    }
-
-
-    /**
-     * @param askExch the askExch to set
-     */
-    public void setAskExch(Double askExch) {
-        this.askExch = askExch;
-    }
-
-
-    /**
-     * @return the auctionVolume
-     */
-    public Double getAuctionVolume() {
-        return auctionVolume;
-    }
-
-
-    /**
-     * @param auctionVolume the auctionVolume to set
-     */
-    public void setAuctionVolume(Double auctionVolume) {
-        this.auctionVolume = auctionVolume;
-    }
-
-
-    /**
-     * @return the auctionPrice
-     */
-    public Double getAuctionPrice() {
-        return auctionPrice;
-    }
-
-
-    /**
-     * @param auctionPrice the auctionPrice to set
-     */
-    public void setAuctionPrice(Double auctionPrice) {
-        this.auctionPrice = auctionPrice;
-    }
-
-
-    /**
-     * @return the auctionImbalance
-     */
-    public Double getAuctionImbalance() {
-        return auctionImbalance;
-    }
-
-
-    /**
-     * @param auctionImbalance the auctionImbalance to set
-     */
-    public void setAuctionImbalance(Double auctionImbalance) {
-        this.auctionImbalance = auctionImbalance;
-    }
-
-
-    /**
-     * @return the markPrice
-     */
-    public Double getMarkPrice() {
-        return markPrice;
-    }
-
-
-    /**
-     * @param markPrice the markPrice to set
-     */
-    public void setMarkPrice(Double markPrice) {
-        this.markPrice = markPrice;
-    }
-
-
-    /**
-     * @return the bidEFP
-     */
-    public Double getBidEFP() {
-        return bidEFP;
-    }
-
-
-    /**
-     * @param bidEFP the bidEFP to set
-     */
-    public void setBidEFP(Double bidEFP) {
-        this.bidEFP = bidEFP;
-    }
-
-
-    /**
-     * @return the askEFP
-     */
-    public Double getAskEFP() {
-        return askEFP;
-    }
-
-
-    /**
-     * @param askEFP the askEFP to set
-     */
-    public void setAskEFP(Double askEFP) {
-        this.askEFP = askEFP;
-    }
-
-
-    /**
-     * @return the lastEFP
-     */
-    public Double getLastEFP() {
-        return lastEFP;
-    }
-
-
-    /**
-     * @param lastEFP the lastEFP to set
-     */
-    public void setLastEFP(Double lastEFP) {
-        this.lastEFP = lastEFP;
-    }
-
-
-    /**
-     * @return the openEFP
-     */
-    public Double getOpenEFP() {
-        return openEFP;
-    }
-
-
-    /**
-     * @param openEFP the openEFP to set
-     */
-    public void setOpenEFP(Double openEFP) {
-        this.openEFP = openEFP;
-    }
-
-
-    /**
-     * @return the highEFP
-     */
-    public Double getHighEFP() {
-        return highEFP;
-    }
-
-
-    /**
-     * @param highEFP the highEFP to set
-     */
-    public void setHighEFP(Double highEFP) {
-        this.highEFP = highEFP;
-    }
-
-
-    /**
-     * @return the lowEFP
-     */
-    public Double getLowEFP() {
-        return lowEFP;
-    }
-
-
-    /**
-     * @param lowEFP the lowEFP to set
-     */
-    public void setLowEFP(Double lowEFP) {
-        this.lowEFP = lowEFP;
-    }
-
-
-    /**
-     * @return the closeEFP
-     */
-    public Double getCloseEFP() {
-        return closeEFP;
-    }
-
-
-    /**
-     * @param closeEFP the closeEFP to set
-     */
-    public void setCloseEFP(Double closeEFP) {
-        this.closeEFP = closeEFP;
-    }
-
-
-    /**
-     * @return the lastTimestamp
-     */
-    public Double getLastTimestamp() {
-        return lastTimestamp;
-    }
-
-
-    /**
-     * @param lastTimestamp the lastTimestamp to set
-     */
-    public void setLastTimestamp(Double lastTimestamp) {
-        this.lastTimestamp = lastTimestamp;
-    }
-
-
-    /**
-     * @return the shortable
-     */
-    public Double getShortable() {
-        return shortable;
-    }
-
-
-    /**
-     * @param shortable the shortable to set
-     */
-    public void setShortable(Double shortable) {
-        this.shortable = shortable;
-    }
-
-
-    /**
-     * @return the fundamentals
-     */
-    public Double getFundamentals() {
-        return fundamentals;
-    }
-
-
-    /**
-     * @param fundamentals the fundamentals to set
-     */
-    public void setFundamentals(Double fundamentals) {
-        this.fundamentals = fundamentals;
-    }
-
-
-    /**
-     * @return the rTVolume
-     */
-    public Double getRTVolume() {
-        return rtVolume;
-    }
-
-
-    /**
-     * @param rTVolume the rTVolume to set
-     */
-    public void setRTVolume(Double rTVolume) {
-        rtVolume = rTVolume;
-    }
-
-
-    /**
-     * @return the halted
-     */
-    public Double getHalted() {
-        return halted;
-    }
-
-
-    /**
-     * @param halted the halted to set
-     */
-    public void setHalted(Double halted) {
-        this.halted = halted;
-    }
-
-
-    /**
-     * @return the bidYield
-     */
-    public Double getBidYield() {
-        return bidYield;
-    }
-
-
-    /**
-     * @param bidYield the bidYield to set
-     */
-    public void setBidYield(Double bidYield) {
-        this.bidYield = bidYield;
-    }
-
-
-    /**
-     * @return the askYield
-     */
-    public Double getAskYield() {
-        return askYield;
-    }
-
-
-    /**
-     * @param askYield the askYield to set
-     */
-    public void setAskYield(Double askYield) {
-        this.askYield = askYield;
-    }
-
-
-    /**
-     * @return the lastYield
-     */
-    public Double getLastYield() {
-        return lastYield;
-    }
-
-
-    /**
-     * @param lastYield the lastYield to set
-     */
-    public void setLastYield(Double lastYield) {
-        this.lastYield = lastYield;
-    }
-
-
-    /**
-     * @return the custOptComp
-     */
-    public Double getCustOptComp() {
-        return custOptComp;
-    }
-
-
-    /**
-     * @param custOptComp the custOptComp to set
-     */
-    public void setCustOptComp(Double custOptComp) {
-        this.custOptComp = custOptComp;
-    }
-
-
-    /**
-     * @return the trades
-     */
-    public Double getTrades() {
-        return trades;
-    }
-
-
-    /**
-     * @param trades the trades to set
-     */
-    public void setTrades(Double trades) {
-        this.trades = trades;
-    }
-
-
-    /**
-     * @return the trades_min
-     */
-    public Double getTrades_min() {
-        return trades_min;
-    }
-
-
-    /**
-     * @param trades_min the trades_min to set
-     */
-    public void setTrades_min(Double trades_min) {
-        this.trades_min = trades_min;
-    }
-
-
-    /**
-     * @return the volume_min
-     */
-    public Double getVolume_min() {
-        return volume_min;
-    }
-
-
-    /**
-     * @param volume_min the volume_min to set
-     */
-    public void setVolume_min(Double volume_min) {
-        this.volume_min = volume_min;
-    }
-
-
-    /**
-     * @return the lastRTHTrade
-     */
-    public Double getLastRTHTrade() {
-        return lastRTHTrade;
-    }
-
-
-    /**
-     * @param lastRTHTrade the lastRTHTrade to set
-     */
-    public void setLastRTHTrade(Double lastRTHTrade) {
-        this.lastRTHTrade = lastRTHTrade;
-    }
-          
+    
     
     
 }

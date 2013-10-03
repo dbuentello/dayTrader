@@ -1,22 +1,40 @@
 package managers;
 
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+
+import org.apache.log4j.Level;
+
+import trader.Holding_T;
+
 import interfaces.Connector_IF;
+import interfaces.Manager_IF;
 
 import com.ib.client.CommissionReport;
 import com.ib.client.Contract;
 import com.ib.client.ContractDetails;
+import com.ib.client.EClientSocket;
 import com.ib.client.EWrapper;
 import com.ib.client.Execution;
 import com.ib.client.Order;
 import com.ib.client.OrderState;
 import com.ib.client.UnderComp;
 
-import interfaces.LifeState_IF;
+import exceptions.ConnectionException;
 
-public class BrokerManager_T implements LifeState_IF, Connector_IF, EWrapper {
+public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
   /* {src_lang=Java}*/
 
-
+    private final String GATEWAY_HOST = "localhost";
+    private final int GATEWAY_PORT = 4001;
+    private final int CLIENT_ID = 1;
+    private final String  ACCOUNT_CODE = "DU171047";
+    
+    private List<Holding_T> holdings = new ArrayList<Holding_T>();
+    
+    EClientSocket ibClientSocket = null;
+    
     /**
      * 
      */
@@ -102,7 +120,8 @@ public class BrokerManager_T implements LifeState_IF, Connector_IF, EWrapper {
 	@Override
 	public void openOrder(int orderId, Contract contract, Order order,
 			OrderState orderState) {
-		// TODO Auto-generated method stub
+		
+	    holdings.add(new Holding_T(order, contract, orderState));
 		
 	}
 	
@@ -279,27 +298,52 @@ public class BrokerManager_T implements LifeState_IF, Connector_IF, EWrapper {
 	}
 	
 	@Override
-	public void connect() {
-		// TODO Auto-generated method stub
+	public void connect() throws ConnectionException {
+		
+	    if (isConnected()) {
+	        System.out.println("Already connected to the IB interface.");
+	    } else {
+	    
+	        ibClientSocket.eConnect(GATEWAY_HOST, GATEWAY_PORT, CLIENT_ID);
+		
+    		if (!isConnected()) {
+    		    throw new ConnectionException("Failed to connect to IB Gateway");
+    		}
+    		
+	    }
 		
 	}
 	
 	@Override
 	public void disconnect() {
-		// TODO Auto-generated method stub
-		
+	    ibClientSocket.eDisconnect();
 	}
 	
 	@Override
-	public void isConnected() {
-		// TODO Auto-generated method stub
+	public boolean isConnected() {
 		
+		return ibClientSocket.isConnected();
 	}
 	
 	@Override
 	public void initialize() {
-		// TODO Auto-generated method stub
 		
+	    ibClientSocket = new EClientSocket(this);
+		try {
+            connect();
+        } catch (ConnectionException e) {
+            // TODO Handle the exception
+            e.printStackTrace();
+        }
+		
+		// request all our current holdings from IB
+		ibClientSocket.reqOpenOrders();
+		
+		Iterator<Holding_T> it = holdings.iterator();
+		while (it.hasNext()) {
+		    Holding_T openTrade = (Holding_T) it.next();
+		    LoggerManager_T.logText(openTrade.getOrderString(), Level.INFO);
+		}
 	}
 	
 	@Override
@@ -316,7 +360,7 @@ public class BrokerManager_T implements LifeState_IF, Connector_IF, EWrapper {
 	
 	@Override
 	public void terminate() {
-		// TODO Auto-generated method stub
+		disconnect();
 		
 	}
 	

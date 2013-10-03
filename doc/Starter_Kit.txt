@@ -39,6 +39,9 @@ eclipse - eclipse IDE, I'm most familiar with Eclipse and like it, but you can u
 gcc - C++ compiler
 java-common - Java installation
 chmsee - utility for view *.chm files
+libxml2
+libxml2-dev
+libexpat1-dev
 
 Install the following perl modules using cpan:
 Command (recommended to do as root but not required):
@@ -54,6 +57,8 @@ Datetime
 Datetime::Format::Strptime
 Switch
 Scalar::Util
+XML::LibXML
+XML::Parser
 
 Install ArgoUML on your laptop: http://argouml.tigris.org/
 

@@ -90,6 +90,7 @@ print "\n**end**\n";
 sub getEODQuotes
 {
 my $MAX_QUOTES = 100;
+my $EXCHANGE = "NASDAQ";
 
   # clear the table first so we only have one entry per date
   my $date = getCurrentTradeDate();
@@ -98,8 +99,8 @@ my $MAX_QUOTES = 100;
   $db->execute();
 
 
-  #get the symbols from our database  (DEBUG                             \/ \/
-  my $db = $connection->prepare( "SELECT * FROM symbols where exchange = \"AMEX\"" );
+  #get the symbols from our database
+  my $db = $connection->prepare( "SELECT * FROM symbols where exchange = \"$EXCHANGE\"" );
   $db->execute();
 
   my $rows = $db->rows;
@@ -144,7 +145,7 @@ my $MAX_QUOTES = 100;
        if ($i!=$count-1) { $symbols .= ',';  }
      } # next symbol
 
-if ($_dbg) {
+if ($_dbg==2) {
 print DBGFILE "\nsymbol list= $symbols";
 print DBGFILE "\nsymbol ids = "; 
 while (($k, $v) = each (%symbol_ids)) { print DBGFILE "$k: $v  "; }
@@ -215,8 +216,7 @@ if ($_dbg == 2) { print DBGFILE "\n$quote_data"; }
           $symerr = 1;
        }
 
-if ($_dbg) { print DBGFILE "\n$symbol ($symbol_ids{$symbol}): $date, $open, $close, $low, $high, $price, $volume, $change, $chgper"; }
-if ($_dbg==2) { print DBGFILE ", $bid, $ask, $bidsize, $asksize, $yearlo, $yearhi"; }
+if ($_dbg==2) { print DBGFILE "\n$symbol ($symbol_ids{$symbol}): $date, $open, $close, $low, $high, $price, $volume, $change, $chgper, $bid, $ask, $bidsize, $asksize, $yearlo, $yearhi"; }
 
        # this is realbad because we wont have an id to insert!
        if (!defined($symbol_ids{$symbol}))
@@ -304,7 +304,7 @@ if ($_dbg==2) { print DBGFILE "\nupdateQuotes: $insert_statement"; }
 }
 
 #======================================================
-# return the top n biggest losers by percent change
+# return the top n biggest losers by percent change (by symbolId)
 # note: limited to $MAX_LOSERS=10 right now, with only minVolume criteria
 
 sub biggestLosers
@@ -371,8 +371,12 @@ sub updateHoldings
   my $date = getCurrentTradeDate();
 #print "\nupdateHoldings for $date";
 
+for (my $N=1; $N<=$MAX_HOLDINGS_TABLES; $N++)
+{
+  my $tableName = "Holdings".$N;
+
   #remove previous entires
-  my $stmt = "DELETE FROM Holdings WHERE DATE(buy_date) = \"$date\"";
+  my $stmt = "DELETE FROM $tableName WHERE DATE(buy_date) = \"$date\"";
   $connection->do( $stmt );
 #print $stmt;
 
@@ -382,15 +386,17 @@ sub updateHoldings
      #for debugging - insert symbol too
      my $symbol = symbolLookup($sid);
 
-     my $stmt = "INSERT INTO Holdings (symbolId, symbol, buy_date) VALUES ($sid, \"$symbol\", \"$date\")";
+     my $stmt = "INSERT INTO $tableName (symbolId, symbol, buy_date) VALUES ($sid, \"$symbol\", \"$date\")";
 #print "\nupdateHoldings: $stmt";
 
      #TODO: error check
      if ($connection->do($stmt) != 1)
      {
-         print LOGFILE "\nFATAL ERROR: $stmt FAILED";
+         print LOGFILE "\nFATAL ERROR: GetQuotes::updateHoldings() $stmt FAILED";
      }
   }
+
+} # next Holdings Table
 
 }
 
@@ -442,11 +448,18 @@ sub updateBuyPositions
      $buy_volume = int ($buy_total/$buy_price);
      $buy_total = $buy_volume * $buy_price;
 
-     my $stmt = "UPDATE Holdings SET buy_price = $buy_price, buy_volume = $buy_volume, buy_total = $buy_total WHERE symbolid = $sid AND buy_date = \"$date\"";
+for (my $N=1; $N<=$MAX_HOLDINGS_TABLES; $N++)
+{
+     $tableName = "Holdings".$N;
+
+     my $stmt = "UPDATE $tableName SET buy_price = $buy_price, buy_volume = $buy_volume, buy_total = $buy_total WHERE symbolid = $sid AND buy_date = \"$date\"";
 #print "\nupdateBuyPositions: $stmt";
 
      #TODO: error check
-     $connection->do( $stmt );
+     $connection->do($stmt);
+
+} # next Holdings Table
+
   }
 
 }
@@ -495,7 +508,11 @@ sub sellHoldings
 
 if ($_dbg) { print DBGFILE "\nSelling all remaining holdings..."; }
 
-  my $stmt = "SELECT symbol, symbolId, buy_price FROM Holdings where sell_date is NULL";
+for (my $n=1; $n<=$MAX_HOLDINGS_TABLES; $n++)
+{
+  my $tableName = "Holdings".$n;
+
+  my $stmt = "SELECT symbol, symbolId, buy_price FROM $tableName where sell_date is NULL";
   my $db = $connection->prepare( $stmt );
   $db->execute();
 
@@ -503,7 +520,6 @@ if ($_dbg) { print DBGFILE "\nSelling all remaining holdings..."; }
   if ($rows == 0)
   {
     print LOGFILE "\nThere are no remaining Holdings to sell at the end of the day";
-print "\nThere are no remaining Holdings to sell at the end of the day";
     return;
   }
 
@@ -522,7 +538,7 @@ print "\nThere are no remaining Holdings to sell at the end of the day";
 #print "\nsell Holdings $symbol at $price, bought at $buy_price";
 
     #update the Holdings Table with this info
-    if (updateSellPositions($symbol, $price, $date))
+    if (updateSellPositions($symbol, $price, $date, $n))
     {
       my $diff = $price-$buy_price;
 
@@ -531,13 +547,14 @@ print "\nThere are no remaining Holdings to sell at the end of the day";
       if ($diff<0) { $net = "LOSS"; }
 
 if ($_dbg) { print DBGFILE "\n".timeStamp().": *** SELL $symbol at a $net of \$$diff ($price:$buy_price) per share at $date ***"; }
-print LOGFILE "\n".timeStamp().": *** SELL $symbol at a $net of \$$diff ($price:$buy_price) per share at $date ***";
+print LOGFILE "\n".timeStamp().": $tableName: *** SELL $symbol at a $net of \$$diff ($price:$buy_price) per share at $date ***";
     } #only log if updated
 
   }  # next unsold
 
   $db->finish();
 
+} # next Holdings table
 }
 
 
@@ -548,11 +565,16 @@ print LOGFILE "\n".timeStamp().": *** SELL $symbol at a $net of \$$diff ($price:
 
 sub calculateNet
 {
+
+for (my $n=1; $n<=$MAX_HOLDINGS_TABLES; $n++)
+{
+  my $tableName = "Holdings".$n;
+
   my $cum_net = 0;
   my $cum_vol = 0;
 
   #	note: change the criteria field to net					\/ \/
-  my $stmt = "SELECT id, buy_volume, buy_total, sell_price FROM Holdings WHERE criteria IS NULL";
+  my $stmt = "SELECT id, buy_volume, buy_total, sell_price FROM $tableName WHERE criteria IS NULL";
   my $db = $connection->prepare( $stmt );
   $db->execute();
 
@@ -574,7 +596,7 @@ if ($rows != $MAX_LOSERS) { warn "\nsomething is fishy in Holdings... $rows retr
       my $net =  $sell_total - $buy_total;
 
       #                                                       \/   temp text field!!!
-      my $stmt = "UPDATE Holdings SET sell_total=$sell_total, criteria=\"$net\" WHERE id=$id";
+      my $stmt = "UPDATE $tableName SET sell_total=$sell_total, criteria=\"$net\" WHERE id=$id";
 #print "\n$stmt";
       $connection->do($stmt);
 
@@ -599,7 +621,8 @@ if ($rows != $MAX_LOSERS) { warn "\nsomething is fishy in Holdings... $rows retr
   $db->execute();
   if ($db->rows != 1)
   {
-     warn "\nCant get starting capital value from DailyNet!\n";
+     warn "\nCant get starting capital value from DailyNet!";
+     print LOGFILE "\nFATAL GetQuotes::calculateNet() Cant get starting capital value from DailyNet!";
      exit;
   }
   my @data = $db->fetchrow_array();
@@ -609,15 +632,17 @@ if ($rows != $MAX_LOSERS) { warn "\nsomething is fishy in Holdings... $rows retr
 #print "\nStarting capital for today is \$$start_capital";
 
   # update our net for today
-  $stmt = "UPDATE DailyNet SET net=$cum_net, totalVolume=$cum_vol WHERE id=$id;";
+  my $netName = "net".$n;
+  $stmt = "UPDATE DailyNet SET $netName=$cum_net, totalVolume=$cum_vol WHERE id=$id;";
 #print "\n$stmt";
   $connection->do($stmt);
 
 
   # tell us about it
   my $today = getCurrentTradeDate();
-  print LOGFILE "\nNet for $today is \$$cum_net on $cum_vol shares";
+  print LOGFILE "\n$netName for $today is \$$cum_net on $cum_vol shares";
 
+} # next Holdings table
 
   # add new record for starting point for tomorrow
   my $date = getNextTradeDate();

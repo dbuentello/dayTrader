@@ -1,8 +1,10 @@
 package managers;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.log4j.Level;
 
@@ -29,9 +31,15 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
     private final String GATEWAY_HOST = "localhost";
     private final int GATEWAY_PORT = 4001;
     private final int CLIENT_ID = 1;
+    // ACTUAL TRADER ACCOUNT CODE
+    //private final String  ACCOUNT_CODE = "U1235379";
+    // PAPER TRADER ACCOUNT CODE
     private final String  ACCOUNT_CODE = "DU171047";
     
-    private List<Holding_T> holdings = new ArrayList<Holding_T>();
+    /** HashMap of orderIds to Holdings so we can easily retrieve holding information 
+     *  based on orderId.
+     */
+    private Map<Integer, Holding_T> holdings = new HashMap<Integer, Holding_T>();
     
     EClientSocket ibClientSocket = null;
     
@@ -113,15 +121,26 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
 	public void orderStatus(int orderId, String status, int filled, int remaining,
 			double avgFillPrice, int permId, int parentId, double lastFillPrice,
 			int clientId, String whyHeld) {
-		// TODO Auto-generated method stub
 		
+	    Holding_T holding = holdings.get(orderId);
+		
+	    holding.setOrderStatus(status);
+	    holding.setFilled(filled);
+	    holding.setRemaining(remaining);
+	    holding.setAvgFillPrice(avgFillPrice);
+	    //the permId is stored in holding.order.m_permId
+	    holding.setParentId(parentId);
+	    holding.setLastFillPrice(lastFillPrice);
+	    //the clientId is stored in holding.order.m_cliendId
+	    
+	    
 	}
 	
 	@Override
 	public void openOrder(int orderId, Contract contract, Order order,
 			OrderState orderState) {
 		
-	    holdings.add(new Holding_T(order, contract, orderState));
+	    holdings.put(orderId, new Holding_T(order, contract, orderState));
 		
 	}
 	
@@ -300,6 +319,8 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
 	@Override
 	public void connect() throws ConnectionException {
 		
+	    ibClientSocket = new EClientSocket(this);
+	    
 	    if (isConnected()) {
 	        System.out.println("Already connected to the IB interface.");
 	    } else {
@@ -325,10 +346,14 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
 		return ibClientSocket.isConnected();
 	}
 	
+	/**
+	 * Initialize the BrokerManager_T by performing the following tasks:
+	 * 1. Retrieve all open orders from the broker (IB)
+	 * 
+	 */
 	@Override
 	public void initialize() {
 		
-	    ibClientSocket = new EClientSocket(this);
 		try {
             connect();
         } catch (ConnectionException e) {
@@ -337,12 +362,17 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
         }
 		
 		// request all our current holdings from IB
+		//reqOpenOrder returns through the openOrder() and orderStatus() methods
 		ibClientSocket.reqOpenOrders();
 		
-		Iterator<Holding_T> it = holdings.iterator();
-		while (it.hasNext()) {
-		    Holding_T openTrade = (Holding_T) it.next();
-		    LoggerManager_T.logText(openTrade.getOrderString(), Level.INFO);
+		if (holdings.size() > 0) {
+    		Iterator<Holding_T> it = holdings.values().iterator();
+    		while (it.hasNext()) {
+    		    Holding_T openTrade = (Holding_T) it.next();
+    		    LoggerManager_T.logText(openTrade.getOrderString(), Level.INFO);
+    		}
+		} else {
+		    LoggerManager_T.logText("There are no currently open orders", Level.DEBUG);
 		}
 	}
 	

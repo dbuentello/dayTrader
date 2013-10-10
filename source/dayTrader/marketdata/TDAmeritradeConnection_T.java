@@ -1,45 +1,52 @@
 package marketdata;
 
+import interfaces.Connector_IF;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.StringWriter;
-import java.io.Writer;
+import java.net.CookieHandler;
+import java.net.CookieManager;
+import java.net.CookiePolicy;
 import java.net.MalformedURLException;
+import java.net.ProtocolException;
+import java.net.SocketException;
 import java.net.URL;
 
 import javax.net.ssl.HttpsURLConnection;
 
 import managers.LoggerManager_T;
 
-import exceptions.ConnectionException;
-import interfaces.Connector_IF;
-
 import org.apache.log4j.Level;
+
+import util.XMLTags_T;
+
+import exceptions.ConnectionException;
 
 
 
 public class TDAmeritradeConnection_T implements Connector_IF {
 
-    private final String URL_BASE = "https://apis.tdameritrade.com/apps/100/";
+    private final String BASE_URL = "https://apis.tdameritrade.com/apps/100/";
     private final String USER_ID = "Ladd3113";
     private final String PASSWORD = "139WhitakerRd";
     private final String SOURCE_ID = "NALA";
     private final String VERSION = "1.0";
     private final String ENCODING = "UTF-8";
     
-    private HttpsURLConnection urlConnection;
+    //private HttpsURLConnection urlConnection;
     private String sessionId = null;
     
     @SuppressWarnings("finally")
     @Override
     public void connect() throws ConnectionException {
         if (!isConnected()) {
+            //CookieHandler.setDefault(new CookieManager(null, CookiePolicy.ACCEPT_ALL));
             URL loginURL;
-            
+            HttpsURLConnection urlConnection = null;
                 
                 try {
-                    loginURL = new URL(URL_BASE + "LogIn?source=" + SOURCE_ID + "&verision=" + VERSION);
+                    loginURL = new URL(BASE_URL + "LogIn?source=" + SOURCE_ID + "&verision=" + VERSION);
                 
                     urlConnection = (HttpsURLConnection) loginURL.openConnection();
                     urlConnection.setDoOutput(true);
@@ -57,12 +64,17 @@ public class TDAmeritradeConnection_T implements Connector_IF {
                     } finally {
                          output.close();
                     }
-       
+                            
                     java.util.Scanner s = new java.util.Scanner(urlConnection.getInputStream()).useDelimiter("\\A");
                     String response = s.next();
-                    sessionId = simpleParse(response, "session-id");
+                    sessionId = XMLTags_T.simpleParse(response, XMLTags_T.SESSION_ID);
                     
-                    LoggerManager_T.logText("TDAmeritrade Session ID = " + sessionId, Level.INFO);
+                    if (sessionId != "") {
+                        LoggerManager_T.logText("TDAmeritrade Session ID = " + sessionId, Level.INFO);
+                    } else {
+                        LoggerManager_T.logText("Failed to get a TDAmeritrade session-id: " + response, Level.INFO);
+                    }
+         
                 
                 } catch (MalformedURLException e) {
                     // TODO Auto-generated catch block
@@ -71,51 +83,65 @@ public class TDAmeritradeConnection_T implements Connector_IF {
                     // TODO Auto-generated catch block
                     e.printStackTrace();
                     
+                } 
+                finally {
+                    urlConnection.disconnect();
                 }
             
         } 
 
     }
     
-    /**
-     * 
-     * @param xml
-     * @param tag
-     * @return sessionId
-     */
-    //TODO: Use a real parser, although this is very effective
-    private String simpleParse(String xml, String tag) {
-
-      String val = "";
-            
-      String taga = "<" + tag + ">";
-      String tagb = "</" + tag + ">";
-      int tagsize = tag.length() +2;
-
-      int start = xml.indexOf(taga);
-      int end   = xml.indexOf(tagb);
-      if ( start==-1 || end==-1 ) {
-         LoggerManager_T.logText("\nParse error for tag $tag", Level.ERROR);
-      } 
-      else {
-          val = xml.substring(start+tagsize, end-tagsize);
-      }
-
-      return val;
-
+    
+    public String getQuote(String symbolList) {
+        
+        String quoteXml = "";
+        URL quoteUrl;
+        HttpsURLConnection urlConnection = null;
+        
+        try {
+            //TODO: encode url
+            quoteUrl = new URL(BASE_URL + "Quote;jsessionid=" + sessionId + "?source=" + SOURCE_ID + "&symbol=" + symbolList);
+            LoggerManager_T.logText(quoteUrl.toString(), Level.DEBUG);
+    
+            urlConnection = (HttpsURLConnection) quoteUrl.openConnection();
+            urlConnection.setDoOutput(true);
+            urlConnection.setRequestMethod("GET"); //redundant as GET is the default method, but makes it easier to read
+            urlConnection.setRequestProperty("Accept-Charset", ENCODING);
+            urlConnection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+    
+            java.util.Scanner s = new java.util.Scanner(urlConnection.getInputStream()).useDelimiter("\\A");
+            quoteXml = s.next();
+        } catch (MalformedURLException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        } catch (ProtocolException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        } catch (SocketException e) {
+            // TODO Auto-generated catch block
+            System.out.println("wait");
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        finally {
+            //urlConnection.disconnect();
+        }
+        
+        
+        return quoteXml;
     }
-
+    
 
     @Override
     public void disconnect() {
-        urlConnection.disconnect();
-        urlConnection = null;
 
     }
 
     @Override
     public boolean isConnected() {
-        return (urlConnection == null ? false : true);
+        return false;
     }
 
 }

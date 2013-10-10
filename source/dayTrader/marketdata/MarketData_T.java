@@ -5,6 +5,7 @@ import interfaces.Persistable_IF;
 import java.util.Date;
 
 import javax.persistence.CascadeType;
+import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
@@ -210,13 +211,14 @@ public class MarketData_T implements Persistable_IF {
     
     public void setSymbol() {
         if (symbol == null) {
-            symbol = (Symbol_T) DatabaseManager_T.retrieve(Symbol_T.class, this.symbolId);
+            symbol = (Symbol_T) DatabaseManager_T.query(Symbol_T.class, this.symbolId);
         }
     }
     
     /**
      * @return the lastTradeTimestamp
      */
+    @Column( name = "date" )
     @Temporal(value = TemporalType.TIMESTAMP)
     public Date getLastTimestamp() {
         return lastTradeTimestamp;
@@ -247,6 +249,7 @@ public class MarketData_T implements Persistable_IF {
     /**
      * @return the bidPrice
      */
+    @Column( name = "bid" )
     public Double getBidPrice() {
         return bidPrice;
     }
@@ -261,6 +264,7 @@ public class MarketData_T implements Persistable_IF {
     /**
      * @return the askPrice
      */
+    @Column( name = "ask" )
     public Double getAskPrice() {
         return askPrice;
     }
@@ -289,6 +293,7 @@ public class MarketData_T implements Persistable_IF {
     /**
      * @return the lastPrice
      */
+    @Column( name = "price" )
     public Double getLastPrice() {
         return lastPrice;
     }
@@ -303,6 +308,7 @@ public class MarketData_T implements Persistable_IF {
     /**
      * @return the lastSize
      */
+    @Transient
     public Double getLastSize() {
         return lastSize;
     }
@@ -387,6 +393,7 @@ public class MarketData_T implements Persistable_IF {
     /**
      * @return the change
      */
+    @Column (name = "chng")
     public Double getChange() {
         return change;
     }
@@ -401,6 +408,7 @@ public class MarketData_T implements Persistable_IF {
     /**
      * @return the percentChange
      */
+    @Column (name = "chgper")
     public Double getPercentChange() {
         return percentChange;
     }
@@ -415,6 +423,7 @@ public class MarketData_T implements Persistable_IF {
     /**
      * @return the weekLow52
      */
+    @Column( name = "yearlo" )
     public Double getWeekLow52() {
         return weekLow52;
     }
@@ -429,6 +438,7 @@ public class MarketData_T implements Persistable_IF {
     /**
      * @return the weekHigh52
      */
+    @Column (name = "yearhi")
     public Double getWeekHigh52() {
         return weekHigh52;
     }

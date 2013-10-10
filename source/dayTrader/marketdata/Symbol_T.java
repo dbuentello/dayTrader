@@ -3,9 +3,6 @@
  */
 package marketdata;
 
-import java.util.HashSet;
-import java.util.Set;
-
 import interfaces.Persistable_IF;
 
 import javax.persistence.Column;
@@ -15,10 +12,6 @@ import javax.persistence.Enumerated;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
-import javax.persistence.JoinColumn;
-import javax.persistence.JoinTable;
-import javax.persistence.ManyToOne;
-import javax.persistence.OneToMany;
 import javax.persistence.Table;
 
 import managers.DatabaseManager_T;
@@ -27,11 +20,12 @@ import org.hibernate.HibernateException;
 import org.hibernate.PropertyNotFoundException;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
+import org.hibernate.annotations.Type;
 import org.hibernate.property.Getter;
 import org.hibernate.property.PropertyAccessor;
 import org.hibernate.property.Setter;
 
-import util.Exchange_E;
+import util.Exchange_T;
 
 /**
  * @author nathan
@@ -46,7 +40,7 @@ public class Symbol_T implements PropertyAccessor, Persistable_IF {
     private String name;
     private String sector;
     private String industry;
-    private Exchange_E exchange;
+    private String exchange;
     private double market_cap;
     //private Set<MarketData_T> quotes = new HashSet<MarketData_T>(0);
     
@@ -55,6 +49,21 @@ public class Symbol_T implements PropertyAccessor, Persistable_IF {
      */
     public Symbol_T() {
     }
+    
+    
+    public Symbol_T(String symbol) {
+        Symbol_T sym = DatabaseManager_T.getSymbol(symbol);
+        if (sym != null) {
+            this.id = sym.id;
+            this.industry = sym.industry;
+            this.market_cap = sym.market_cap;
+            this.name = sym.name;
+            this.sector = sym.sector;
+            this.symbol = sym.symbol;
+        }
+    }
+
+    
     
     /**
      * @return the id
@@ -138,14 +147,14 @@ public class Symbol_T implements PropertyAccessor, Persistable_IF {
     /**
      * @return the exchange
      */
-    @Enumerated(EnumType.STRING)
-    public Exchange_E getExchange() {
+    public String getExchange() {
         return exchange;
     }
+    
     /**
      * @param exchange the exchange to set
      */
-    public void setExchange(Exchange_E exchange) {
+    public void setExchange(String exchange) {
         this.exchange = exchange;
     }
     /**

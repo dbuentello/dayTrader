@@ -1,6 +1,10 @@
 package trader;
 
+import javax.persistence.Transient;
+
 import org.hibernate.HibernateException;
+
+import util.OrderStatus_T;
 
 import interfaces.Persistable_IF;
 
@@ -14,6 +18,26 @@ public class Holding_T implements Persistable_IF {
     private Order order;
     private Contract contract;
     private OrderState orderState;
+    private OrderStatus_T orderStatus;
+    /** Specifies the number of shares that have been executed. */
+    private int filled;
+    /** Specifies the number of shares still outstanding. */
+    private int remaining;
+    /** The average price of the shares that have been executed. This parameter is valid
+     *  only if the filled parameter value is greater than zero. Otherwise, the price param-
+     *  eter will be zero.
+     */
+    private double avgFillPrice;
+    /**
+     * The last price of the shares that have been executed. This parameter is valid only
+     *  if the filled parameter value is greater than zero. Otherwise, the price parameter
+     *  will be zero.
+     */
+    private double lastFillPrice;
+    /**
+     * The order ID of the parent order, used for bracket and auto trailing stop orders.
+     */
+    private int parentId;
     
     /**
      * 
@@ -44,6 +68,21 @@ public class Holding_T implements Persistable_IF {
      */
     public void setOrder(Order order) {
         this.order = order;
+    }
+
+    /**
+     * @param orderStatus the orderStatus to set
+     */
+    public void setOrderStatus(OrderStatus_T orderStatus) {
+        this.orderStatus = orderStatus;
+    }
+    
+    public String getOrderStatus() {
+        return this.orderStatus.getStatus();
+    }
+    
+    public void setOrderStatus(String status) {
+        this.orderStatus = new OrderStatus_T(status);
     }
 
     /**
@@ -100,6 +139,76 @@ public class Holding_T implements Persistable_IF {
     public void update() throws HibernateException {
         // TODO Auto-generated method stub
         
+    }
+
+    /**
+     * @return the filled
+     */
+    public int getFilled() {
+        return filled;
+    }
+
+    /**
+     * @param filled the filled to set
+     */
+    public void setFilled(int filled) {
+        this.filled = filled;
+    }
+
+    /**
+     * @return the @code{remaining}
+     */
+    public int getRemaining() {
+        return remaining;
+    }
+
+    /**
+     * @param remaining the @code{remaining} to set
+     */
+    public void setRemaining(int remaining) {
+        this.remaining = remaining;
+    }
+
+    /**
+     * @return the avgFillPrice
+     */
+    public double getAvgFillPrice() {
+        return avgFillPrice;
+    }
+
+    /**
+     * @param avgFillPrice the avgFillPrice to set
+     */
+    public void setAvgFillPrice(double avgFillPrice) {
+        this.avgFillPrice = avgFillPrice;
+    }
+
+    /**
+     * @return the lastFillPrice
+     */
+    public double getLastFillPrice() {
+        return lastFillPrice;
+    }
+
+    /**
+     * @param lastFillPrice the lastFillPrice to set
+     */
+    public void setLastFillPrice(double lastFillPrice) {
+        this.lastFillPrice = lastFillPrice;
+    }
+
+    /**
+     * @return the parentId
+     */
+    public int getParentId() {
+        return parentId;
+    }
+
+    /**
+     * @param parentId the parentId to set
+     */
+    public void setParentId(int parentId) {
+        this.parentId = parentId;
     }
     
 

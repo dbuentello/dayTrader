@@ -45,7 +45,7 @@ public class DayTrader_T {
 		
 		serviceManager.add(databaseManager);
 		serviceManager.add(marketDataManager);
-		//serviceManager.add(brokerManager);
+		serviceManager.add(brokerManager);
 		serviceManager.add(loggerManager);
 		
 		
@@ -65,6 +65,7 @@ public class DayTrader_T {
             Manager_IF mgr = it.next();
             mgr.run();
         }
+        
 	}
 	
 	public void sleep() {

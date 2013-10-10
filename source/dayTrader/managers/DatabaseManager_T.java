@@ -6,15 +6,21 @@ import interfaces.Persistable_IF;
 
 import java.util.List;
 
+import marketdata.Symbol_T;
+
+import org.hibernate.Criteria;
 import org.hibernate.HibernateException;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.Transaction;
+import org.hibernate.criterion.Restrictions;
+import org.hibernate.internal.CriteriaImpl;
 import org.hibernate.metamodel.MetadataSources;
 import org.hibernate.service.ServiceRegistry;
 import org.hibernate.service.ServiceRegistryBuilder;
 
 import trader.Holding_T;
+import util.Exchange_T;
 
 /** 
  *  This class will manage the database connection. 
@@ -118,9 +124,15 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         return sessionFactory;
     }
 
-    
-    public static <T> Persistable_IF retrieve(Class<T> persistableClass, long id) {
-        Session session = DatabaseManager_T.getSessionFactory().openSession();
+    /**
+     * Query the database for a single row. persistableClass will be the object class that maps to the table 
+     * to query, id is the primary key id of the object
+     * @param persistableClass
+     * @param id
+     * @return object if found in the database, otherwise null
+     */
+    public static <T> Persistable_IF query(Class<T> persistableClass, long id) {
+        Session session = getSessionFactory().openSession();
         Transaction tx = null;
         Persistable_IF persistentData = null;
         
@@ -139,14 +151,37 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         return persistentData;
     }
     
-    public List<Holding_T> retrieveCurrentHoldings() {
+    public static Symbol_T getSymbol(String symbolString) {
         
-        List<Holding_T> holdings = null;
+        Session session = getSessionFactory().openSession();
+        Criteria criteria = session.createCriteria(Symbol_T.class)
+            .add(Restrictions.eq("symbol", symbolString));
+        Symbol_T symbol = (Symbol_T) criteria.list().get(0);
         
-        //TODO: implement query to get holdings
-        //Use the IB API to get all
+        session.close();
         
-        return holdings;
+        return symbol;
+    }
+    
+    /**
+     * Query the database for all symbols in a given exchange
+     * 
+     * @param exchange
+     * @return all found symbols for that exchange
+     */
+    @SuppressWarnings("unchecked")
+    public static List<Symbol_T> getSymbolsByExchange(String exchange) {
+        
+        Session session = getSessionFactory().openSession();
+        Criteria criteria = session.createCriteria(Symbol_T.class)
+            .add(Restrictions.eq("exchange", exchange));
+        
+        List<Symbol_T> results = criteria.list();
+        
+        
+        session.close();
+        
+        return results;   
         
     }
 }

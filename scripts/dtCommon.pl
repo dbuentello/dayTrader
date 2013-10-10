@@ -5,7 +5,6 @@
 use Data::Dumper;
 use DBI;
 use DBD::mysql;
-use XML::Parser;
 
 use LWP;
 use LWP::Simple;
@@ -40,15 +39,18 @@ use warnings;
 # global parameters
   our $MIN_VOLUME = 10000;
   our $MIN_PRICE  = .50;
-  our $MAX_LOSERS = 10;
+  our $MAX_LOSERS = 25;
 
 # debugging
   # 1 = standard debugging; 2 include DT return data (lots!)
-  our $_dbg = 1;
+  our $_dbg = 0;
   our $dbgfileLocation = "./logs/";
   our $dbgfileName = "dt.dbg";
 
 # for testing
+
+  # for running various scenarios
+  our $MAX_HOLDINGS_TABLES = 4;
 
   # set this if the market is closed (for testing)
   our $_ignoreMarketClosed = 0;
@@ -62,6 +64,7 @@ use warnings;
 # -d[ebug]{2}
 # -ic [ignore market close]
 # -o<directory>  [output directory for log and debug files]
+# -db<name> specify the db name
 # -s<date>  simulation for <date YYY-MM-DD>  do not get Quotes from TD; assumes its in the EOD and RT databases
 #    use with extreme care - tables will have to be manipulated
 
@@ -97,6 +100,10 @@ sub getCommandLineArgs
     {
        $_simulate = 1;
        $_simulate_date = substr($ARGV[$i], 2);
+    }
+    if (substr($ARGV[$i], 0, 3) eq "-db")
+    {
+       $dbname = substr($ARGV[$i], 3);
     }
 
   } # next arg
@@ -354,10 +361,10 @@ sub getNextTradeDate
   my $db = $connection->prepare($stmt);
   $db->execute();
   my @data = $db->fetchrow_array();
-  my $date = $data[0];
+  my $nextdate = $data[0];
   $db->finish();
 
-  return $date;
+  return $nextdate;
 }
 
 #========================================================
@@ -385,5 +392,7 @@ sub symbolLookup
   return $symbol;
 }
 
+# need to return true (1) for 'require'
+1
 
 

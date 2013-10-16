@@ -1,6 +1,15 @@
 package trader;
 
+import java.util.Date;
+
+import javax.persistence.Column;
+import javax.persistence.GeneratedValue;
+import javax.persistence.GenerationType;
+import javax.persistence.Id;
 import javax.persistence.Transient;
+
+import managers.DatabaseManager_T;
+import marketdata.Symbol_T;
 
 import org.hibernate.HibernateException;
 
@@ -15,17 +24,19 @@ import com.ib.client.OrderState;
 public class Holding_T implements Persistable_IF {
   /* {src_lang=Java}*/
     
+    private long id;
+    
     private Order order;
     private Contract contract;
     private OrderState orderState;
-    private OrderStatus_T orderStatus;
+    private Symbol_T symbol;
     /** Specifies the number of shares that have been executed. */
     private int filled;
     /** Specifies the number of shares still outstanding. */
     private int remaining;
     /** The average price of the shares that have been executed. This parameter is valid
      *  only if the filled parameter value is greater than zero. Otherwise, the price param-
-     *  eter will be zero.
+     *  eter will be zero. This can also be considered as the "buy price".
      */
     private double avgFillPrice;
     /**
@@ -34,15 +45,28 @@ public class Holding_T implements Persistable_IF {
      *  will be zero.
      */
     private double lastFillPrice;
-    /**
-     * The order ID of the parent order, used for bracket and auto trailing stop orders.
-     */
+    /** The order ID of the parent order, used for bracket and auto trailing stop orders. */
     private int parentId;
+    /** The timestamp that this holding was purchased */
+    private Date buyDate;
+    /** The timestamp that this holding was sold. Null if the holding has not yet been sold */
+    private Date sellDate = null;
+    /** The calculated high sell price that we would like to execute a sell order on this holding. */
+    private Integer execSellPriceHigh = null;
+    /** The calculated low sell price that we would like to execute a sell order on this holding. */
+    private Integer execSellPriceLow = null;
+    /** The amount of money gained by selling this order. If the order has not been sold or was sold at a loss
+      set this field to zero. */
+    private double gains = 0;
+    /** The amount of money lost by selling this order. If the order has not been sold or was sold at a gain
+      set this field to zero. */
+    private double losses = 0;
+    
     
     /**
      * 
      */
-    public Holding_T() {
+    protected Holding_T() {
         // TODO Auto-generated constructor stub
     }
 
@@ -57,8 +81,38 @@ public class Holding_T implements Persistable_IF {
     }
 
     /**
+     * The total dollar amount of this holding that have been sold and are now realized gains/losses.
+     * 
+     * @return realized gains/losses
+     */
+    public double getSellTotal() {
+        return (gains + losses);
+    }
+    
+    //Redundant method
+    public double getRealizedGainsLosses() {
+        return getSellTotal();
+    }
+    
+    /**
+     * @return the id
+     */
+    @Id
+    @GeneratedValue(strategy=GenerationType.IDENTITY)
+    public long getId() {
+        return id;
+    }
+    /**
+     * @param id the id to set
+     */
+    public void setId(long id) {
+        this.id = id;
+    }
+    
+    /**
      * @return the order
      */
+    @Transient
     public Order getOrder() {
         return order;
     }
@@ -69,25 +123,53 @@ public class Holding_T implements Persistable_IF {
     public void setOrder(Order order) {
         this.order = order;
     }
-
-    /**
-     * @param orderStatus the orderStatus to set
-     */
-    public void setOrderStatus(OrderStatus_T orderStatus) {
-        this.orderStatus = orderStatus;
+    
+    @Column ( name = "order_id" )
+    public int getOrderId() {
+        return order.m_orderId;
     }
     
-    public String getOrderStatus() {
-        return this.orderStatus.getStatus();
+    /**
+     * Return the buy price that was specified for this holding.
+     */
+    @Column( name = "order_buy_price" )
+    public double getBuyPrice() {
+        double buyPrice = 0;
+        
+        if (order.m_auxPrice == 0) {
+            buyPrice = order.m_lmtPrice;
+        } else if (order.m_lmtPrice == 0) {
+            buyPrice = order.m_auxPrice;
+        }
+        return buyPrice;
+    }
+    
+    public void setBuyPrice(double orderBuyPrice) {
+        //Do nothing
+    }
+    
+    public void setOrderId(int orderId) {
+        this.order.m_orderId = orderId;
+    }
+
+    /**
+     * Get the last known status of this holding
+     * 
+     * @return order status
+     */
+    @Column( name = "order_status" )
+    public String getStatus() {
+        return this.orderState.m_status;
     }
     
     public void setOrderStatus(String status) {
-        this.orderStatus = new OrderStatus_T(status);
+        this.orderState.m_status = status;
     }
 
     /**
      * @return the contract
      */
+    @Transient
     public Contract getContract() {
         return contract;
     }
@@ -99,9 +181,19 @@ public class Holding_T implements Persistable_IF {
         this.contract = contract;
     }
 
+    @Column( name = "contract_id" )
+    public int getContractId() {
+        return contract.m_conId;
+    }
+    
+    public void setContractId(int conId) {
+        this.contract.m_conId = conId;
+    }
+    
     /**
      * @return the orderState
      */
+    @Transient
     public OrderState getOrderState() {
         return orderState;
     }
@@ -113,7 +205,32 @@ public class Holding_T implements Persistable_IF {
         this.orderState = orderState;
     }
     
-    public String getOrderString() {
+    /**
+     * The ticker symbol of this holding.
+     * 
+     * @return the symbol
+     */
+    public Symbol_T getSymbol() {
+        return symbol;
+    }
+
+    /**
+     * @param symbol the symbol to set
+     */
+    public void setSymbol(Symbol_T symbol) {
+        this.symbol = symbol;
+    }
+    
+    @Column( name = "symbol_id" )
+    public long getSymbolId() {
+        return symbol.getId();
+    }
+    
+    public void setSymbolId(long symbolId) {
+        this.symbol.setId(symbolId);
+    }
+
+    public String toString() {
         String str = "OrderID: " + order.m_orderId;
         str = ", Symbol: " + contract.m_symbol;
         str += ", Status: "  +orderState.m_status;
@@ -142,8 +259,10 @@ public class Holding_T implements Persistable_IF {
     }
 
     /**
+     * Specifies the number of shares that have been executed.
      * @return the filled
      */
+    @Column( name = "filled" )
     public int getFilled() {
         return filled;
     }
@@ -156,8 +275,11 @@ public class Holding_T implements Persistable_IF {
     }
 
     /**
+     * Specifies the number of shares still outstanding.
+     * 
      * @return the @code{remaining}
      */
+    @Column( name = "remaining" )
     public int getRemaining() {
         return remaining;
     }
@@ -168,10 +290,24 @@ public class Holding_T implements Persistable_IF {
     public void setRemaining(int remaining) {
         this.remaining = remaining;
     }
+    
+    /**
+     * Get the total number of shares bought and sold for this holding.
+     * 
+     * @return total number of shares
+     */
+    public int getNumOfShares() {
+        return (filled + remaining);
+    }
 
     /**
+     * The average price of the shares that have been executed. This parameter is valid
+     *  only if the filled parameter value is greater than zero. Otherwise, the price 
+     *  parameter will be zero. This can also be considered as the "buy price".
+     *  
      * @return the avgFillPrice
      */
+    @Column( name = "avg_fill_price" )
     public double getAvgFillPrice() {
         return avgFillPrice;
     }
@@ -184,8 +320,13 @@ public class Holding_T implements Persistable_IF {
     }
 
     /**
+     * The last price of the shares that have been executed. This parameter is valid only
+     *  if the filled parameter value is greater than zero. Otherwise, the price parameter
+     *  will be zero.
+     *  
      * @return the lastFillPrice
      */
+    @Transient
     public double getLastFillPrice() {
         return lastFillPrice;
     }
@@ -198,8 +339,11 @@ public class Holding_T implements Persistable_IF {
     }
 
     /**
+     * The order ID of the parent order, used for bracket and auto trailing stop orders.
+     * 
      * @return the parentId
      */
+    @Column( name = "parent_id" )
     public int getParentId() {
         return parentId;
     }
@@ -209,6 +353,110 @@ public class Holding_T implements Persistable_IF {
      */
     public void setParentId(int parentId) {
         this.parentId = parentId;
+    }
+
+    /**
+     * The timestamp that this holding was purchased
+     * 
+     * @return the buyDate
+     */
+    @Column( name = "buy_date" )
+    public Date getBuyDate() {
+        return buyDate;
+    }
+
+    /**
+     * @param buyDate the buyDate to set
+     */
+    public void setBuyDate(Date buyDate) {
+        this.buyDate = buyDate;
+    }
+
+    /**
+     * The timestamp that this holding was sold. Null if the holding has not yet been sold
+     * 
+     * @return the sellDate
+     */
+    @Column( name = "sell_date" )
+    public Date getSellDate() {
+        return sellDate;
+    }
+
+    /**
+     * @param sellDate the sellDate to set
+     */
+    public void setSellDate(Date sellDate) {
+        this.sellDate = sellDate;
+    }
+
+    /**
+     * The calculated high sell price that we would like to execute a sell order on this holding.
+     * 
+     * @return the execSellPriceHigh
+     */
+    @Column ( name = "exec_sell_price_high" )
+    public Integer getExecSellPriceHigh() {
+        return execSellPriceHigh;
+    }
+
+    /**
+     * @param execSellPriceHigh the execSellPriceHigh to set
+     */
+    public void setExecSellPriceHigh(Integer execSellPriceHigh) {
+        this.execSellPriceHigh = execSellPriceHigh;
+    }
+
+    /**
+     * The calculated low sell price that we would like to execute a sell order on this holding.
+     * 
+     * @return the execSellPriceLow
+     */
+    @Column ( name = "exec_sell_price_low" )
+    public Integer getExecSellPriceLow() {
+        return execSellPriceLow;
+    }
+
+    /**
+     * @param execSellPriceLow the execSellPriceLow to set
+     */
+    public void setExecSellPriceLow(Integer execSellPriceLow) {
+        this.execSellPriceLow = execSellPriceLow;
+    }
+
+    /**
+     * The amount of money gained by selling this order. If the order has not been sold or was sold at a loss
+     * set this field to zero.
+     * 
+     * @return the gains
+     */
+    @Column( name = "gains" )
+    public double getGains() {
+        return gains;
+    }
+
+    /**
+     * @param gains the gains to set
+     */
+    public void setGains(double gains) {
+        this.gains = gains;
+    }
+
+    /**
+     * The amount of money lost by selling this order. If the order has not been sold or was sold at a gain
+     * set this field to zero.
+     * 
+     * @return the losses
+     */
+    @Column( name = "losses" )
+    public double getLosses() {
+        return losses;
+    }
+
+    /**
+     * @param losses the losses to set
+     */
+    public void setLosses(double losses) {
+        this.losses = losses;
     }
     
 

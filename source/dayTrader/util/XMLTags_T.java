@@ -8,6 +8,8 @@ import managers.LoggerManager_T;
 
 import org.apache.log4j.Level;
 
+import dayTrader.DayTrader_T;
+
 /**
  * @author nathan
  *
@@ -34,6 +36,7 @@ public class XMLTags_T {
     public final static String YEAR_LOW = "year-low";
     public final static String YEAR_HIGH = "year-high";
     
+      
     /**
      * 
      * @param xml
@@ -43,6 +46,8 @@ public class XMLTags_T {
     //TODO: Use a real parser, although this is very effective
     public static String simpleParse(String xml, String tag) {
 
+      LoggerManager_T logger = (LoggerManager_T) DayTrader_T.getManager(LoggerManager_T.class);
+        
       String val = "";
             
       String taga = "<" + tag + ">";
@@ -52,14 +57,14 @@ public class XMLTags_T {
       int start = xml.indexOf(taga);
       int end   = xml.indexOf(tagb);
       if ( start==-1 || end==-1 ) {
-         LoggerManager_T.logText("\nParse error for tag " + tag, Level.ERROR);
+          logger.logText("\nParse error for tag " + tag, Level.ERROR);
       } 
       else {
           try {
               val = xml.substring(start+tagsize, end);
           } catch (Exception e) {
-              LoggerManager_T.logText("Excpetion thrown in simpleParse: tag = " + tag + " - XML = " + xml, Level.WARN);
-              LoggerManager_T.logFault("Error parsing XML", e);
+              logger.logText("Excpetion thrown in simpleParse: tag = " + tag + " - XML = " + xml, Level.WARN);
+              logger.logFault("Error parsing XML", e);
           }
       }
 

@@ -15,9 +15,12 @@ import java.net.URL;
 
 import javax.net.ssl.HttpsURLConnection;
 
+import managers.DatabaseManager_T;
 import managers.LoggerManager_T;
 
 import org.apache.log4j.Level;
+
+import dayTrader.DayTrader_T;
 
 import util.XMLTags_T;
 
@@ -33,9 +36,16 @@ public class TDAmeritradeConnection_T implements Connector_IF {
     private final String SOURCE_ID = "NALA";
     private final String VERSION = "1.0";
     private final String ENCODING = "UTF-8";
-    
-    //private HttpsURLConnection urlConnection;
+    /** String used to store the current session id to be used in queries to TDA. */
     private String sessionId = null;
+    /** A reference to the LoggerManager class. */
+    private LoggerManager_T logger;
+    
+    public TDAmeritradeConnection_T() {
+        logger = (LoggerManager_T) DayTrader_T.getManager(LoggerManager_T.class);
+    }
+    
+    
     
     @SuppressWarnings("finally")
     @Override
@@ -70,9 +80,9 @@ public class TDAmeritradeConnection_T implements Connector_IF {
                     sessionId = XMLTags_T.simpleParse(response, XMLTags_T.SESSION_ID);
                     
                     if (sessionId != "") {
-                        LoggerManager_T.logText("TDAmeritrade Session ID = " + sessionId, Level.INFO);
+                        logger.logText("TDAmeritrade Session ID = " + sessionId, Level.INFO);
                     } else {
-                        LoggerManager_T.logText("Failed to get a TDAmeritrade session-id: " + response, Level.INFO);
+                        logger.logText("Failed to get a TDAmeritrade session-id: " + response, Level.INFO);
                     }
          
                 
@@ -102,7 +112,7 @@ public class TDAmeritradeConnection_T implements Connector_IF {
         try {
             //TODO: encode url
             quoteUrl = new URL(BASE_URL + "Quote;jsessionid=" + sessionId + "?source=" + SOURCE_ID + "&symbol=" + symbolList);
-            LoggerManager_T.logText(quoteUrl.toString(), Level.DEBUG);
+            logger.logText(quoteUrl.toString(), Level.DEBUG);
     
             urlConnection = (HttpsURLConnection) quoteUrl.openConnection();
             urlConnection.setDoOutput(true);
@@ -120,13 +130,12 @@ public class TDAmeritradeConnection_T implements Connector_IF {
             e.printStackTrace();
         } catch (SocketException e) {
             // TODO Auto-generated catch block
-            System.out.println("wait");
             e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
         }
         finally {
-            //urlConnection.disconnect();
+            urlConnection.disconnect();
         }
         
         
@@ -137,6 +146,38 @@ public class TDAmeritradeConnection_T implements Connector_IF {
     @Override
     public void disconnect() {
 
+        URL logoutUrl;
+        HttpsURLConnection urlConnection = null;
+        
+        try {
+            //TODO: encode url
+            logoutUrl = new URL(BASE_URL + "LogOut;jsessionid=" + sessionId + "?source=" + SOURCE_ID);
+            logger.logText(logoutUrl.toString(), Level.DEBUG);
+    
+            urlConnection = (HttpsURLConnection) logoutUrl.openConnection();
+            urlConnection.setDoOutput(true);
+            urlConnection.setRequestMethod("GET"); //redundant as GET is the default method, but makes it easier to read
+            urlConnection.setRequestProperty("Accept-Charset", ENCODING);
+            urlConnection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+    
+            urlConnection.connect();
+            logger.logText("Logged out from TDAmeritrade", Level.INFO);
+        } catch (MalformedURLException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        } catch (ProtocolException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        } catch (SocketException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        finally {
+            urlConnection.disconnect();
+        }
+        
     }
 
     @Override

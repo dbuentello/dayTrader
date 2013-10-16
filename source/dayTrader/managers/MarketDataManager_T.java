@@ -11,6 +11,8 @@ import java.util.List;
 
 import org.apache.log4j.Level;
 
+import dayTrader.DayTrader_T;
+
 import util.Exchange_T;
 import util.Utilities_T;
 import util.XMLTags_T;
@@ -26,24 +28,30 @@ import interfaces.Manager_IF;
 public class MarketDataManager_T implements Manager_IF, Connector_IF {
 
     
-    final TDAmeritradeConnection_T dataSource = new TDAmeritradeConnection_T();
+    private final TDAmeritradeConnection_T dataSource = new TDAmeritradeConnection_T();
+    /** A reference to the DatabaseManager class. */
+    private DatabaseManager_T databaseManager;
+    /** A reference to the LoggerManager class. */
+    private LoggerManager_T logger;
+    
+    
+    public MarketDataManager_T() {
+    
+    }
     
     
     @Override
     public void initialize() {
         
+        logger = (LoggerManager_T) DayTrader_T.getManager(LoggerManager_T.class);
+        databaseManager = (DatabaseManager_T) DayTrader_T.getManager(DatabaseManager_T.class);
+        
         try {
             connect();
         } catch (ConnectionException e) {
             // TODO Auto-generated catch block
-            LoggerManager_T.logFault("Could not connect to TDAmeritrade API", e);      
+            logger.logFault("Could not connect to TDAmeritrade API", e);      
         }
-
-    }
-
-    @Override
-    public void run() {
-        getEndOfDayQuotes();
 
     }
 
@@ -55,8 +63,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF {
 
     @Override
     public void terminate() {
-        // TODO Auto-generated method stub
-
+        disconnect();
     }
 
     @Override
@@ -80,17 +87,20 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF {
         return dataSource.isConnected();
     }
     
-    public void getEndOfDayQuotes() {
+    /**
+     * Get a snapshot of all the symbols being traded on all markets and save the quote
+     * information to the database
+     * 
+     */
+    public void takeMarketSnapshot() {
         
-        //TODO: Use a real getDate function, right now it's just using the current system time
-        //Date date = new Date(System.currentTimeMillis());
         
         //get the symbols for an exchange from the database
         //TODO: update to query all exchanges
-        String exchange = Exchange_T.AMEX;
-        List<Symbol_T> symbols = DatabaseManager_T.getSymbolsByExchange(exchange);
+        String exchange = Exchange_T.NASDAQ;
+        List<Symbol_T> symbols = databaseManager.getSymbolsByExchange(exchange);
         
-        LoggerManager_T.logText("Found " + symbols.size() + " for exchange " + exchange, Level.DEBUG);
+        logger.logText("Found " + symbols.size() + " for exchange " + exchange, Level.DEBUG);
         
         List<String> quoteDataList = new ArrayList<String>();
         Iterator<Symbol_T> it = symbols.iterator();
@@ -105,7 +115,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF {
             //Get 100 quotes at a time. If we're on the last item in the symbol list, get the remaining symbols 
             if ((count % 100) == 0 || it.hasNext() == false) {
                 String quoteResponse = dataSource.getQuote(symbolList);
-                LoggerManager_T.logText(quoteResponse, Level.DEBUG);
+                logger.logText(quoteResponse, Level.DEBUG);
                 quoteDataList.add(quoteResponse);
                 symbolList = "";
                 
@@ -120,7 +130,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF {
             int qlStart = quoteData.indexOf(XMLTags_T.QUOTE_LIST);
             
             if (qlStart == -1) {
-                LoggerManager_T.logText("Failed to find start of quote list", Level.DEBUG);
+                logger.logText("Failed to find start of quote list", Level.DEBUG);
             } else {
                 
                 int qStart = quoteData.indexOf("<quote>");
@@ -178,7 +188,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF {
                     int qend = quoteData.indexOf("</quote>");
                     if (qend == -1)
                     {
-                      LoggerManager_T.logText("Cant find end of quote", Level.WARN);
+                        logger.logText("Cant find end of quote", Level.WARN);
                       break;
                     }
                     // strip off beginning
@@ -193,6 +203,14 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF {
         }
         
     }
+
+    @Override
+    public void run() {
+        // TODO Auto-generated method stub
+        
+    }
+
+    
     
 
 }

@@ -19,8 +19,12 @@ import org.hibernate.metamodel.MetadataSources;
 import org.hibernate.service.ServiceRegistry;
 import org.hibernate.service.ServiceRegistryBuilder;
 
+import dayTrader.DayTrader_T;
+
 import trader.Holding_T;
+import util.Calendar_T;
 import util.Exchange_T;
+import util.OrderStatus_T;
 
 /** 
  *  This class will manage the database connection. 
@@ -34,7 +38,7 @@ import util.Exchange_T;
 public class DatabaseManager_T implements Manager_IF, Connector_IF {
   /* {src_lang=Java}*/
 
-    private static ServiceRegistryBuilder serviceRegistryBuilder = new ServiceRegistryBuilder();
+    private final ServiceRegistryBuilder serviceRegistryBuilder = new ServiceRegistryBuilder();
     private static SessionFactory sessionFactory = null;
 
     /**
@@ -65,8 +69,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
     
     @Override
     public void initialize() {
-        
-        
+                
         serviceRegistryBuilder.configure();
         ServiceRegistry serviceRegistry = serviceRegistryBuilder.buildServiceRegistry();
         MetadataSources metaData = new MetadataSources(serviceRegistry);
@@ -76,11 +79,6 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
     	metaData.addAnnotatedClass(marketdata.MarketData_T.class);
     	sessionFactory = metaData.buildMetadata().buildSessionFactory();
     	
-    }
-    
-    @Override
-    public void run() {
-        //Nothing to do in the run state
     }
     
     @Override
@@ -102,20 +100,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
     	
     	
     }
-    
-//    @SuppressWarnings("deprecation")
-//    private static SessionFactory buildSessionFactory() {
-//        try {
-//            // Create the SessionFactory from hibernate.cfg.xml
-//            return new Configuration().configure().buildSessionFactory();
-//        }
-//        catch (Throwable ex) {
-//            // Make sure you log the exception, as it might be swallowed
-//            System.err.println("Initial SessionFactory creation failed." + ex);
-//            throw new ExceptionInInitializerError(ex);
-//        }
-//    }
-    
+   
     
     /**
      * @return sessionFactory
@@ -131,7 +116,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
      * @param id
      * @return object if found in the database, otherwise null
      */
-    public static <T> Persistable_IF query(Class<T> persistableClass, long id) {
+    public synchronized <T> Persistable_IF query(Class<T> persistableClass, long id) {
         Session session = getSessionFactory().openSession();
         Transaction tx = null;
         Persistable_IF persistentData = null;
@@ -151,7 +136,34 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         return persistentData;
     }
     
-    public static Symbol_T getSymbol(String symbolString) {
+    /**
+     * Query the database for a single row. persistableClass will be the object class that maps to the table 
+     * to query, id is the primary key id of the object
+     * @param persistableClass
+     * @param id
+     * @return object if found in the database, otherwise null
+     */
+    public synchronized Persistable_IF query(Class persistableClass, String string) {
+        Session session = getSessionFactory().openSession();
+        Transaction tx = null;
+        Persistable_IF persistentData = null;
+        
+        try {
+            tx = session.beginTransaction();
+            persistentData = (Persistable_IF) session.get(persistableClass, string);
+            tx.commit();
+        } catch (HibernateException e) {
+            //TODO: for now just print to stdout, we'll change this to a log file later
+            e.printStackTrace();
+            if (tx != null) tx.rollback();
+        } finally {
+            session.close();
+        }
+
+        return persistentData;
+    }
+    
+    public synchronized Symbol_T getSymbol(String symbolString) {
         
         Session session = getSessionFactory().openSession();
         Criteria criteria = session.createCriteria(Symbol_T.class)
@@ -170,7 +182,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
      * @return all found symbols for that exchange
      */
     @SuppressWarnings("unchecked")
-    public static List<Symbol_T> getSymbolsByExchange(String exchange) {
+    public synchronized List<Symbol_T> getSymbolsByExchange(String exchange) {
         
         Session session = getSessionFactory().openSession();
         Criteria criteria = session.createCriteria(Symbol_T.class)
@@ -182,6 +194,28 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         session.close();
         
         return results;   
+        
+    }
+
+
+    public synchronized int numOpenHoldings() {
+        int numHoldings = -1;
+        
+        
+        Session session = getSessionFactory().openSession();
+        Criteria criteria = session.createCriteria(Holding_T.class)
+                .add(Restrictions.eq("order_status", OrderStatus_T.SUBMITTED));
+        numHoldings = criteria.list().size();
+        
+        session.close();
+        
+        return numHoldings;
+    }
+
+
+    @Override
+    public void run() {
+        // TODO Auto-generated method stub
         
     }
 }

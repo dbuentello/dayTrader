@@ -23,6 +23,8 @@ import org.hibernate.HibernateException;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
 
+import dayTrader.DayTrader_T;
+
 
 /******************************************************
  * Class used to represent a snapshot of data
@@ -211,7 +213,8 @@ public class MarketData_T implements Persistable_IF {
     
     public void setSymbol() {
         if (symbol == null) {
-            symbol = (Symbol_T) DatabaseManager_T.query(Symbol_T.class, this.symbolId);
+            DatabaseManager_T databaseManager = (DatabaseManager_T) DayTrader_T.getManager(DatabaseManager_T.class);
+            symbol = (Symbol_T) databaseManager.query(Symbol_T.class, this.symbolId);
         }
     }
     

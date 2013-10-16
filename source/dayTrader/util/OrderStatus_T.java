@@ -16,14 +16,14 @@ public class OrderStatus_T {
      *  tination. NOTE: This order status is not sent by TWS and should be explic-
      *  itly set by the API developer when an order is submitted. 
      */
-    private static final String PENDING_SUBMIT = "PendingSubmit";
+    public static final String PENDING_SUBMIT = "PendingSubmit";
     
     /**
      * Inactive - indicates that the order has been accepted by the system (sim-
      *   ulated orders) or an exchange (native orders) but that currently the order is
      *   inactive due to system, exchange or other issues.
      */
-    private static final String INACTIVE = "Inactive";
+    public static final String INACTIVE = "Inactive";
     
     /**
      * PendingCancel - indicates that you have sent a request to cancel the order
@@ -33,30 +33,30 @@ public class OrderStatus_T {
      *  order status is not sent by TWS and should be explicitly set by the API
      *  developer when an order is canceled.
      */
-    private static final String PRE_SUBMITTED = "PreSubmitted";
+    public static final String PRE_SUBMITTED = "PreSubmitted";
     
     /**
      * Submitted - indicates that your order has been accepted at the order des-
      *  tination and is working.
      */
-    private static final String SUBMITTED = "Submitted";
+    public static final String SUBMITTED = "Submitted";
     
     /**
      * Cancelled - indicates that the balance of your order has been confirmed
      *  canceled by the IB system. This could occur unexpectedly when IB or the
      *  destination has rejected your order.
      */
-    private static final String CANCELLED = "Cancelled";
+    public static final String CANCELLED = "Cancelled";
     
     /**
      * Filled - indicates that the order has been completely filled.
      */
-    private static final String FILLED = "Filled";
+    public static final String FILLED = "Filled";
     
     /**
      * INVALID - indicates the status string is not a known status and is therefore invalid
      */
-    private static final String INVALID = "INVALID";
+    public static final String INVALID = "INVALID";
     
     
     private static final String[] statuses = { PENDING_SUBMIT, INACTIVE, PRE_SUBMITTED, SUBMITTED, CANCELLED, FILLED };

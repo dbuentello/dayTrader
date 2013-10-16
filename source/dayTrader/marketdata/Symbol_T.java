@@ -25,6 +25,8 @@ import org.hibernate.property.Getter;
 import org.hibernate.property.PropertyAccessor;
 import org.hibernate.property.Setter;
 
+import dayTrader.DayTrader_T;
+
 import util.Exchange_T;
 
 /**
@@ -52,7 +54,8 @@ public class Symbol_T implements PropertyAccessor, Persistable_IF {
     
     
     public Symbol_T(String symbol) {
-        Symbol_T sym = DatabaseManager_T.getSymbol(symbol);
+        DatabaseManager_T databaseManager = (DatabaseManager_T) DayTrader_T.getManager(DatabaseManager_T.class);
+        Symbol_T sym = databaseManager.getSymbol(symbol);
         if (sym != null) {
             this.id = sym.id;
             this.industry = sym.industry;

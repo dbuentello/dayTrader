@@ -1,13 +1,11 @@
 package interfaces;
 
 
-public interface Manager_IF {
+public interface Manager_IF extends Runnable {
   /* {src_lang=Java}*/
 
     
     public void initialize();
-
-    public abstract void run();
 
     public abstract void sleep();
 

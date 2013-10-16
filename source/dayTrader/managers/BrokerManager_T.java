@@ -1,17 +1,16 @@
 package managers;
 
-import java.util.ArrayList;
+import interfaces.Connector_IF;
+import interfaces.Manager_IF;
+
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 import org.apache.log4j.Level;
 
 import trader.Holding_T;
-
-import interfaces.Connector_IF;
-import interfaces.Manager_IF;
 
 import com.ib.client.CommissionReport;
 import com.ib.client.Contract;
@@ -22,6 +21,8 @@ import com.ib.client.Execution;
 import com.ib.client.Order;
 import com.ib.client.OrderState;
 import com.ib.client.UnderComp;
+
+import dayTrader.DayTrader_T;
 
 import exceptions.ConnectionException;
 
@@ -35,6 +36,12 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
     //private final String  ACCOUNT_CODE = "U1235379";
     // PAPER TRADER ACCOUNT CODE
     private final String  ACCOUNT_CODE = "DU171047";
+    /** The current time in milliseconds as returned from the broker's server */
+    private Date currentTime = new Date();
+    /** A reference to the DatabaseManager class. */
+    private DatabaseManager_T databaseManager;
+    /** A reference to the LoggerManager class. */
+    private LoggerManager_T logger;
     
     /** HashMap of orderIds to Holdings so we can easily retrieve holding information 
      *  based on orderId.
@@ -282,8 +289,7 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
 	
 	@Override
 	public void currentTime(long time) {
-		// TODO Auto-generated method stub
-		
+		currentTime.setTime(time);
 	}
 	
 	@Override
@@ -349,10 +355,15 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
 	/**
 	 * Initialize the BrokerManager_T by performing the following tasks:
 	 * 1. Retrieve all open orders from the broker (IB)
+	 * 2. Get the number of open orders we believe we should have based on our database data
+	 * 3. Sleep until the wakeup() method is called meaning all open orders have been returned from IB
 	 * 
 	 */
 	@Override
 	public void initialize() {
+	    
+	    databaseManager = (DatabaseManager_T) DayTrader_T.getManager(DatabaseManager_T.class);
+	    logger = (LoggerManager_T) DayTrader_T.getManager(LoggerManager_T.class);
 		
 		try {
             connect();
@@ -361,43 +372,98 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
             e.printStackTrace();
         }
 		
+		//empty the current holdings map before getting the open orders from IB
+		holdings.clear();
+		
 		// request all our current holdings from IB
 		//reqOpenOrder returns through the openOrder() and orderStatus() methods
 		ibClientSocket.reqOpenOrders();
 		
-		if (holdings.size() > 0) {
-    		Iterator<Holding_T> it = holdings.values().iterator();
-    		while (it.hasNext()) {
-    		    Holding_T openTrade = (Holding_T) it.next();
-    		    LoggerManager_T.logText(openTrade.getOrderString(), Level.INFO);
-    		}
-		} else {
-		    LoggerManager_T.logText("There are no currently open orders", Level.DEBUG);
-		}
-	}
-	
-	@Override
-	public void run() {
-		// TODO Auto-generated method stub
-		
+
+		int dbNumHoldings = databaseManager.numOpenHoldings();
+        
+        //if the broker hasn't returned all the open holdings, sleep five more seconds
+        while (dbNumHoldings != holdings.size()) {
+            try {
+                Thread.sleep(10000);
+            } catch (InterruptedException e) {
+                // Do nothing
+            }
+        } 
+        
+				
 	}
 	
 	@Override
 	public void sleep() {
-		// TODO Auto-generated method stub
+		
+	    boolean sleep = true;
+		
+		while (sleep) {
+    	    try {
+                Thread.sleep(10000);
+            } catch (InterruptedException e) {
+                wakeup();
+                sleep = false;
+            }
+		}
 		
 	}
 	
 	@Override
 	public void terminate() {
-		disconnect();
-		
+		disconnect();		
 	}
 	
+	/**
+	 * Wake this thread up from the sleep state. Called when:
+	 * 1. The broker has returned all our open orders
+	 * 
+	 */
 	@Override
 	public void wakeup() {
-		// TODO Auto-generated method stub
+	  
+	    int dbNumHoldings = databaseManager.numOpenHoldings();
+        
+        //if the broker hasn't returned all the open holdings, sleep five more seconds
+        while (dbNumHoldings != holdings.size()) {
+            try {
+                Thread.sleep(5000);
+            } catch (InterruptedException e) {
+                //Do nothing
+            }
+        }  
+	    
+        //Log our current holding if the appropriate logging level is set
+        if (logger.logLevel().toInt() >= Level.INFO_INT) {
+            if (holdings.size() > 0) {
+                Iterator<Holding_T> it = holdings.values().iterator();
+                while (it.hasNext()) {
+                    Holding_T holding = (Holding_T) it.next();
+                    logger.logText(holding.toString(), Level.INFO);
+                }
+            } else {
+                logger.logText("There are no currently open orders", Level.INFO);
+            }
+        }
+        
+        
+        //go back to sleep
+        sleep();
 		
 	}
+
+    @Override
+    public void run() {
+                
+        while (!Thread.interrupted()) {
+            sleep();
+        }
+    }
+
+    public long getBrokerTime() {
+        // TODO Auto-generated method stub
+        return 0;
+    }
 
 }

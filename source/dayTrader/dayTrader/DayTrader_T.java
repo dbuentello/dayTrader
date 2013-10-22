@@ -31,7 +31,7 @@ public class DayTrader_T {
      * 
      */
     public DayTrader_T() {
-        // TODO Auto-generated constructor stub
+        
     }
 
     public static void main(String[] args) {
@@ -56,10 +56,10 @@ public class DayTrader_T {
 		serviceManager.put(loggerManager.getClass(), loggerManager);
 		serviceManager.put(timeManager.getClass(), timeManager);
 		
-		threads.add(new Thread(databaseManager));
+		//threads.add(new Thread(databaseManager));
+		//threads.add(new Thread(brokerManager));
+		//threads.add(new Thread(loggerManager));
 		threads.add(new Thread(marketDataManager));
-		threads.add(new Thread(brokerManager));
-		threads.add(new Thread(loggerManager));
 		threads.add(new Thread(timeManager));
 		
 		
@@ -83,11 +83,23 @@ public class DayTrader_T {
             thread.run();
         }
         
+        //TODO: uncomment me when ready for production
+        //sleep();
+        
 	}
 	
 	public void sleep() {
-		// TODO Auto-generated method stub
+		//TODO: we'll want to sleep indefinitely if we run the appplication 24/7
+	    //otherwise we'll need to build in a trigger to terminate the app
 		
+	    /*
+	     * while (Thread.interrupted()) {
+	     *     try {
+	     *         Thread.sleep(60000 * 10);
+	     *     } catch (InterruptedException e) {
+	     *         wakeup();
+	     *     }
+	     */
 	}
 	
 	public static void terminate() {
@@ -104,8 +116,8 @@ public class DayTrader_T {
 	}
 	
 	public void wakeup() {
-		// TODO Auto-generated method stub
-		
+	    //if the main thread is interrupted, just terminate
+		terminate();		
 	}
 	
 	public static Manager_IF getManager(Class<?> clazz) {

@@ -75,11 +75,5 @@ public class LoggerManager_T implements Manager_IF {
         return logger.getLevel();
     }
 
-    @Override
-    public void run() {
-        // TODO Auto-generated method stub
-        
-    }
-    
 
 }

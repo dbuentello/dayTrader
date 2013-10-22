@@ -1,7 +1,7 @@
 package interfaces;
 
 
-public interface Manager_IF extends Runnable {
+public interface Manager_IF {
   /* {src_lang=Java}*/
 
     

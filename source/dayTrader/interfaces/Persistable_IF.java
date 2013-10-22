@@ -10,10 +10,12 @@ public interface Persistable_IF {
    * @throws HibernateException if the object could not be persisted
    * @return the id of the persisted object 
    */
-  public long insert() throws HibernateException;
+  public long insertOrUpdate() throws HibernateException;
 
   public void delete() throws HibernateException;
   
   public void update() throws HibernateException;
+  
+  public boolean existsInDB(Persistable_IF persistable);
 
 }

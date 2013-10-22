@@ -19,9 +19,11 @@ import javax.persistence.Transient;
 
 import managers.DatabaseManager_T;
 
+import org.hibernate.Criteria;
 import org.hibernate.HibernateException;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
+import org.hibernate.criterion.Restrictions;
 
 import dayTrader.DayTrader_T;
 
@@ -121,23 +123,35 @@ public class MarketData_T implements Persistable_IF {
         // TODO Auto-generated constructor stub
     }
 
+    /**
+     * Insert a MarketData object into the database. The object will only be inserted if the
+     * existsInDB() method returns false. Return the database id field for the inserted row, 
+     * if an insert was not performed, return -1
+     * 
+     *  @return the id of the inserted row or -1 if an insert was not performed
+     */
     @Override
-    public long insert() {
-        Session session = DatabaseManager_T.getSessionFactory().openSession();
-        Transaction tx = null;
-        long id;
+    public long insertOrUpdate() {
         
-        try {
-            tx = session.beginTransaction();
-            id = (Long) session.save(this);
-            tx.commit();
-        } catch (HibernateException e) {
-            //TODO: for now just print to stdout, we'll change this to a log file later
-            e.printStackTrace();
-            if (tx != null) tx.rollback();
-            throw e;
-        } finally {
-            session.close();
+        long id = -1;
+        
+        if (!existsInDB(this)) {
+        
+            Session session = DatabaseManager_T.getSessionFactory().openSession();
+            Transaction tx = null;
+            
+            try {
+                tx = session.beginTransaction();
+                id = (Long) session.save(this);
+                tx.commit();
+            } catch (HibernateException e) {
+                //TODO: for now just print to stdout, we'll change this to a log file later
+                e.printStackTrace();
+                if (tx != null) tx.rollback();
+                throw e;
+            } finally {
+                session.close();
+            }
         }
         
         return id;
@@ -168,6 +182,36 @@ public class MarketData_T implements Persistable_IF {
     public void update() throws HibernateException {
         // TODO Auto-generated method stub
         
+    }
+    
+    
+    /**
+     * Check if this marketData object would create a duplicate row in the database. It will be considered
+     * a duplicate is a row with the same symbolId and timestamp already exists in the database.
+     * 
+     * @param marketData
+     * @return
+     */
+    @Override
+    public boolean existsInDB(Persistable_IF persistable) {
+        
+        MarketData_T marketData = (MarketData_T) persistable;
+        
+        //assume we're going to be insert a duplicate row
+        boolean exists = true;
+        
+        //query the database to see if a MarketData object with the same symbolId and timestamp already exists in the db
+        Session session = DatabaseManager_T.getSessionFactory().openSession();
+        Criteria criteria = session.createCriteria(MarketData_T.class)
+                .add(Restrictions.eq("symbolId", marketData.getSymbolId()))
+                .add(Restrictions.eq("date", marketData.getLastTimestamp()));
+        
+        //If no symbol was found the consider this MarketData object to be unique and safe to insert into the db
+        if (criteria.list().size() == 0) {
+            exists = false;
+        }
+        
+        return exists;
     }
     
     /**

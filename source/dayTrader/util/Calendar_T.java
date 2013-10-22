@@ -88,7 +88,7 @@ public class Calendar_T implements Persistable_IF {
     }
 
     @Override
-    public long insert() throws HibernateException {
+    public long insertOrUpdate() throws HibernateException {
         // TODO Auto-generated method stub
         return 0;
     }
@@ -103,6 +103,12 @@ public class Calendar_T implements Persistable_IF {
     public void update() throws HibernateException {
         // TODO Auto-generated method stub
         
+    }
+
+    @Override
+    public boolean existsInDB(Persistable_IF persistable) {
+        // TODO Auto-generated method stub
+        return false;
     }
     
     

@@ -3,15 +3,23 @@ package trader;
 import java.util.Date;
 
 import javax.persistence.Column;
+import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import javax.persistence.PrimaryKeyJoinColumn;
+import javax.persistence.SecondaryTable;
 import javax.persistence.Transient;
 
 import managers.DatabaseManager_T;
+import marketdata.MarketData_T;
 import marketdata.Symbol_T;
 
+import org.hibernate.Criteria;
 import org.hibernate.HibernateException;
+import org.hibernate.Session;
+import org.hibernate.Transaction;
+import org.hibernate.criterion.Restrictions;
 
 import util.OrderStatus_T;
 
@@ -21,6 +29,7 @@ import com.ib.client.Contract;
 import com.ib.client.Order;
 import com.ib.client.OrderState;
 
+@Entity( name="Holdings" )
 public class Holding_T implements Persistable_IF {
   /* {src_lang=Java}*/
     
@@ -36,7 +45,7 @@ public class Holding_T implements Persistable_IF {
     private int remaining;
     /** The average price of the shares that have been executed. This parameter is valid
      *  only if the filled parameter value is greater than zero. Otherwise, the price param-
-     *  eter will be zero. This can also be considered as the "buy price".
+     *  eter will be zero.
      */
     private double avgFillPrice;
     /**
@@ -48,7 +57,7 @@ public class Holding_T implements Persistable_IF {
     /** The order ID of the parent order, used for bracket and auto trailing stop orders. */
     private int parentId;
     /** The timestamp that this holding was purchased */
-    private Date buyDate;
+    private Date buyDate = null;
     /** The timestamp that this holding was sold. Null if the holding has not yet been sold */
     private Date sellDate = null;
     /** The calculated high sell price that we would like to execute a sell order on this holding. */
@@ -61,15 +70,24 @@ public class Holding_T implements Persistable_IF {
     /** The amount of money lost by selling this order. If the order has not been sold or was sold at a gain
       set this field to zero. */
     private double losses = 0;
-    
+        
     
     /**
      * 
      */
-    protected Holding_T() {
-        // TODO Auto-generated constructor stub
+    public Holding_T() {
+        
     }
 
+    /**
+     * 
+     */
+    public Holding_T(int orderId) {
+        this.order = new Order();
+        this.order.m_orderId = orderId;
+        this.contract = new Contract();
+    }
+    
     /**
      * @param order
      * @param contract
@@ -132,21 +150,21 @@ public class Holding_T implements Persistable_IF {
     /**
      * Return the buy price that was specified for this holding.
      */
-    @Column( name = "order_buy_price" )
-    public double getBuyPrice() {
-        double buyPrice = 0;
-        
-        if (order.m_auxPrice == 0) {
-            buyPrice = order.m_lmtPrice;
-        } else if (order.m_lmtPrice == 0) {
-            buyPrice = order.m_auxPrice;
-        }
-        return buyPrice;
-    }
-    
-    public void setBuyPrice(double orderBuyPrice) {
-        //Do nothing
-    }
+//    @Column( name = "order_buy_price" )
+//    public double getBuyPrice() {
+//        double buyPrice = 0;
+//        
+//        if (order.m_auxPrice == 0) {
+//            buyPrice = order.m_lmtPrice;
+//        } else if (order.m_lmtPrice == 0) {
+//            buyPrice = order.m_auxPrice;
+//        }
+//        return buyPrice;
+//    }
+//    
+//    public void setBuyPrice(double orderBuyPrice) {
+//        //Do nothing
+//    }
     
     public void setOrderId(int orderId) {
         this.order.m_orderId = orderId;
@@ -158,12 +176,19 @@ public class Holding_T implements Persistable_IF {
      * @return order status
      */
     @Column( name = "order_status" )
-    public String getStatus() {
-        return this.orderState.m_status;
+    public String getOrderStatus() {
+        String status = OrderStatus_T.INVALID;
+        if (this.orderState != null) {
+            status = this.orderState.m_status;
+        }
+        
+        return status;
     }
     
     public void setOrderStatus(String status) {
-        this.orderState.m_status = status;
+        if (this.orderState != null) {
+            this.orderState.m_status = status;
+        }
     }
 
     /**
@@ -241,9 +266,44 @@ public class Holding_T implements Persistable_IF {
     }
 
     @Override
-    public long insert() throws HibernateException {
-        // TODO Auto-generated method stub
-        return 0;
+    public long insertOrUpdate() throws HibernateException {
+        
+        long id = -1;
+        Session session = DatabaseManager_T.getSessionFactory().openSession();
+        Transaction tx = null;
+                
+        if (!existsInDB(this)) {
+            
+            try {
+                tx = session.beginTransaction();
+                id = (Long) session.save(this);
+                tx.commit();
+            } catch (HibernateException e) {
+                //TODO: for now just print to stdout, we'll change this to a log file later
+                e.printStackTrace();
+                if (tx != null) tx.rollback();
+                throw e;
+            } finally {
+                session.close();
+            }
+        } else {
+            
+            try {
+                tx = session.beginTransaction();
+                session.update(this);
+                id = this.id;
+                tx.commit();
+            } catch (HibernateException e) {
+                //TODO: for now just print to stdout, we'll change this to a log file later
+                e.printStackTrace();
+                if (tx != null) tx.rollback();
+                throw e;
+            } finally {
+                session.close();
+            }
+        }
+        
+        return id;
     }
 
     @Override
@@ -256,6 +316,37 @@ public class Holding_T implements Persistable_IF {
     public void update() throws HibernateException {
         // TODO Auto-generated method stub
         
+    }
+    
+    /**
+     * Examine the database to see if this Holding_T object already exists in the DB. Object will be considered duplicates if
+     * 1. the have the same id, same symbol_id, same filled #, same remaining # and same status.
+     * 
+     * @param persistable
+     * @return true if the holding is a duplicate, false if not
+     */
+    @Override
+    public boolean existsInDB(Persistable_IF persistable) {
+        Holding_T holding = (Holding_T) persistable;
+        
+        //assume we're going to be insert a duplicate row
+        boolean exists = true;
+        
+        
+        Session session = DatabaseManager_T.getSessionFactory().openSession();
+        Criteria criteria = session.createCriteria(Holding_T.class)
+                .add(Restrictions.eq("id", holding.getId()))
+                .add(Restrictions.eq("symbol_id", holding.getSymbolId()))
+                .add(Restrictions.eq("filled", holding.filled))
+                .add(Restrictions.eq("remaining", holding.getRemaining()))
+                .add(Restrictions.eq("status", holding.getOrderState().m_status));
+        
+        //If no symbol was found the consider this MarketData object to be unique and safe to insert into the db
+        if (criteria.list().size() == 0) {
+            exists = false;
+        }
+        
+        return exists;
     }
 
     /**
@@ -429,7 +520,7 @@ public class Holding_T implements Persistable_IF {
      * 
      * @return the gains
      */
-    @Column( name = "gains" )
+    @Transient
     public double getGains() {
         return gains;
     }
@@ -447,7 +538,7 @@ public class Holding_T implements Persistable_IF {
      * 
      * @return the losses
      */
-    @Column( name = "losses" )
+    @Transient
     public double getLosses() {
         return losses;
     }
@@ -458,6 +549,37 @@ public class Holding_T implements Persistable_IF {
     public void setLosses(double losses) {
         this.losses = losses;
     }
+    
+    @Column( name = "client_id" )
+    public int getClientId() {
+        return order.m_clientId;
+    }
+        
+    public void setClientId(int clientId) {
+        this.order.m_clientId = clientId;
+    }
+
+    /**
+     * Return true is we currently own this position, otherwise return false
+     * 
+     * @return the isOwned
+     */
+    @Column( name = "is_owned" )
+    public boolean isOwned() {
+        boolean owned = false;
+        
+        //we own a holding if the buy date is populated, but not the sell date indicating we've bought the position,
+        //but haven't sold it yet
+        if (buyDate != null && sellDate == null) {
+            owned = true;
+        }
+        
+        return owned;
+    }
+
+
+    
+    
     
 
 }

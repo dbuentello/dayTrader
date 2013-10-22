@@ -188,25 +188,27 @@ public class Symbol_T implements PropertyAccessor, Persistable_IF {
     }
     
     @Override
-    public long insert() throws HibernateException {
-        Session session = DatabaseManager_T.getSessionFactory().openSession();
-        Transaction tx = null;
-        long id;
+    public long insertOrUpdate() throws HibernateException {
+//        Session session = DatabaseManager_T.getSessionFactory().openSession();
+//        Transaction tx = null;
+//        long id;
+//        
+//        try {
+//            tx = session.beginTransaction();
+//            id = (Long) session.save(this);
+//            tx.commit();
+//        } catch (HibernateException e) {
+//            //TODO: for now just print to stdout, we'll change this to a log file later
+//            e.printStackTrace();
+//            if (tx != null) tx.rollback();
+//            throw e;
+//        } finally {
+//            session.close();
+//        }
+//        
+//        return id;
         
-        try {
-            tx = session.beginTransaction();
-            id = (Long) session.save(this);
-            tx.commit();
-        } catch (HibernateException e) {
-            //TODO: for now just print to stdout, we'll change this to a log file later
-            e.printStackTrace();
-            if (tx != null) tx.rollback();
-            throw e;
-        } finally {
-            session.close();
-        }
-        
-        return id;
+        return -1;
     }
     
     @Override
@@ -219,6 +221,13 @@ public class Symbol_T implements PropertyAccessor, Persistable_IF {
     public void update() throws HibernateException {
         // TODO Auto-generated method stub
         
+    }
+
+
+    @Override
+    public boolean existsInDB(Persistable_IF persistable) {
+        // TODO Auto-generated method stub
+        return false;
     }
     
 }

@@ -4,8 +4,11 @@ import interfaces.Connector_IF;
 import interfaces.Manager_IF;
 import interfaces.Persistable_IF;
 
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
+import marketdata.MarketData_T;
 import marketdata.Symbol_T;
 
 import org.hibernate.Criteria;
@@ -13,18 +16,14 @@ import org.hibernate.HibernateException;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.Transaction;
+import org.hibernate.criterion.Order;
 import org.hibernate.criterion.Restrictions;
-import org.hibernate.internal.CriteriaImpl;
 import org.hibernate.metamodel.MetadataSources;
 import org.hibernate.service.ServiceRegistry;
 import org.hibernate.service.ServiceRegistryBuilder;
 
+import trader.Trader_T;
 import dayTrader.DayTrader_T;
-
-import trader.Holding_T;
-import util.Calendar_T;
-import util.Exchange_T;
-import util.OrderStatus_T;
 
 /** 
  *  This class will manage the database connection. 
@@ -40,6 +39,8 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
 
     private final ServiceRegistryBuilder serviceRegistryBuilder = new ServiceRegistryBuilder();
     private static SessionFactory sessionFactory = null;
+    /** A reference to the time manager. */
+    private TimeManager_T timeManager = null;
 
     /**
      * 
@@ -78,6 +79,8 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
     	
     	metaData.addAnnotatedClass(marketdata.MarketData_T.class);
     	sessionFactory = metaData.buildMetadata().buildSessionFactory();
+    	
+    	timeManager = (TimeManager_T) DayTrader_T.getManager(TimeManager_T.class);
     	
     }
     
@@ -139,11 +142,12 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
     /**
      * Query the database for a single row. persistableClass will be the object class that maps to the table 
      * to query, id is the primary key id of the object
+     * @param <T>
      * @param persistableClass
      * @param id
      * @return object if found in the database, otherwise null
      */
-    public synchronized Persistable_IF query(Class persistableClass, String string) {
+    public synchronized <T> Persistable_IF query(Class<T> persistableClass, String string) {
         Session session = getSessionFactory().openSession();
         Transaction tx = null;
         Persistable_IF persistentData = null;
@@ -181,13 +185,13 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
      * @param exchange
      * @return all found symbols for that exchange
      */
-    @SuppressWarnings("unchecked")
     public synchronized List<Symbol_T> getSymbolsByExchange(String exchange) {
         
         Session session = getSessionFactory().openSession();
         Criteria criteria = session.createCriteria(Symbol_T.class)
             .add(Restrictions.eq("exchange", exchange));
-        
+       
+        @SuppressWarnings("unchecked")
         List<Symbol_T> results = criteria.list();
         
         
@@ -196,26 +200,41 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         return results;   
         
     }
-
-
-    public synchronized int numOpenHoldings() {
-        int numHoldings = -1;
-        
+    
+    /**
+     * Query the database for the day's biggest losers. This method will query the database
+     * on our buy criteria and can be tweaked to optimize the stocks we buy.
+     * 
+     * @return List of the biggest losers
+     */
+    public synchronized List<Symbol_T> getBiggestLosers() {
         
         Session session = getSessionFactory().openSession();
-        Criteria criteria = session.createCriteria(Holding_T.class)
-                .add(Restrictions.eq("order_status", OrderStatus_T.SUBMITTED));
-        numHoldings = criteria.list().size();
+              
+        Criteria criteria = session.createCriteria(MarketData_T.class)
+            .add(Restrictions.ge("date", timeManager.mysqlDate() + "00:00:00" ))
+            .add(Restrictions.gt("volume", Trader_T.MIN_TRADE_VOLUME))
+            .add(Restrictions.gt("price", Trader_T.MIN_BUY_PRICE))
+            .addOrder(Order.asc("chgper"))
+            .setMaxResults(Trader_T.MAX_BUY_POSITIONS);
+        
+        
+        @SuppressWarnings("unchecked")
+        List<MarketData_T> loserQuotes = criteria.list();
         
         session.close();
         
-        return numHoldings;
-    }
-
-
-    @Override
-    public void run() {
-        // TODO Auto-generated method stub
+        List<Symbol_T> losers = new ArrayList<Symbol_T>();
+        
+        Iterator<MarketData_T> it = loserQuotes.iterator();
+        while (it.hasNext()) {
+            MarketData_T quote = it.next();
+            losers.add(quote.getSymbol());
+        }
+        
+        return losers;   
         
     }
+
+
 }

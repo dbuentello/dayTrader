@@ -36,8 +36,7 @@ public class OrderStatus_T {
     public static final String PRE_SUBMITTED = "PreSubmitted";
     
     /**
-     * Submitted - indicates that your order has been accepted at the order des-
-     *  tination and is working.
+     * Submitted - indicates that your order has been accepted at the order destination and is working.
      */
     public static final String SUBMITTED = "Submitted";
     

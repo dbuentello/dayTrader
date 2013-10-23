@@ -1,0 +1,38 @@
+CREATE A PROJECT:
+1. Open Eclipse and create a new Java Project: File->New->Java Project. This will open the 'Create a Java Project' dialog
+
+2. Give the project a name and click 'Next' to go to the 'Java Settings'
+
+3. On 'Java Settings' click 'Link additional source'. Browse to the directory <repository_home>/source/dayTrader. Click 'Ok', then 'Finish'.
+
+4. Click 'Link additional source' again. Browse to the directory <repo_home>/IB/IBJts/IBJts/java. Click 'Ok'. In the folder name field delete 'java' 
+	and replace it with 'ib'. Click Finish.
+
+5. From the command line, make a copy of the file <repo_home>/source/user_libraries.userlibraries and in your copy replace all occurences of 
+	"/home/nathan/dayTrader.git" with the path to the root of your local repo.
+
+6. At the 'Java Settings' dialog again, select the 'Libraries' tab. Click "Add Library...". 
+
+7. Select 'User Library' and click 'Next'. Click 'User Libraries'. Click 'Import...'. Click 'Browse'  and browse to the location of your saved off 
+	user_libraries.userlibraries file. Click 'Ok'. Select all libraries (there should be 5 libs) and click 'Ok'. Click 'Ok'. Click 'Finish'.
+
+8. You should be back at the 'Java Settings' dialog now, click 'Finish'.
+
+9. Use the 'Package Explorer' (Window->Show View->Package Explorer if it's not open by default) and find the folder 'src'. Right click the folder and delete.
+
+SETTING EDITOR PREFERENCES
+Ecplise gives you a ton of options to customize your editor for all kinds of different things. I'm only going to tell you to set one setting, but you can 
+configure the others as you like.
+
+1. Open Window->Preferences. Navigate to General->Editors->Text Editors. Set 'Displayed Tab Width' to 4 and ensure 'Insert spaces for tabs' is checked.
+
+RUNNING THE PROGRAM:
+To run the program from Eclipse:
+
+1. Select the project folder from the Project Explorer pane. Select menu Run->Run. 
+
+2. The first time you do this it will give a prompt of 'Select a way to run <project>'. Select 'Java Application' and click OK.
+
+3. On the next dialog, enter 'DayTrader' in the text field, and then select the DayTrader_T class. Click OK and your project will run. 
+
+Eclipse will remember these setting and next time you run the project, it will not prompt you.

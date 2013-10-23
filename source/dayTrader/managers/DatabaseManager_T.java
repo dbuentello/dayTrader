@@ -46,7 +46,21 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
      * 
      */
     public DatabaseManager_T() {
-        // TODO Auto-generated constructor stub
+        serviceRegistryBuilder.configure();
+        ServiceRegistry serviceRegistry = serviceRegistryBuilder.buildServiceRegistry();
+        MetadataSources metaData = new MetadataSources(serviceRegistry);
+        
+        metaData.addAnnotatedClass(marketdata.Symbol_T.class);
+        sessionFactory = metaData.buildMetadata().buildSessionFactory();
+        
+        metaData.addAnnotatedClass(marketdata.MarketData_T.class);
+        sessionFactory = metaData.buildMetadata().buildSessionFactory();
+        
+        metaData.addAnnotatedClass(trader.Holding_T.class);
+        sessionFactory = metaData.buildMetadata().buildSessionFactory();
+        
+        metaData.addAnnotatedClass(util.Calendar_T.class);
+        sessionFactory = metaData.buildMetadata().buildSessionFactory();
     }
     
     
@@ -70,16 +84,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
     
     @Override
     public void initialize() {
-                
-        serviceRegistryBuilder.configure();
-        ServiceRegistry serviceRegistry = serviceRegistryBuilder.buildServiceRegistry();
-        MetadataSources metaData = new MetadataSources(serviceRegistry);
-    	metaData.addAnnotatedClass(marketdata.Symbol_T.class);
-    	sessionFactory = metaData.buildMetadata().buildSessionFactory();
-    	
-    	metaData.addAnnotatedClass(marketdata.MarketData_T.class);
-    	sessionFactory = metaData.buildMetadata().buildSessionFactory();
-    	
+        
     	timeManager = (TimeManager_T) DayTrader_T.getManager(TimeManager_T.class);
     	
     }

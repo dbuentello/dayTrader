@@ -9,6 +9,8 @@ import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.PrimaryKeyJoinColumn;
 import javax.persistence.SecondaryTable;
+import javax.persistence.Temporal;
+import javax.persistence.TemporalType;
 import javax.persistence.Transient;
 
 import managers.DatabaseManager_T;
@@ -452,6 +454,7 @@ public class Holding_T implements Persistable_IF {
      * @return the buyDate
      */
     @Column( name = "buy_date" )
+    @Temporal(value = TemporalType.TIMESTAMP)
     public Date getBuyDate() {
         return buyDate;
     }
@@ -469,6 +472,7 @@ public class Holding_T implements Persistable_IF {
      * @return the sellDate
      */
     @Column( name = "sell_date" )
+    @Temporal(value = TemporalType.TIMESTAMP)
     public Date getSellDate() {
         return sellDate;
     }

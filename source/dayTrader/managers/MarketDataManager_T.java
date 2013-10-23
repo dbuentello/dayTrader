@@ -29,7 +29,7 @@ import interfaces.Manager_IF;
 public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
 
     
-    private final TDAmeritradeConnection_T dataSource = new TDAmeritradeConnection_T();
+    private TDAmeritradeConnection_T dataSource = null;
     /** A reference to the DatabaseManager class. */
     private DatabaseManager_T databaseManager;
     /** A reference to the LoggerManager class. */
@@ -48,6 +48,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
         
         logger = (LoggerManager_T) DayTrader_T.getManager(LoggerManager_T.class);
         databaseManager = (DatabaseManager_T) DayTrader_T.getManager(DatabaseManager_T.class);
+        dataSource = new TDAmeritradeConnection_T();
         
         try {
             connect();

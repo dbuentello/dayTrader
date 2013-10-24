@@ -105,11 +105,13 @@ public class Holding_T implements Persistable_IF {
      * 
      * @return realized gains/losses
      */
+    @Transient
     public double getSellTotal() {
         return (gains + losses);
     }
     
     //Redundant method
+    @Transient
     public double getRealizedGainsLosses() {
         return getSellTotal();
     }
@@ -237,6 +239,7 @@ public class Holding_T implements Persistable_IF {
      * 
      * @return the symbol
      */
+    @Transient
     public Symbol_T getSymbol() {
         return symbol;
     }
@@ -389,6 +392,7 @@ public class Holding_T implements Persistable_IF {
      * 
      * @return total number of shares
      */
+    @Transient
     public int getNumOfShares() {
         return (filled + remaining);
     }
@@ -568,7 +572,7 @@ public class Holding_T implements Persistable_IF {
      * 
      * @return the isOwned
      */
-    @Column( name = "is_owned" )
+    @Transient
     public boolean isOwned() {
         boolean owned = false;
         

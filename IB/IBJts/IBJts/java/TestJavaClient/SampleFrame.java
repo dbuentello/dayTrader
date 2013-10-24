@@ -949,6 +949,7 @@ class SampleFrame extends JFrame implements EWrapper {
     
 	public void currentTime(long time) {
 		String msg = EWrapperMsgGenerator.currentTime(time);
+		System.out.println("current time = " + time);
     	m_TWS.add(msg);
 	}
 	public void fundamentalData(int reqId, String data) {
@@ -1070,5 +1071,31 @@ class SampleFrame extends JFrame implements EWrapper {
         destOrder.m_settlingFirm = srcOrder.m_settlingFirm;
         destOrder.m_clearingAccount = srcOrder.m_clearingAccount;
         destOrder.m_clearingIntent = srcOrder.m_clearingIntent;
+    }
+
+    @Override
+    public void position(String account, Contract contract, int pos,
+            double avgCost) {
+        // TODO Auto-generated method stub
+        
+    }
+
+    @Override
+    public void positionEnd() {
+        // TODO Auto-generated method stub
+        
+    }
+
+    @Override
+    public void accountSummary(int reqId, String account, String tag,
+            String value, String currency) {
+        // TODO Auto-generated method stub
+        
+    }
+
+    @Override
+    public void accountSummaryEnd(int reqId) {
+        // TODO Auto-generated method stub
+        
     }
 }

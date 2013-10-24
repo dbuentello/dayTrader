@@ -3,14 +3,14 @@ package managers;
 import interfaces.Connector_IF;
 import interfaces.Manager_IF;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import marketdata.MarketData_T;
 import marketdata.Symbol_T;
 
 import org.apache.log4j.Level;
@@ -19,6 +19,7 @@ import trader.Holding_T;
 import trader.Trader_T;
 import util.OrderAction_T;
 import util.OrderStatus_T;
+import accounts.Account_T;
 
 import com.ib.client.CommissionReport;
 import com.ib.client.Contract;
@@ -31,7 +32,6 @@ import com.ib.client.OrderState;
 import com.ib.client.UnderComp;
 
 import dayTrader.DayTrader_T;
-
 import exceptions.ConnectionException;
 
 public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
@@ -39,11 +39,7 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
 
     private final String GATEWAY_HOST = "localhost";
     private final int GATEWAY_PORT = 4001;
-    private final int CLIENT_ID = 1;
-    // ACTUAL TRADER ACCOUNT CODE
-    //private final String  ACCOUNT_CODE = "U1235379";
-    // PAPER TRADER ACCOUNT CODE
-    private final String  ACCOUNT_CODE = "DU171047";
+    
     
     /** A reference to the DatabaseManager class. */
     private DatabaseManager_T databaseManager;
@@ -54,15 +50,33 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
     /** HashMap of orderIds to Holdings so we can easily retrieve holding information based on orderId. */
     private Map<Integer, Holding_T> holdings = new HashMap<Integer, Holding_T>();
     /** Reference to the IB client socket that is used to send requests to IB */
-    EClientSocket ibClientSocket = null;
+    private EClientSocket ibClientSocket = null;
     /** Reference to the Trader_T class used to assist in making trades. */
-    Trader_T trader;
+    private Trader_T trader;
+    /** List of the accounts being managed. */
+    Account_T account;
     
     /**
      * 
      */
     public BrokerManager_T() {
         
+        // ACTUAL TRADER ACCOUNT CODE = "U1235379";
+        // PAPER TRADER ACCOUNT CODE = "DU171047";
+        account = new Account_T(1, "DU171047");
+        try {
+            connect();
+        } catch (ConnectionException e) {
+            // TODO Handle the exception
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * @return the account
+     */
+    public Account_T getAccount() {
+        return account;
     }
 
     public void executeTrade() {
@@ -215,6 +229,14 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
 	@Override
 	public void updateAccountValue(String key, String value, String currency,
 			String accountName) {
+	    
+	    //TODO: Handle other types of account updates
+	    if (key == "CashBalance") {
+	        account.setBalance(Integer.valueOf(value));
+	    } else {
+	        logger.logText("Received key: " + key + " in updateAccountValue() for account: "
+	                + accountName + " and don't know how to parse.", Level.INFO);
+	    }
 		
 	}
 	
@@ -227,12 +249,19 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
 	
 	@Override
 	public void updateAccountTime(String timeStamp) {
-		
+	    SimpleDateFormat df = new SimpleDateFormat();
+		try {
+            account.setUpdateTime(df.parse(timeStamp));
+        } catch (ParseException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
 	}
 	
 	@Override
 	public void accountDownloadEnd(String accountName) {
-		
+		account.setUpdated(true);
+		ibClientSocket.reqAccountUpdates(false, account.getAccountCode());
 	}
 	
 	@Override
@@ -322,9 +351,10 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
 		
 	}
 	
-	@Override
+	
 	public void currentTime(long time) {
 		timeManager.setTime(time);
+		System.out.println("updating time = " + time);
 	}
 	
 	@Override
@@ -361,7 +391,7 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
 	        System.out.println("Already connected to the IB interface.");
 	    } else {
 	    
-	        ibClientSocket.eConnect(GATEWAY_HOST, GATEWAY_PORT, CLIENT_ID);
+	        ibClientSocket.eConnect(GATEWAY_HOST, GATEWAY_PORT, account.getClientId());
 		
     		if (!isConnected()) {
     		    throw new ConnectionException("Failed to connect to IB Gateway");
@@ -398,13 +428,6 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
 		
 	    trader = new Trader_T();
 	    
-		try {
-            connect();
-        } catch (ConnectionException e) {
-            // TODO Handle the exception
-            e.printStackTrace();
-        }
-		
 		//empty the current holdings map before getting the open orders from IB
 		holdings.clear();
 		
@@ -451,6 +474,32 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
     }
     
     /**
+     * Request that our account be updated.
+     */
+    public void updateAccount() {
+        account.setUpdated(false);
+        ibClientSocket.reqAccountUpdates(true, account.getAccountCode());
+    }
+    
+    /**
+     * Get a snapshot of a single quote from IB.
+     * @param tickerId
+     */
+    public void reqSymbolSnapshot(Symbol_T symbol) {
+         
+        Contract contract = new Contract();
+        contract.m_currency = "USD";
+        contract.m_exchange = symbol.getExchange();
+        contract.m_localSymbol = symbol.getSymbol();
+        contract.m_secType = "STK";
+        contract.m_symbol = symbol.getSymbol();
+        
+        
+        ibClientSocket.reqMktData((int) symbol.getId(), contract, "", true);
+    }
+    
+    
+    /**
      * Sell any holdings that we currently own
      */
     public void liquidateHoldings() {
@@ -480,10 +529,47 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
      */
     public void buyBiggestLosers() {
         
+        //update our account to get the latest cash balance, sleep while the account get updated
+        updateAccount();
+        while (account.isUpdated()) {
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
+        }
+            
         List<Symbol_T> biggestLosers = databaseManager.getBiggestLosers();
         
-        List<Holding_T> buyOrders = trader.createMktBuyOrders(biggestLosers); 
+        List<Holding_T> buyOrders = trader.createMktBuyOrders(biggestLosers, account.getClientId()); 
         
+        
+    }
+
+    @Override
+    public void position(String account, Contract contract, int pos,
+            double avgCost) {
+        // TODO Auto-generated method stub
+        
+    }
+
+    @Override
+    public void positionEnd() {
+        // TODO Auto-generated method stub
+        
+    }
+
+    @Override
+    public void accountSummary(int reqId, String account, String tag,
+            String value, String currency) {
+        // TODO Auto-generated method stub
+        
+    }
+
+    @Override
+    public void accountSummaryEnd(int reqId) {
+        // TODO Auto-generated method stub
         
     }
         

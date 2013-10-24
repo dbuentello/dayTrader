@@ -130,7 +130,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
         brokerManager = (BrokerManager_T) DayTrader_T.getManager(BrokerManager_T.class);
         databaseManager = (DatabaseManager_T) DayTrader_T.getManager(DatabaseManager_T.class);
         
-        calendar_t = (Calendar_T) databaseManager.query(Calendar_T.class, mysqlDate());
+        calendar_t = (Calendar_T) databaseManager.query(Calendar_T.class, time);
         
         updateTime();
         this.buyTime = new Date(calendar_t.getCloseTime().getTime() + MINUTES_BEFORE_CLOSE_TO_BUY * MS_IN_MINUTE);
@@ -205,6 +205,12 @@ public class TimeManager_T implements Manager_IF, Runnable {
             //the broker manager will invoke the setTime() method when the current time has been returned so
             //loop until we get an updated time.
             brokerManager.reqCurrentTime();
+            try {
+                Thread.sleep(250);
+            } catch (InterruptedException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
         }
         
     }

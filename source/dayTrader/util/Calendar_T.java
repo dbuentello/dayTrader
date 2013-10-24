@@ -11,6 +11,8 @@ import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.Table;
+import javax.persistence.Temporal;
+import javax.persistence.TemporalType;
 
 import org.hibernate.HibernateException;
 
@@ -38,6 +40,7 @@ public class Calendar_T implements Persistable_IF {
      */
     @Id
     @Column( name = "date" )
+    @Temporal(value = TemporalType.DATE)
     public Date getDate() {
         return date;
     }
@@ -51,6 +54,7 @@ public class Calendar_T implements Persistable_IF {
      * @return the openTime
      */
     @Column( name = "open_time" )
+    @Temporal(value = TemporalType.TIMESTAMP)
     public Date getOpenTime() {
         return openTime;
     }
@@ -64,6 +68,7 @@ public class Calendar_T implements Persistable_IF {
      * @return the closeTime
      */
     @Column( name = "close_time" )
+    @Temporal(value = TemporalType.TIMESTAMP)
     public Date getCloseTime() {
         return closeTime;
     }

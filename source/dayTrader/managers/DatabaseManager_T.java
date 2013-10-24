@@ -5,6 +5,7 @@ import interfaces.Manager_IF;
 import interfaces.Persistable_IF;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 
@@ -55,11 +56,14 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         
         metaData.addAnnotatedClass(marketdata.MarketData_T.class);
         sessionFactory = metaData.buildMetadata().buildSessionFactory();
-        
-        metaData.addAnnotatedClass(trader.Holding_T.class);
+                
+        metaData.addAnnotatedClass(util.Calendar_T.class);
         sessionFactory = metaData.buildMetadata().buildSessionFactory();
         
-        metaData.addAnnotatedClass(util.Calendar_T.class);
+        metaData.addAnnotatedClass(trader.OrderId_T.class);
+        sessionFactory = metaData.buildMetadata().buildSessionFactory();
+        
+        metaData.addAnnotatedClass(trader.Holding_T.class);
         sessionFactory = metaData.buildMetadata().buildSessionFactory();
     }
     
@@ -146,7 +150,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
     
     /**
      * Query the database for a single row. persistableClass will be the object class that maps to the table 
-     * to query, id is the primary key id of the object
+     * to query, string is the primary key of the object
      * @param <T>
      * @param persistableClass
      * @param id
@@ -160,6 +164,34 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         try {
             tx = session.beginTransaction();
             persistentData = (Persistable_IF) session.get(persistableClass, string);
+            tx.commit();
+        } catch (HibernateException e) {
+            //TODO: for now just print to stdout, we'll change this to a log file later
+            e.printStackTrace();
+            if (tx != null) tx.rollback();
+        } finally {
+            session.close();
+        }
+
+        return persistentData;
+    }
+    
+    /**
+     * Query the database for a single date row. persistableClass will be the object class that maps to the table 
+     * to query, date is the primary key of the object
+     * @param <T>
+     * @param persistableClass
+     * @param id
+     * @return object if found in the database, otherwise null
+     */
+    public synchronized <T> Persistable_IF query(Class<T> persistableClass, Date date) {
+        Session session = getSessionFactory().openSession();
+        Transaction tx = null;
+        Persistable_IF persistentData = null;
+        
+        try {
+            tx = session.beginTransaction();
+            persistentData = (Persistable_IF) session.get(persistableClass, date);
             tx.commit();
         } catch (HibernateException e) {
             //TODO: for now just print to stdout, we'll change this to a log file later

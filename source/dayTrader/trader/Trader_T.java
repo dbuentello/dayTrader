@@ -57,8 +57,10 @@ public class Trader_T {
         while(it.hasNext()) {
             Holding_T order = it.next();
             
-            //insert a new row in the database to get a new order id
-            order.setId(order.insertOrUpdate());
+            //get the next available orderID
+            OrderId_T orderId = new OrderId_T();
+            orderId.insertOrUpdate();
+            order.setOrderId((int) orderId.getId());
             
             order.getOrder().m_orderId = order.getOrderId();
             //clientId fields should already be populated
@@ -96,7 +98,7 @@ public class Trader_T {
      * 
      * @param symbols - list of symbols to buy
      */
-    public List<Holding_T> createMktBuyOrders(List<Symbol_T> symbols) {
+    public List<Holding_T> createMktBuyOrders(List<Symbol_T> symbols, int clientId) {
         
         List<Holding_T> buyOrders = new ArrayList<Holding_T>();
         
@@ -104,9 +106,41 @@ public class Trader_T {
         while (it.hasNext()) {
             Symbol_T symbol = it.next();
             
-            Holding_T buyOrder = new Holding_T();
+            Holding_T order = new Holding_T();
             
-            //see updateBuyPositions() in GetQuotes.pl
+            //get the next available orderID
+            OrderId_T orderId = new OrderId_T();
+            orderId.insertOrUpdate();
+            order.setOrderId((int) orderId.getId());
+            
+            order.getOrder().m_orderId = order.getOrderId();
+            order.setClientId(clientId);
+            
+            order.getOrder().m_action = OrderAction_T.BUY;
+            //submit these orders as market-to-limit orders
+            order.getOrder().m_orderType = "MTL";
+            //get the latest price of this symbol
+            brokerManager.reqSymbolSnapshot(symbol);
+            //TODO: how do I know when the price is updated?
+            
+            order.getOrder().m_totalQuantity = order.getRemaining();
+            order.getOrder().m_transmit = true;
+            
+            order.getOrder().m_lmtPrice = 0;
+            order.getOrder().m_auxPrice = 0;
+            order.getOrder().m_allOrNone = false;
+            order.getOrder().m_blockOrder = false;
+            order.getOrder().m_outsideRth = false;
+           
+            //the contractId field will already be populated
+            order.getContract().m_currency = "USD";
+            order.getContract().m_exchange = symbol.getExchange();
+            order.getContract().m_primaryExch = symbol.getExchange();
+            //order.getContract().m_expiry = String.valueOf(TimeManager_T.getYear4Digit() + TimeManager_T.getMonthDigit());
+            order.getContract().m_localSymbol = symbol.getSymbol();
+            order.getContract().m_symbol = symbol.getSymbol();
+            //order.getContract().m_right = "PUT";
+            order.getContract().m_secType = "STK";
             
             
         }

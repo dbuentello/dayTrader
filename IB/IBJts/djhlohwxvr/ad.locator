@@ -1,8 +1,8 @@
 #store ad locator
-#Thu Oct 24 11:45:17 PDT 2013
-ad.last_show.time=1382640164870
+#Fri Oct 25 21:20:57 PDT 2013
 ad.last_show.tool.id=IBIS
-ad.last_display.time=1382684399059
-ad.last_update.time=1382640317966
-ad.tool.id=IBIS
-ad.image=brokerage_ibis_screen_2.jpg
+ad.last_show.time=1382761257804
+ad.last_display.time=0
+ad.tool.id=
+ad.last_update.time=0
+ad.image=

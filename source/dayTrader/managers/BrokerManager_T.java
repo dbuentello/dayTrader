@@ -427,11 +427,11 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
 	    logger = (LoggerManager_T) DayTrader_T.getManager(LoggerManager_T.class);
 		
 	    try {
-           connect();
-       } catch (ConnectionException e) {
-           // TODO Handle the exception
-           e.printStackTrace();
-       }
+	        connect();
+	    } catch (ConnectionException e) {
+	        // TODO Handle the exception
+	        e.printStackTrace();
+	    }
 	    
 	    trader = new Trader_T();
 	    

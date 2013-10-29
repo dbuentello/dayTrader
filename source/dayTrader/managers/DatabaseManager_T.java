@@ -244,9 +244,9 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
     public synchronized List<Symbol_T> getBiggestLosers() {
         
         Session session = getSessionFactory().openSession();
-              
+
         Criteria criteria = session.createCriteria(MarketData_T.class)
-            .add(Restrictions.ge("date", timeManager.mysqlDate() + "00:00:00" ))
+            .add(Restrictions.ge("date", timeManager.mysqlDate() + " 00:00:00" ))
             .add(Restrictions.gt("volume", Trader_T.MIN_TRADE_VOLUME))
             .add(Restrictions.gt("price", Trader_T.MIN_BUY_PRICE))
             .addOrder(Order.asc("chgper"))

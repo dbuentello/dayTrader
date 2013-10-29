@@ -13,9 +13,9 @@ public class LoggerManager_T implements Manager_IF {
     
     private Logger logger = Logger.getLogger(LoggerManager_T.class.getName());
     
-    
-    public Level loglLevel() {
-        return logger.getLevel();
+
+    public LoggerManager_T() {
+        logger.setLevel(Level.INFO);
     }
     
     @Override

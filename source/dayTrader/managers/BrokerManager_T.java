@@ -11,6 +11,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import marketdata.MarketData_T;
 import marketdata.Symbol_T;
 
 import org.apache.log4j.Level;
@@ -34,7 +35,7 @@ import com.ib.client.UnderComp;
 import dayTrader.DayTrader_T;
 import exceptions.ConnectionException;
 
-public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
+public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
   /* {src_lang=Java}*/
 
     private final String GATEWAY_HOST = "localhost";
@@ -50,11 +51,16 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
     /** HashMap of orderIds to Holdings so we can easily retrieve holding information based on orderId. */
     private Map<Integer, Holding_T> holdings = new HashMap<Integer, Holding_T>();
     /** Reference to the IB client socket that is used to send requests to IB */
-    private EClientSocket ibClientSocket = null;
+    private EClientSocket ibClientSocket;
     /** Reference to the Trader_T class used to assist in making trades. */
     private Trader_T trader;
     /** List of the accounts being managed. */
     Account_T account;
+    /** The next valid order id. */
+    private int nextValidId = 0;
+    /** Reference to a MarketData_T quote that can be used to store requested data. */
+    private MarketData_T marketData = new MarketData_T();
+    
     
     /**
      * 
@@ -64,14 +70,11 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
         // ACTUAL TRADER ACCOUNT CODE = "U1235379";
         // PAPER TRADER ACCOUNT CODE = "DU171047";
         account = new Account_T(1, "DU171047");
-        try {
-            connect();
-        } catch (ConnectionException e) {
-            // TODO Handle the exception
-            e.printStackTrace();
-        }
+        ibClientSocket = new EClientSocket(this);
+        
     }
 
+    
     /**
      * @return the account
      */
@@ -266,7 +269,7 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
 	
 	@Override
 	public void nextValidId(int orderId) {
-		
+		this.nextValidId = orderId;
 	}
 	
 	@Override
@@ -382,11 +385,8 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
 		
 	}
 	
-	@Override
 	public void connect() throws ConnectionException {
-		
-	    ibClientSocket = new EClientSocket(this);
-	    
+	
 	    if (isConnected()) {
 	        System.out.println("Already connected to the IB interface.");
 	    } else {
@@ -401,12 +401,12 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
 		
 	}
 	
-	@Override
+	
 	public void disconnect() {
 	    ibClientSocket.eDisconnect();
 	}
 	
-	@Override
+	
 	public boolean isConnected() {
 		
 		return ibClientSocket.isConnected();
@@ -426,6 +426,13 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
 	    timeManager = (TimeManager_T) DayTrader_T.getManager(TimeManager_T.class);
 	    logger = (LoggerManager_T) DayTrader_T.getManager(LoggerManager_T.class);
 		
+	    try {
+           connect();
+       } catch (ConnectionException e) {
+           // TODO Handle the exception
+           e.printStackTrace();
+       }
+	    
 	    trader = new Trader_T();
 	    
 		//empty the current holdings map before getting the open orders from IB
@@ -469,8 +476,23 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
 	 * Request the current time from the broker.
 	 */
     public void reqCurrentTime() {
-        //the reqCurrentTime() method returns through the currentTime() method
-        ibClientSocket.reqCurrentTime();
+        
+        if (isConnected()) {
+            //the reqCurrentTime() method returns through the currentTime() method
+            ibClientSocket.reqCurrentTime();
+        } else {
+            while (!isConnected()) {
+                try {
+                    connect();
+                    Thread.sleep(500);
+                } catch (ConnectionException e) {
+                    e.printStackTrace();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                } 
+                
+            }
+        }
     }
     
     /**
@@ -499,6 +521,26 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
     }
     
     
+    /** 
+     * Get the next valid order id from IB
+     * @return next valid order id
+     */
+    public int reqNextValidId() {
+        int orderId = nextValidId;
+        
+        ibClientSocket.reqIds(1);
+        while (orderId == nextValidId) {
+            try {
+                Thread.sleep(250);
+            } catch (InterruptedException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
+        }
+        
+        return orderId;
+    }
+    
     /**
      * Sell any holdings that we currently own
      */
@@ -514,12 +556,14 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
         }
         
         
-        trader.createSellOrders(orders);
+        orders = (ArrayList<Holding_T>) trader.createSellOrders(orders);
         
         it = orders.iterator();
         while(it.hasNext()) {
             Holding_T sellOrder = it.next();
             ibClientSocket.placeOrder(sellOrder.getOrderId(), sellOrder.getContract(), sellOrder.getOrder());
+            logger.logText("Placing sell order #" + sellOrder.getOrderId() + " for symbol: " 
+                    + sellOrder.getSymbol().getSymbol(), Level.DEBUG);
         }
     }
     
@@ -530,8 +574,9 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
     public void buyBiggestLosers() {
         
         //update our account to get the latest cash balance, sleep while the account get updated
-        updateAccount();
+        //TODO: put in a timeout after so many attempts
         while (account.isUpdated()) {
+            updateAccount();
             try {
                 Thread.sleep(1000);
             } catch (InterruptedException e) {
@@ -544,6 +589,13 @@ public class BrokerManager_T implements Manager_IF, Connector_IF, EWrapper {
         
         List<Holding_T> buyOrders = trader.createMktBuyOrders(biggestLosers, account.getClientId()); 
         
+        Iterator<Holding_T> it = buyOrders.iterator();
+        while (it.hasNext()) {
+            Holding_T buyOrder = it.next();
+            ibClientSocket.placeOrder(buyOrder.getOrderId(), buyOrder.getContract(), buyOrder.getOrder());
+            logger.logText("Placing buy order #" + buyOrder.getOrderId() + " for symbol: " 
+                    + buyOrder.getSymbol().getSymbol(), Level.DEBUG);
+        }
         
     }
 

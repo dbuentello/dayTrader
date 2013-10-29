@@ -17,10 +17,10 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 
 public class ConnectDlg extends JDialog {
-    public static int LAST_CLIENT_ID = 0;
+    public static int LAST_CLIENT_ID = 1;
 
     JTextField 	m_ipAddress = new JTextField();
-    JTextField 	m_port = new JTextField( "7496");
+    JTextField 	m_port = new JTextField( "4001");
     JTextField 	m_clientId = new JTextField();
     JButton 	m_ok = new JButton( "OK");
     JButton 	m_cancel = new JButton( "Cancel");

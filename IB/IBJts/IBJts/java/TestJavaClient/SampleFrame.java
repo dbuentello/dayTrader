@@ -17,6 +17,8 @@ import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 
+import managers.BrokerManager_T;
+
 import com.ib.client.Contract;
 import com.ib.client.ContractDetails;
 import com.ib.client.EClientSocket;
@@ -34,7 +36,7 @@ class SampleFrame extends JFrame implements EWrapper {
     private int faErrorCodes[] = { 503, 504, 505, 522, 1100, NOT_AN_FA_ACCOUNT_ERROR } ;
     private boolean faError ;
 
-    private EClientSocket   m_client = new EClientSocket( this);
+    private EClientSocket   m_client = new EClientSocket( this );
     private IBTextPanel     m_tickers = new IBTextPanel("Market and Historical Data", false);
     private IBTextPanel     m_TWS = new IBTextPanel("TWS Server Responses", false);
     private IBTextPanel     m_errors = new IBTextPanel("Errors and Messages", false);

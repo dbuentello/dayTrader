@@ -59,10 +59,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
                 
         metaData.addAnnotatedClass(util.Calendar_T.class);
         sessionFactory = metaData.buildMetadata().buildSessionFactory();
-        
-        metaData.addAnnotatedClass(trader.OrderId_T.class);
-        sessionFactory = metaData.buildMetadata().buildSessionFactory();
-        
+                
         metaData.addAnnotatedClass(trader.Holding_T.class);
         sessionFactory = metaData.buildMetadata().buildSessionFactory();
     }

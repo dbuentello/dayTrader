@@ -74,6 +74,7 @@ public class EReader extends Thread {
         catch ( Exception ex ) {
         	if (parent().isConnected()) {
         		eWrapper().error( ex);
+        		ex.printStackTrace();
         	}
         }
         if (parent().isConnected()) {

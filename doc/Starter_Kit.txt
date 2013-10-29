@@ -42,6 +42,7 @@ chmsee - utility for view *.chm files
 libxml2
 libxml2-dev
 libexpat1-dev
+openjdk-7-jdk - for the IBGateway
 
 Install the following perl modules using cpan:
 Command (recommended to do as root but not required):

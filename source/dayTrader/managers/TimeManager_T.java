@@ -67,7 +67,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
         while (running) {
             
             /**
-             * to run application in simulation mode, and un-comment the following lines 
+             * to run application in simulation mode, un-comment the following lines 
              *  and comment out line 77 "updateTime()"
              */
 //            i++;
@@ -76,6 +76,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
             
             try {            
                 
+                //updateTime is a blocking call that won't return until the time has been updated
                 updateTime();
                
                 /*
@@ -96,10 +97,9 @@ public class TimeManager_T implements Manager_IF, Runnable {
                     
                     marketDataManager.takeMarketSnapshot();
                     
-                    //TODO: identify positions to buy
-                    brokerManager.buyBiggestLosers();
+                    //TODO: identify and buy positions to buy. un-comment this when ready to test
+                    //brokerManager.buyBiggestLosers();
                                         
-                    //TODO: Buy new positions
                     
                     
                     //set buy_time to tomorrow so we don't execute this block again
@@ -114,8 +114,6 @@ public class TimeManager_T implements Manager_IF, Runnable {
 //                    //TODO: perform order cancels
 //                }
 
-                //run this loop to update the time every 3 seconds
-                Thread.sleep(3000);
             } catch (InterruptedException e) {
                 running = false;
             }
@@ -201,18 +199,20 @@ public class TimeManager_T implements Manager_IF, Runnable {
         //use the system time
         
         
+        //the broker manager will invoke the setTime() method when the current time has been returned so
+        //loop until we get an updated time.
         while(oldTime == time.getTime()) {
-            //the broker manager will invoke the setTime() method when the current time has been returned so
-            //loop until we get an updated time.
+
             brokerManager.reqCurrentTime();
             try {
-                Thread.sleep(250);
+                Thread.sleep(5000);
             } catch (InterruptedException e) {
                 // TODO Auto-generated catch block
                 e.printStackTrace();
             }
         }
         
+        return;
     }
     
     /**

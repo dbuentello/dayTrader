@@ -49,7 +49,7 @@ public class Trader_T {
     public List<Holding_T> createSellOrders(ArrayList<Holding_T> orders) {
         
         
-        //create a copy of our list, were going to return the same holdings, but
+        //were going to return the same holdings, but
         //with the contract and order fields populated for a sell order
         //ArrayList<Holding_T> orders = new ArrayList<Holding_T>(holdings);
         
@@ -58,9 +58,8 @@ public class Trader_T {
             Holding_T order = it.next();
             
             //get the next available orderID
-            OrderId_T orderId = new OrderId_T();
-            orderId.insertOrUpdate();
-            order.setOrderId((int) orderId.getId());
+            int orderId = brokerManager.reqNextValidId();
+            order.setOrderId(orderId);
             
             order.getOrder().m_orderId = order.getOrderId();
             //clientId fields should already be populated
@@ -109,9 +108,8 @@ public class Trader_T {
             Holding_T order = new Holding_T();
             
             //get the next available orderID
-            OrderId_T orderId = new OrderId_T();
-            orderId.insertOrUpdate();
-            order.setOrderId((int) orderId.getId());
+            int orderId = brokerManager.reqNextValidId();
+            order.setOrderId(orderId);
             
             order.getOrder().m_orderId = order.getOrderId();
             order.setClientId(clientId);

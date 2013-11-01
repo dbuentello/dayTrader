@@ -5,6 +5,7 @@ import interfaces.Manager_IF;
 import interfaces.Persistable_IF;
 
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
@@ -245,11 +246,16 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         
         Session session = getSessionFactory().openSession();
 
+
+        
         Criteria criteria = session.createCriteria(MarketData_T.class)
-            .add(Restrictions.ge("date", timeManager.mysqlDate() + " 00:00:00" ))
+//SALxx            .add(Restrictions.ge("date", timeManager.mysqlDate() + "00:00:00" ))
+            .add(Restrictions.ge("lastTradeTimestamp", timeManager.Today() ))
             .add(Restrictions.gt("volume", Trader_T.MIN_TRADE_VOLUME))
-            .add(Restrictions.gt("price", Trader_T.MIN_BUY_PRICE))
-            .addOrder(Order.asc("chgper"))
+//SALxx		.add(Restrictions.gt("price", Trader_T.MIN_BUY_PRICE))
+            .add(Restrictions.gt("lastPrice", Trader_T.MIN_BUY_PRICE))
+//SALxx            .addOrder(Order.asc("chgper"))
+            .addOrder(Order.asc("percentChange"))
             .setMaxResults(Trader_T.MAX_BUY_POSITIONS);
         
         

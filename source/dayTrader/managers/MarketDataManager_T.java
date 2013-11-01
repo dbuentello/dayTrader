@@ -166,7 +166,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
                     // TODO Auto-generated catch block
                     e.printStackTrace();
                 }  
-                marketData.setLastTimestamp(date);
+                marketData.setLastTradeTimestamp(date);
               
                 Symbol_T symbol = new Symbol_T(XMLTags_T.simpleParse(quoteData, XMLTags_T.SYMBOL));
                 marketData.setSymbolId(symbol.getId());
@@ -202,6 +202,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
                 //update our snapshot map with the latest data
                 lastSnapshot.put(marketData.getSymbolId(), marketData);
                 //persist our individual quote to the database
+                             
                 marketData.insertOrUpdate();
                 
                 // get ready to parse next quote

@@ -167,6 +167,7 @@ public class MarketData_T implements Persistable_IF {
 //        try {
 //            tx = session.beginTransaction();
 //            marketData = (MarketData_T) session.get(MarketData_T.class, id);
+//SALxx	      session.delete(marketData);
 //            tx.commit();
 //        } catch (HibernateException e) {
 //            //TODO: for now just print to stdout, we'll change this to a log file later
@@ -199,17 +200,21 @@ public class MarketData_T implements Persistable_IF {
         
         //assume we're going to be insert a duplicate row
         boolean exists = true;
-        
+
         //query the database to see if a MarketData object with the same symbolId and timestamp already exists in the db
         Session session = DatabaseManager_T.getSessionFactory().openSession();
         Criteria criteria = session.createCriteria(MarketData_T.class)
                 .add(Restrictions.eq("symbolId", marketData.getSymbolId()))
-                .add(Restrictions.eq("date", marketData.getLastTimestamp()));
+                .add(Restrictions.eq("date", marketData.getLastTradeTimestamp()));
+                // SALxx or is it
+        		//.add(Restrictions.eq("lastTradeTimestamp", marketData.getLastTimestamp()));  
+ 
+        // SALxx - failing right here....
         
         //If no symbol was found the consider this MarketData object to be unique and safe to insert into the db
-        if (criteria.list().size() == 0) {
+//--SALxx        if (criteria.list().size() == 0) {
             exists = false;
-        }
+//--SALxx        }
         
         return exists;
     }
@@ -267,7 +272,7 @@ public class MarketData_T implements Persistable_IF {
      */
     @Column( name = "date" )
     @Temporal(value = TemporalType.TIMESTAMP)
-    public Date getLastTimestamp() {
+    public Date getLastTradeTimestamp() {
         return lastTradeTimestamp;
     }
 
@@ -275,7 +280,7 @@ public class MarketData_T implements Persistable_IF {
     /**
      * @param lastTradeTimestamp the lastTradeTimestamp to set
      */
-    public void setLastTimestamp(Date lastTimestamp) {
+    public void setLastTradeTimestamp(Date lastTimestamp) {
         this.lastTradeTimestamp = lastTimestamp;
     }
 
@@ -320,6 +325,8 @@ public class MarketData_T implements Persistable_IF {
      * @param askPrice the askPrice to set
      */
     public void setAskPrice(Double askPrice) {
+    	//SALxx note! symbol_T is not populated yet!
+    	if (askPrice >= 10000.00) { System.out.println("!!! Bad ask price for "+this.symbolId+" : "+askPrice); askPrice = 0.00; }
         this.askPrice = askPrice;
     }
 
@@ -461,7 +468,7 @@ public class MarketData_T implements Persistable_IF {
     }
 
     /**
-     * @param percentChange the percentChange to set
+     * @param percentChange the percentChange to set.add(Restrictions.eq("lastTradeTimestamp",
      */
     public void setPercentChange(Double percentChange) {
         this.percentChange = percentChange;
@@ -483,7 +490,7 @@ public class MarketData_T implements Persistable_IF {
     }
 
     /**
-     * @return the weekHigh52
+     * @return the weekHigh52.add(Restrictions.eq("lastTradeTimestamp",
      */
     @Column (name = "yearhi")
     public Double getWeekHigh52() {

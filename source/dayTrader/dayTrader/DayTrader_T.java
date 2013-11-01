@@ -34,7 +34,7 @@ public class DayTrader_T {
         
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] alrgs) {
         
         databaseManager = new DatabaseManager_T();
         marketDataManager = new MarketDataManager_T();
@@ -52,12 +52,12 @@ public class DayTrader_T {
 	    
 		serviceManager.put(databaseManager.getClass(), databaseManager);
 		serviceManager.put(marketDataManager.getClass(), marketDataManager);
-		serviceManager.put(brokerManager.getClass(), brokerManager);
+		//--SAL--serviceManager.put(brokerManager.getClass(), brokerManager);
 		serviceManager.put(loggerManager.getClass(), loggerManager);
 		serviceManager.put(timeManager.getClass(), timeManager);
 		
 		//threads.add(new Thread(databaseManager));
-		//threads.add(new Thread(brokerManager));
+		//threads.add(new Thread(brokelrManager));
 		//threads.add(new Thread(loggerManager));
 		threads.add(new Thread(marketDataManager));
 		threads.add(new Thread(timeManager));

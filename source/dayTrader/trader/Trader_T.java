@@ -18,7 +18,7 @@ public class Trader_T {
   /* {src_lang=Java}*/
 
     /** Minimum number of shares a security has to trade for us to buy. */
-    public static final int MIN_TRADE_VOLUME = 10000;
+    public static final double MIN_TRADE_VOLUME = 10000;  //SALxx was int - needs to agree w/ DB definition
     /** Minimum price for a security for us to buy it. */
     public static final double MIN_BUY_PRICE = 0.50;
     /** The maximum number of positions we want to buy. */

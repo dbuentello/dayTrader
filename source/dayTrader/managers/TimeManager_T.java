@@ -6,6 +6,19 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.Iterator;
+import java.util.List;
+
+import javax.persistence.Transient;
+
+import marketdata.MarketData_T;
+import marketdata.Symbol_T;
+
+import org.apache.log4j.Level;
+
+//SAL
+//import org.apache.log4j.Logger;
+//import org.jboss.logging.Logger.Level;
 
 import util.Calendar_T;
 import dayTrader.DayTrader_T;
@@ -22,7 +35,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
     /** Time in minutes before the close of the market day that we want to capture our snapshot of the market
      * and execute our buy orders.
      */
-    private final int MINUTES_BEFORE_CLOSE_TO_BUY = 30;
+    private final int MINUTES_BEFORE_CLOSE_TO_BUY = 15;    //SALxx
     /** The number of milliseconds in one minute. */
     private final int MS_IN_MINUTE = 1000 * 60;
     /** The number of minutes in one hour. */
@@ -45,6 +58,15 @@ public class TimeManager_T implements Manager_IF, Runnable {
     /** A reference to the DatabaseManager */
     private DatabaseManager_T databaseManager;
     
+//SAL
+//    private LoggerManager_T logger;
+    
+    // enable simulation of EndOfDay Quotes
+    private static boolean d_simulate = true;
+    
+    // use system time instead of IB time
+    private static boolean d_useSystemTime = true;
+    
     
     public TimeManager_T() {
        
@@ -61,24 +83,29 @@ public class TimeManager_T implements Manager_IF, Runnable {
         int i = 0;
         /*
          * This loop will update the application time every three seconds and when a trigger time is reached
-         * execute the appropriate actions. Triggers times can be the market open, a specificied buy time,
+         * execute the appropriate actions. Triggers times can be the market open, a specified buy time,
          * and the market close.
          */
+
         while (running) {
-            
-            /**
-             * to run application in simulation mode, un-comment the following lines 
-             *  and comment out line 77 "updateTime()"
-             */
-//            i++;
-//            SimpleDateFormat df = new SimpleDateFormat();
-//            try { time.setTime(df.parse("10-15-2013 09:30:00").getTime() + (i * 1000*10)); } catch (ParseException e1) { /*do nothing*/ }
-            
+
             try {            
                 
                 //updateTime is a blocking call that won't return until the time has been updated
-                updateTime();
-               
+            	updateTime();
+
+/**
+ * to run application in simulation mode, set d_simulate to true and modify the date below to be todays date
+ */
+if (d_simulate) {
+              SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
+              try { 
+            	  long t = df.parse("2013-11-01 15:46:00").getTime();
+            	  time.setTime(t);
+              } catch (ParseException e1)  { /*do nothing*/ System.out.println("sim time parse error");}
+              d_simulate = false;
+}
+
                 /*
                  * At the end of the market day, perform the following 
                  * 1. sell any outstanding positions we're still holding 
@@ -93,19 +120,41 @@ public class TimeManager_T implements Manager_IF, Runnable {
                     //but is this really feasible? Will the money be credited to our account immediately
                     //if the money isn't instantly credited what do we do? how do we buy additional positions?
                     //what is we can't sell a position? how are we going to handle that?
-                    brokerManager.liquidateHoldings();
+ 
+                	//SALxx--   we can run w/o a broker mgr - TODO: this is only for development                
+                	if (brokerManager != null) brokerManager.liquidateHoldings();
                     
+                	// get todays closing market info from TD and store in EndOfDayQuotes
+// WARNING!!!
+                	// TODO: this only needs to run once for debugging/development - dont want to run more than
+                	// once before we auto delete previous data
                     marketDataManager.takeMarketSnapshot();
+                    
+                    // SALxx- test
+                    List<Symbol_T> biggestLosers = databaseManager.getBiggestLosers();
+                    
+                    Iterator<Symbol_T> it = biggestLosers.iterator();
+                    System.out.print("\nBiggest Losers are: ");
+                    while (it.hasNext()) {
+                        Symbol_T symbol = it.next();
+                        System.out.print(symbol.getSymbol()+ " ");
+                    }
+                    System.out.println();
+                    
+                    // Update Holdings Table w/losers
+                    
+                    //SALxx - test
                     
                     //TODO: identify and buy positions to buy. un-comment this when ready to test
                     //brokerManager.buyBiggestLosers();
                                         
                     
                     
-                    //set buy_time to tomorrow so we don't execute this block again
+                    //set     @Transientbuy_time to tomorrow so we don't execute this block again
                     buyTime.setTime(buyTime.getTime() + (MS_IN_MINUTE * MIN_IN_HOUR * 24));
                     
                     //TODO: For now terminate the application at the end of each day
+                    System.out.println("*** dayTrader is exiting.  Bye ***");
                     throw new InterruptedException("Terminating TimeManager thread because the market is now closed");
                 }
                 
@@ -127,12 +176,20 @@ public class TimeManager_T implements Manager_IF, Runnable {
         marketDataManager = (MarketDataManager_T) DayTrader_T.getManager(MarketDataManager_T.class);
         brokerManager = (BrokerManager_T) DayTrader_T.getManager(BrokerManager_T.class);
         databaseManager = (DatabaseManager_T) DayTrader_T.getManager(DatabaseManager_T.class);
+ 
         
+//SALxx
+//logger = (LoggerManager_T) DayTrader_T.getManager(LoggerManager_T.class);
+LoggerManager_T logger = (LoggerManager_T) DayTrader_T.getManager(LoggerManager_T.class);       
+logger.logText("Database is open = " + databaseManager.isConnected(), Level.INFO);
+
         calendar_t = (Calendar_T) databaseManager.query(Calendar_T.class, time);
         
         updateTime();
-        this.buyTime = new Date(calendar_t.getCloseTime().getTime() + MINUTES_BEFORE_CLOSE_TO_BUY * MS_IN_MINUTE);
         
+        //--SAL--   !!!!! this was + MINUTES
+        this.buyTime = new Date(calendar_t.getCloseTime().getTime() - MINUTES_BEFORE_CLOSE_TO_BUY * MS_IN_MINUTE);
+
         
     }
 
@@ -167,7 +224,9 @@ public class TimeManager_T implements Manager_IF, Runnable {
                 + (calendar.get(Calendar.MONTH) + 1) + "-" 
                 + calendar.get(Calendar.DAY_OF_MONTH);
         
-        Calendar_T open = (Calendar_T) databaseManager.query(Calendar_T.class, date);
+        //SALxx - changed to use date rather than string as string query doesnt work
+        //Calendar_T open = brokerManager(Calendar_T) databaseManager.query(Calendar_T.class, date);
+        Calendar_T open = (Calendar_T) databaseManager.query(Calendar_T.class, time);
         
         //TODO: Can we use TDA or IB to determine if the market is open or not?
         if (open.isMarketOpen() && time.compareTo(open.getCloseTime()) <= 0) {
@@ -177,7 +236,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
         return isOpen;
         
     }
-    
+
     public String mysqlDate() {
         
         calendar.setTime(time);
@@ -186,6 +245,24 @@ public class TimeManager_T implements Manager_IF, Runnable {
                 + calendar.get(Calendar.DAY_OF_MONTH);        
         
         return date;
+    }
+
+//SALxx
+    public Date TimeNow() {
+       
+        return time;
+    }
+    
+    public Date Today()
+    {
+        Calendar c = Calendar.getInstance();
+        c.setTime(time);
+        c.set(Calendar.HOUR_OF_DAY, 0);
+        c.set(Calendar.MINUTE, 0);
+        c.set(Calendar.SECOND, 0);
+        Date today = c.getTime(); //  midnight, that's the first second of the day
+        
+        return today;
     }
 
     /**
@@ -198,7 +275,8 @@ public class TimeManager_T implements Manager_IF, Runnable {
         //TODO: update this method so that if IB doesn't return an updated time for whatever reason
         //use the system time
         
-        
+//SAL
+if (!d_useSystemTime) {
         //the broker manager will invoke the setTime() method when the current time has been returned so
         //loop until we get an updated time.
         while(oldTime == time.getTime()) {
@@ -211,7 +289,19 @@ public class TimeManager_T implements Manager_IF, Runnable {
                 e.printStackTrace();
             }
         }
-        
+}
+else  //SALxx - get system time
+{
+	// block for a bit
+    try { Thread.sleep(2000);
+    } catch (InterruptedException e) { e.printStackTrace(); }
+    
+	long now = System.currentTimeMillis();
+	setTime(now);
+	Date d = new Date(now);
+	System.out.println("updateTime(): " + now + " " + d.toString());
+}
+
         return;
     }
     
@@ -236,10 +326,10 @@ public class TimeManager_T implements Manager_IF, Runnable {
     }
     
     /**
-     * @return the time
+     * @return the time//SALxx - we're failing here   
      */
     public Date getTime() {
-        updateTime();
+    	updateTime();
         return time;
     }
 

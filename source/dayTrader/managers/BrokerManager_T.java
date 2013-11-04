@@ -18,8 +18,6 @@ import org.apache.log4j.Level;
 
 import trader.Holding_T;
 import trader.Trader_T;
-import util.OrderAction_T;
-import util.OrderStatus_T;
 import accounts.Account_T;
 
 import com.ib.client.CommissionReport;
@@ -30,7 +28,10 @@ import com.ib.client.EWrapper;
 import com.ib.client.Execution;
 import com.ib.client.Order;
 import com.ib.client.OrderState;
+import com.ib.client.TickType;
 import com.ib.client.UnderComp;
+import com.ib.controller.OrderStatus;
+import com.ib.controller.Types.Action;
 
 import dayTrader.DayTrader_T;
 import exceptions.ConnectionException;
@@ -60,6 +61,8 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
     private int nextValidId = 0;
     /** Reference to a MarketData_T quote that can be used to store requested data. */
     private MarketData_T marketData = new MarketData_T();
+    /** Boolean indicating if the marketData has been updated. */
+    private boolean marketDataUpdated = false;
     
     
     /**
@@ -108,6 +111,9 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
 	@Override
 	public void tickPrice(int tickerId, int field, double price, int canAutoExecute) {
 		
+	    if (TickType.getField(field) == TickType.getField(TickType.ASK)) {
+	        marketData.setAskPrice(price);
+	    }
 	}
 	
 	@Override
@@ -172,29 +178,29 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
                 
         
         //determine the necessary action based on the status of our order
-        if (holding.getOrderStatus() == OrderStatus_T.FILLED) {
+        if (holding.getOrderStatus() == OrderStatus.Filled.toString()) {
             
             //if it was sell order with no shared remaining, the order is complete and we no longer own this position
             //so update the holding sellDate. If the sellDate if populated, we will consider all shares of this holding 
             //are sold so be careful about how we update the sellDate
             
-            if(holding.getOrder().m_action == OrderAction_T.SELL) {
+            if(holding.getOrder().m_action == Action.SELL.toString()) {
                 holding.setSellDate(timeManager.getTime());
             }
           //If a buy order has been filled, update the buy time
-            if(holding.getOrder().m_action == OrderAction_T.BUY) {
+            if(holding.getOrder().m_action == Action.BUY.toString()) {
                 holding.setBuyDate(timeManager.getTime());
             }
             
             
         } 
-        else if (holding.getOrderStatus() == OrderStatus_T.SUBMITTED) {
+        else if (holding.getOrderStatus() == OrderStatus.Submitted.toString()) {
             
             //If a buy order has been at least partially filled, update the buy time
-            if(holding.getOrder().m_action == OrderAction_T.BUY && filled > 0) {
+            if(holding.getOrder().m_action == Action.BUY.toString() && filled > 0) {
                 holding.setBuyDate(timeManager.getTime());
             }
-        } else if (holding.getOrderStatus() == OrderStatus_T.CANCELLED) {
+        } else if (holding.getOrderStatus() == OrderStatus.Cancelled.toString()) {
             //TODO: Perform actions for cancelled orders
         }
         
@@ -372,7 +378,8 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
 	
 	@Override
 	public void tickSnapshotEnd(int reqId) {
-		
+	    
+		marketDataUpdated = true;
 	}
 	
 	@Override
@@ -484,7 +491,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
             while (!isConnected()) {
                 try {
                     connect();
-                    Thread.sleep(500);
+                    Thread.sleep(5000);
                 } catch (ConnectionException e) {
                     e.printStackTrace();
                 } catch (InterruptedException e) {
@@ -507,8 +514,8 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
      * Get a snapshot of a single quote from IB.
      * @param tickerId
      */
-    public void reqSymbolSnapshot(Symbol_T symbol) {
-         
+    public MarketData_T reqSymbolSnapshot(Symbol_T symbol) {
+        
         Contract contract = new Contract();
         contract.m_currency = "USD";
         contract.m_exchange = symbol.getExchange();
@@ -518,6 +525,19 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
         
         
         ibClientSocket.reqMktData((int) symbol.getId(), contract, "", true);
+        
+        while (!marketDataUpdated) {
+            
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
+        }
+        marketDataUpdated = false;
+        
+        return marketData;
     }
     
     

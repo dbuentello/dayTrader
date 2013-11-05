@@ -112,7 +112,7 @@ public class TDAmeritradeConnection_T implements Connector_IF {
         try {
             //TODO: encode url
             quoteUrl = new URL(BASE_URL + "Quote;jsessionid=" + sessionId + "?source=" + SOURCE_ID + "&symbol=" + symbolList);
-            logger.logText(quoteUrl.toString(), Level.DEBUG);
+            //logger.logText(quoteUrl.toString(), Level.DEBUG);
     
             urlConnection = (HttpsURLConnection) quoteUrl.openConnection();
             urlConnection.setDoOutput(true);

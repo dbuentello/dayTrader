@@ -27,6 +27,29 @@ public class DayTrader_T {
     private static LoggerManager_T loggerManager = null;
     private static TimeManager_T timeManager = null;
 
+    /*** global testing/development parameters ***/
+    
+    // we can run w/o IB (BrokerMgr) and not execute trades
+    public static boolean d_useIB = false;
+    
+    // enable simulation of EndOfDay logic at any time and exit
+    public static boolean d_simulateEOD = true;
+    
+    // if not null, use this simulated time
+    public static String d_useSimulateTime = "";    
+    //public static String d_useSimulateTime = "2013-11-01";
+    
+    // get EndOfDayQuotes from TD - only needs to be run once.  if you run it multiple
+    // times, first delete all of todays EOD data DELETE FROM EndOfDayQuotes WHERE DATE(date) = CURRENT_DATE()
+    public static boolean d_takeSnapshot = false;
+    //public static boolean d_takeSnapshot = true;
+    
+    // use system time instead of IB time
+    public static boolean d_useSystemTime = true;
+    
+    /*** end development defines ***/
+    
+    
 	/**
      * 
      */
@@ -52,7 +75,8 @@ public class DayTrader_T {
 	    
 		serviceManager.put(databaseManager.getClass(), databaseManager);
 		serviceManager.put(marketDataManager.getClass(), marketDataManager);
-		//--SAL--serviceManager.put(brokerManager.getClass(), brokerManager);
+		//--SAL--
+		if (d_useIB) { serviceManager.put(brokerManager.getClass(), brokerManager); }
 		serviceManager.put(loggerManager.getClass(), loggerManager);
 		serviceManager.put(timeManager.getClass(), timeManager);
 		

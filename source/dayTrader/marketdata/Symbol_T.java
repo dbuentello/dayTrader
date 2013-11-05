@@ -66,7 +66,20 @@ public class Symbol_T implements PropertyAccessor, Persistable_IF {
         }
     }
 
-    
+    //SAL
+    public Symbol_T(long symbolId) {
+        DatabaseManager_T databaseManager = (DatabaseManager_T) DayTrader_T.getManager(DatabaseManager_T.class);
+        Symbol_T sym = (Symbol_T) databaseManager.query(Symbol_T.class, symbolId);
+        if (sym != null) {
+            this.id = sym.id;
+            this.industry = sym.industry;
+            this.market_cap = sym.market_cap;
+            this.name = sym.name;
+            this.sector = sym.sector;
+            this.symbol = sym.symbol;
+        }
+    }
+   
     
     /**
      * @return the id

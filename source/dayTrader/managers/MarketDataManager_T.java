@@ -11,9 +11,14 @@ import java.util.Iterator;
 import java.util.List;
 
 import org.apache.log4j.Level;
+import org.hibernate.Criteria;
+import org.hibernate.Session;
+import org.hibernate.criterion.Order;
+import org.hibernate.criterion.Restrictions;
 
 import dayTrader.DayTrader_T;
 
+import trader.Trader_T;
 import util.Exchange_T;
 import util.Utilities_T;
 import util.XMLTags_T;
@@ -32,6 +37,8 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
     private TDAmeritradeConnection_T dataSource = null;
     /** A reference to the DatabaseManager class. */
     private DatabaseManager_T databaseManager;
+    /** A reference to the time manager. */				//SALxx for TimeNow (may be overkill)
+    private TimeManager_T timeManager;
     /** A reference to the LoggerManager class. */
     private LoggerManager_T logger;
     /** Map to hold the most recent snapshot taken of the market. **/
@@ -46,8 +53,9 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
     @Override
     public void initialize() {
         
-        logger = (LoggerManager_T) DayTrader_T.getManager(LoggerManager_T.class);
+        logger          = (LoggerManager_T) DayTrader_T.getManager(LoggerManager_T.class);
         databaseManager = (DatabaseManager_T) DayTrader_T.getManager(DatabaseManager_T.class);
+        timeManager     = (TimeManager_T) DayTrader_T.getManager(TimeManager_T.class);
         dataSource = new TDAmeritradeConnection_T();
         
         try {
@@ -98,6 +106,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
      */
     public void takeMarketSnapshot() {
         
+        System.out.print("Getting Quote Data");
         
         //get the symbols for an exchange from the database
         //TODO: update to query all exchanges
@@ -118,21 +127,28 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
             
             //Get 100 quotes at a time. If we're on the last item in the symbol list, get the remaining symbols 
             if ((count % 100) == 0 || it.hasNext() == false) {
-                String quoteResponse = dataSource.getQuote(symbolList);
-                logger.logText(quoteResponse, Level.DEBUG);
+            	System.out.print(".");		// progress
+            	
+            	String quoteResponse = dataSource.getQuote(symbolList);
+                //logger.logText(quoteResponse, Level.DEBUG);
+            	
                 quoteDataList.add(quoteResponse);
-                symbolList = "";
-                
+                symbolList = "";               
             }
             
             count++;
         }
         
+        System.out.println("Done");
+        System.out.print("Parsing");
+        
         //loop through our retrieved quotes and parse out the quote information
         for(int i = 0; i < quoteDataList.size(); i++) {
             parseQuote(quoteDataList.get(i));
+            if (i%100==0) { System.out.print("."); }
         }
         
+        System.out.println("Done");
     }
 
     @Override
@@ -200,9 +216,10 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
                 
                 
                 //update our snapshot map with the latest data
+                //SAL - why??
                 lastSnapshot.put(marketData.getSymbolId(), marketData);
-                //persist our individual quote to the database
-                             
+                
+                //persist our individual quote to the database             
                 marketData.insertOrUpdate();
                 
                 // get ready to parse next quote
@@ -222,5 +239,30 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
         }
     }
     
+    /**
+     * Get todays End of Day Price for this symbol from EODQuote database
+     * 
+     * @return (double) price
+     */ 
+    public double getEODPrice(Symbol_T symbol)
+    {
+    	//"SELECT price from EndOfDayQuotes where symbol = \"$symbol\" AND DATE(date) = \"$date\"";
+        Session session = databaseManager.getSessionFactory().openSession();
+        
+        Criteria criteria = session.createCriteria(MarketData_T.class)
+            .add(Restrictions.ge("lastTradeTimestamp", timeManager.Today() ))
+            .add(Restrictions.eq("symbolId", symbol.getId()));
 
+        @SuppressWarnings("unchecked")
+        List<MarketData_T> quoteData = criteria.list();
+        
+        session.close();
+        
+        if (quoteData.size() != 1) { logger.logText("Bad EOD price for "+symbol.getSymbol(), Level.ERROR); return 0.0;}
+        
+        double price = quoteData.get(0).getLastPrice();
+        return price;
+            	
+    }
+    
 }

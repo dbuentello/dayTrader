@@ -1,18 +1,18 @@
 package trader;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-
-import dayTrader.DayTrader_T;
-
-import util.OrderAction_T;
 
 import managers.BrokerManager_T;
-import managers.TimeManager_T;
+import marketdata.MarketData_T;
 import marketdata.Symbol_T;
+
+import com.ib.controller.OrderType;
+import com.ib.controller.Types.Action;
+import com.ib.controller.Types.SecType;
+
+import dayTrader.DayTrader_T;
 
 public class Trader_T {
   /* {src_lang=Java}*/
@@ -23,6 +23,8 @@ public class Trader_T {
     public static final double MIN_BUY_PRICE = 0.50;
     /** The maximum number of positions we want to buy. */
     public static final int MAX_BUY_POSITIONS = 25;
+    /** The minimum account balance we want to have. */
+    public static final int MIN_ACCOUNT_BALANCE = 25000;
     
     /** A reference to the BrokerManager_T class. */
     private BrokerManager_T brokerManager = null;
@@ -64,7 +66,7 @@ public class Trader_T {
             order.getOrder().m_orderId = order.getOrderId();
             //clientId fields should already be populated
             
-            order.getOrder().m_action = OrderAction_T.SELL;
+            order.getOrder().m_action = Action.SELL.toString();
             order.getOrder().m_orderType = "MKT";
             order.getOrder().m_totalQuantity = order.getRemaining();
             order.getOrder().m_transmit = true;
@@ -83,7 +85,7 @@ public class Trader_T {
             order.getContract().m_localSymbol = order.getSymbol().getSymbol();
             order.getContract().m_symbol = order.getSymbol().getSymbol();
             //order.getContract().m_right = "PUT";
-            order.getContract().m_secType = "STK";
+            order.getContract().m_secType = SecType.STK.toString();
             
             
         }
@@ -101,6 +103,9 @@ public class Trader_T {
         
         List<Holding_T> buyOrders = new ArrayList<Holding_T>();
         
+        //calculate the amount in dollars that we're allowed to buy
+        double buyAmount = (brokerManager.getAccount().getBalance() - MIN_ACCOUNT_BALANCE) / MAX_BUY_POSITIONS;
+        
         Iterator<Symbol_T> it = symbols.iterator();
         while (it.hasNext()) {
             Symbol_T symbol = it.next();
@@ -114,14 +119,14 @@ public class Trader_T {
             order.getOrder().m_orderId = order.getOrderId();
             order.setClientId(clientId);
             
-            order.getOrder().m_action = OrderAction_T.BUY;
+            order.getOrder().m_action = Action.BUY.toString();
             //submit these orders as market-to-limit orders
-            order.getOrder().m_orderType = "MTL";
+            order.getOrder().m_orderType = OrderType.MTL.toString();
             //get the latest price of this symbol
-            brokerManager.reqSymbolSnapshot(symbol);
+            MarketData_T snapshot = brokerManager.reqSymbolSnapshot(symbol);
             //TODO: how do I know when the price is updated?
             
-            order.getOrder().m_totalQuantity = order.getRemaining();
+            order.getOrder().m_totalQuantity = (int) Math.floor(buyAmount / snapshot.getAskPrice());
             order.getOrder().m_transmit = true;
             
             order.getOrder().m_lmtPrice = 0;
@@ -138,7 +143,7 @@ public class Trader_T {
             order.getContract().m_localSymbol = symbol.getSymbol();
             order.getContract().m_symbol = symbol.getSymbol();
             //order.getContract().m_right = "PUT";
-            order.getContract().m_secType = "STK";
+            order.getContract().m_secType = SecType.STK.toString();
             
             
         }

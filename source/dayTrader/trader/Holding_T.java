@@ -1,5 +1,7 @@
 package trader;
 
+import interfaces.Persistable_IF;
+
 import java.util.Date;
 
 import javax.persistence.Column;
@@ -7,15 +9,12 @@ import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
-import javax.persistence.PrimaryKeyJoinColumn;
-import javax.persistence.SecondaryTable;
-import javax.persistence.Table;
+
 import javax.persistence.Temporal;
 import javax.persistence.TemporalType;
 import javax.persistence.Transient;
 
 import managers.DatabaseManager_T;
-import marketdata.MarketData_T;
 import marketdata.Symbol_T;
 
 import org.hibernate.Criteria;
@@ -24,13 +23,10 @@ import org.hibernate.Session;
 import org.hibernate.Transaction;
 import org.hibernate.criterion.Restrictions;
 
-import util.OrderStatus_T;
-
-import interfaces.Persistable_IF;
-
 import com.ib.client.Contract;
 import com.ib.client.Order;
 import com.ib.client.OrderState;
+import com.ib.controller.OrderStatus;
 
 //@Entity( name="Holdings" )  <<<--- SALxx big error, should be the 2 lines below
 @Entity
@@ -192,7 +188,7 @@ public class Holding_T implements Persistable_IF {
      */
     @Column( name = "order_status" )
     public String getOrderStatus() {
-        String status = OrderStatus_T.INVALID;
+        String status = OrderStatus.Unknown.toString();
         if (this.orderState != null) {
             status = this.orderState.m_status;
         }

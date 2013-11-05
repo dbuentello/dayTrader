@@ -441,6 +441,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
 		//TODO: Will reqOpenOrders() give us the positions we current own? If not we'll need to get the info
 		//from the database.
 		
+		//SALxx - get it first from DB
 		
 		// request all our current holdings from IB. reqOpenOrder() returns through the openOrder()
 		// and orderStatus() methods. Once all orders have been received, the openOrderEnd() method is invoked.
@@ -585,7 +586,9 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
             }
         }
             
-        List<Symbol_T> biggestLosers = databaseManager.getBiggestLosers();
+        // SALxx - moved into TimeMgr  List<Symbol_T> biggestLosers = databaseManager.getBiggestLosers();
+        // TODO: pass in losers as an arg
+        List<Symbol_T> biggestLosers = new ArrayList<Symbol_T>();
         
         List<Holding_T> buyOrders = trader.createMktBuyOrders(biggestLosers, account.getClientId()); 
         

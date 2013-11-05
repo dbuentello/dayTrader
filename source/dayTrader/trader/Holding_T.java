@@ -9,6 +9,7 @@ import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.PrimaryKeyJoinColumn;
 import javax.persistence.SecondaryTable;
+import javax.persistence.Table;
 import javax.persistence.Temporal;
 import javax.persistence.TemporalType;
 import javax.persistence.Transient;
@@ -31,7 +32,9 @@ import com.ib.client.Contract;
 import com.ib.client.Order;
 import com.ib.client.OrderState;
 
-@Entity( name="Holdings" )
+//@Entity( name="Holdings" )  <<<--- SALxx big error, should be the 2 lines below
+@Entity
+@Table(name="Holdings")
 public class Holding_T implements Persistable_IF {
   /* {src_lang=Java}*/
     
@@ -41,6 +44,8 @@ public class Holding_T implements Persistable_IF {
     private Contract contract;
     private OrderState orderState;
     private Symbol_T symbol;
+    
+    
     /** Specifies the number of shares that have been executed. */
     private int filled;
     /** Specifies the number of shares still outstanding. */
@@ -63,9 +68,9 @@ public class Holding_T implements Persistable_IF {
     /** The timestamp that this holding was sold. Null if the holding has not yet been sold */
     private Date sellDate = null;
     /** The calculated high sell price that we would like to execute a sell order on this holding. */
-    private Integer execSellPriceHigh = null;
+    private Double execSellPriceHigh = null;
     /** The calculated low sell price that we would like to execute a sell order on this holding. */
-    private Integer execSellPriceLow = null;
+    private Double execSellPriceLow = null;
     /** The amount of money gained by selling this order. If the order has not been sold or was sold at a loss
       set this field to zero. */
     private double gains = 0;
@@ -148,8 +153,12 @@ public class Holding_T implements Persistable_IF {
     
     @Column ( name = "order_id" )
     public int getOrderId() {
+    	if (order == null) return 0;	//SAL
         return order.m_orderId;
     }
+    
+    //SAL - where is the setter??
+    
     
     /**
      * Return the buy price that was specified for this holding.
@@ -171,7 +180,9 @@ public class Holding_T implements Persistable_IF {
 //    }
     
     public void setOrderId(int orderId) {
-        this.order.m_orderId = orderId;
+    	if (this.order != null) {			//SAL
+    		this.order.m_orderId = orderId;
+    	}
     }
 
     /**
@@ -212,11 +223,14 @@ public class Holding_T implements Persistable_IF {
 
     @Column( name = "contract_id" )
     public int getContractId() {
+    	if (contract == null) return 0;		//SAL
         return contract.m_conId;
     }
     
     public void setContractId(int conId) {
-        this.contract.m_conId = conId;
+    	if (this.contract != null) {		//SAL
+    		this.contract.m_conId = conId;
+    	}
     }
     
     /**
@@ -257,7 +271,10 @@ public class Holding_T implements Persistable_IF {
     }
     
     public void setSymbolId(long symbolId) {
-        this.symbol.setId(symbolId);
+    	//SALxx
+    	if (this.symbol == null) { this.symbol = new Symbol_T(symbolId); }
+        
+    	this.symbol.setId(symbolId);
     }
 
     public String toString() {
@@ -319,8 +336,22 @@ public class Holding_T implements Persistable_IF {
 
     @Override
     public void update() throws HibernateException {
-        // TODO Auto-generated method stub
-        
+    	
+        Session session = DatabaseManager_T.getSessionFactory().openSession();
+        Transaction tx = null;
+ 
+        try {
+            tx = session.beginTransaction();
+            session.update(this);
+            tx.commit();
+        } catch (HibernateException e) {
+            //TODO: for now just print to stdout, we'll change this to a log file later
+            e.printStackTrace();
+            if (tx != null) tx.rollback();
+            throw e;
+        } finally {
+            session.close();
+        }       
     }
     
     /**
@@ -337,6 +368,8 @@ public class Holding_T implements Persistable_IF {
         //assume we're going to be insert a duplicate row
         boolean exists = true;
         
+    // SALxx- this fails too   - some object is null!!!  probably symbol (until I fixed it)
+    if (1==1) return false;
         
         Session session = DatabaseManager_T.getSessionFactory().openSession();
         Criteria criteria = session.createCriteria(Holding_T.class)
@@ -347,6 +380,7 @@ public class Holding_T implements Persistable_IF {
                 .add(Restrictions.eq("status", holding.getOrderState().m_status));
         
         //If no symbol was found the consider this MarketData object to be unique and safe to insert into the db
+
         if (criteria.list().size() == 0) {
             exists = false;
         }
@@ -423,7 +457,8 @@ public class Holding_T implements Persistable_IF {
      *  
      * @return the lastFillPrice
      */
-    @Transient
+    @Transient							//SALxx - why is this transient?
+    //@Column( name = "last_fill_price" )	//SALxx - this is missing from DB
     public double getLastFillPrice() {
         return lastFillPrice;
     }
@@ -494,14 +529,14 @@ public class Holding_T implements Persistable_IF {
      * @return the execSellPriceHigh
      */
     @Column ( name = "exec_sell_price_high" )
-    public Integer getExecSellPriceHigh() {
+    public Double getExecSellPriceHigh() {
         return execSellPriceHigh;
     }
 
     /**
      * @param execSellPriceHigh the execSellPriceHigh to set
      */
-    public void setExecSellPriceHigh(Integer execSellPriceHigh) {
+    public void setExecSellPriceHigh(Double execSellPriceHigh) {
         this.execSellPriceHigh = execSellPriceHigh;
     }
 
@@ -511,14 +546,14 @@ public class Holding_T implements Persistable_IF {
      * @return the execSellPriceLow
      */
     @Column ( name = "exec_sell_price_low" )
-    public Integer getExecSellPriceLow() {
+    public Double getExecSellPriceLow() {
         return execSellPriceLow;
     }
 
     /**
      * @param execSellPriceLow the execSellPriceLow to set
      */
-    public void setExecSellPriceLow(Integer execSellPriceLow) {
+    public void setExecSellPriceLow(Double execSellPriceLow) {
         this.execSellPriceLow = execSellPriceLow;
     }
 
@@ -560,11 +595,14 @@ public class Holding_T implements Persistable_IF {
     
     @Column( name = "client_id" )
     public int getClientId() {
+    	if (order == null) { return 0; }	//SAL
         return order.m_clientId;
     }
         
     public void setClientId(int clientId) {
-        this.order.m_clientId = clientId;
+    	if (this.order != null) {			//SAL
+    		this.order.m_clientId = clientId;
+    	}
     }
 
     /**

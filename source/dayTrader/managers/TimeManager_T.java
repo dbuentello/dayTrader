@@ -23,6 +23,8 @@ import org.apache.log4j.Level;
 import util.Calendar_T;
 import dayTrader.DayTrader_T;
 
+import trader.TraderCalculator_T;
+
 /**
  * This manager class will keep track of the current market trading time as returned by our brokerage
  *  so we can trigger time based quote queries and buy/sell executions
@@ -61,12 +63,6 @@ public class TimeManager_T implements Manager_IF, Runnable {
 //SAL
 //    private LoggerManager_T logger;
     
-    // enable simulation of EndOfDay Quotes
-    private static boolean d_simulate = true;
-    
-    // use system time instead of IB time
-    private static boolean d_useSystemTime = true;
-    
     
     public TimeManager_T() {
        
@@ -94,17 +90,6 @@ public class TimeManager_T implements Manager_IF, Runnable {
                 //updateTime is a blocking call that won't return until the time has been updated
             	updateTime();
 
-/**
- * to run application in simulation mode, set d_simulate to true and modify the date below to be todays date
- */
-if (d_simulate) {
-              SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
-              try { 
-            	  long t = df.parse("2013-11-01 15:46:00").getTime();
-            	  time.setTime(t);
-              } catch (ParseException e1)  { /*do nothing*/ System.out.println("sim time parse error");}
-              d_simulate = false;
-}
 
                 /*
                  * At the end of the market day, perform the following 
@@ -123,17 +108,19 @@ if (d_simulate) {
  
                 	//SALxx--   we can run w/o a broker mgr - TODO: this is only for development                
                 	if (brokerManager != null) brokerManager.liquidateHoldings();
-                    
+                	else { TraderCalculator_T calc = new TraderCalculator_T(); calc.simulateLiquidateHoldings(); }
+                                       
                 	// get todays closing market info from TD and store in EndOfDayQuotes
 // WARNING!!!
                 	// TODO: this only needs to run once for debugging/development - dont want to run more than
                 	// once before we auto delete previous data
-                    marketDataManager.takeMarketSnapshot();
-                    
+                    if ( DayTrader_T.d_takeSnapshot) { marketDataManager.takeMarketSnapshot(); }
+                
                     // SALxx- test
-                    List<Symbol_T> biggestLosers = databaseManager.getBiggestLosers();
+                    System.out.println("** Determing todays candidates ***");
+                    List<Symbol_T> losers = databaseManager.determineBiggestLosers();
                     
-                    Iterator<Symbol_T> it = biggestLosers.iterator();
+                    Iterator<Symbol_T> it = losers.iterator();
                     System.out.print("\nBiggest Losers are: ");
                     while (it.hasNext()) {
                         Symbol_T symbol = it.next();
@@ -142,15 +129,21 @@ if (d_simulate) {
                     System.out.println();
                     
                     // Update Holdings Table w/losers
+                    databaseManager.updateHoldings(losers);
                     
+                    // calculate buy positions
+                    TraderCalculator_T calc = new TraderCalculator_T();
+                    calc.updateBuyPositions(losers);
+                   
                     //SALxx - test
                     
                     //TODO: identify and buy positions to buy. un-comment this when ready to test
-                    //brokerManager.buyBiggestLosers();
+                    //brokerManager.buyBiggestLosers(losers);
                                         
                     
                     
                     //set     @Transientbuy_time to tomorrow so we don't execute this block again
+                    //SALx-- CHECK THIS
                     buyTime.setTime(buyTime.getTime() + (MS_IN_MINUTE * MIN_IN_HOUR * 24));
                     
                     //TODO: For now terminate the application at the end of each day
@@ -190,6 +183,16 @@ logger.logText("Database is open = " + databaseManager.isConnected(), Level.INFO
         //--SAL--   !!!!! this was + MINUTES
         this.buyTime = new Date(calendar_t.getCloseTime().getTime() - MINUTES_BEFORE_CLOSE_TO_BUY * MS_IN_MINUTE);
 
+        if ( DayTrader_T.d_simulateEOD) {
+        	
+        	//SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
+            //try { 
+          	//  long t = df.parse("2013-11-03 00:00:00").getTime();
+          	//  this.buyTime.setTime(t);
+            //} catch (ParseException e1)  { /*do nothing*/ System.out.println("sim time parse error");}
+         
+        	this.buyTime.setTime(0);
+        }
         
     }
 
@@ -217,6 +220,9 @@ logger.logText("Database is open = " + databaseManager.isConnected(), Level.INFO
      * @return true if the market is open for trading, else false
      */
     public boolean isMarketOpen() {
+    	
+        if ( DayTrader_T.d_simulateEOD) { return true; }
+        
         boolean isOpen = false;
         
         calendar.setTime(time);
@@ -249,14 +255,27 @@ logger.logText("Database is open = " + databaseManager.isConnected(), Level.INFO
 
 //SALxx
     public Date TimeNow() {
-       
         return time;
     }
     
+    /**
+     * get todays date with 00:00:00
+     * @return Date
+     */
     public Date Today()
     {
         Calendar c = Calendar.getInstance();
         c.setTime(time);
+        
+        if (!DayTrader_T.d_useSimulateTime.isEmpty())
+        {
+        	 SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+        	  try { 
+        	    Date d = df.parse(DayTrader_T.d_useSimulateTime);
+        	    c.setTime(d);
+        	  } catch (ParseException e1)  { /*do nothing*/ System.out.println("sim time parse error");}
+        	    
+        }
         c.set(Calendar.HOUR_OF_DAY, 0);
         c.set(Calendar.MINUTE, 0);
         c.set(Calendar.SECOND, 0);
@@ -276,7 +295,7 @@ logger.logText("Database is open = " + databaseManager.isConnected(), Level.INFO
         //use the system time
         
 //SAL
-if (!d_useSystemTime) {
+if (!DayTrader_T.d_useSystemTime) {
         //the broker manager will invoke the setTime() method when the current time has been returned so
         //loop until we get an updated time.
         while(oldTime == time.getTime()) {
@@ -326,7 +345,7 @@ else  //SALxx - get system time
     }
     
     /**
-     * @return the time//SALxx - we're failing here   
+     * @return the time   
      */
     public Date getTime() {
     	updateTime();

@@ -15,6 +15,7 @@ import marketdata.Symbol_T;
 
 import org.hibernate.Criteria;
 import org.hibernate.HibernateException;
+import org.hibernate.Query;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.Transaction;
@@ -24,6 +25,7 @@ import org.hibernate.metamodel.MetadataSources;
 import org.hibernate.service.ServiceRegistry;
 import org.hibernate.service.ServiceRegistryBuilder;
 
+import trader.Holding_T;
 import trader.Trader_T;
 import dayTrader.DayTrader_T;
 
@@ -33,7 +35,7 @@ import dayTrader.DayTrader_T;
  *  In Java it will invoke the methods of the MySQL Connector/J class to interact with the database.
  */
 /**
- * @author nathan
+ * @author nathan and steve
  *
  */
 public class DatabaseManager_T implements Manager_IF, Connector_IF {
@@ -242,11 +244,9 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
      * 
      * @return List of the biggest losers
      */
-    public synchronized List<Symbol_T> getBiggestLosers() {
+    public synchronized List<Symbol_T> determineBiggestLosers() {
         
         Session session = getSessionFactory().openSession();
-
-
         
         Criteria criteria = session.createCriteria(MarketData_T.class)
 //SALxx            .add(Restrictions.ge("date", timeManager.mysqlDate() + "00:00:00" ))
@@ -276,5 +276,51 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         
     }
 
+    /**
+     * Update the Holdings database with the symbolIds for the day's biggest losers.
+     * Only todays date and symbol id are populated to indicate these are the candidates
+     *
+     * @returns nothing, but throws fatal exception on errors
+     */
+    
+    public synchronized void updateHoldings(List<Symbol_T> losers) {
+        
+    	// TODO - move this to a delete method
+        Session session = getSessionFactory().openSession();
+
+        // deletes must be within a transaction
+        Transaction tx = null;
+        
+        try {
+            tx = session.beginTransaction();
+
+            String hql = "DELETE FROM trader.Holding_T WHERE buy_date >= :date";
+            Query query = session.createQuery(hql);
+            query.setDate("date", timeManager.Today());
+
+            int nrows = query.executeUpdate();
+ 
+            tx.commit();
+        } catch (HibernateException e) {
+            //TODO: for now just print to stdout, we'll change this to a log file later
+            e.printStackTrace();
+            if (tx != null) tx.rollback();
+        } finally {
+            session.close();
+        }      
+       
+        
+        Iterator<Symbol_T> it = losers.iterator();
+        while (it.hasNext()) {
+            Symbol_T symbol = it.next();
+            
+            Holding_T holding = new Holding_T(0);	//SALxx - do we need an orderId now? - YUP!!!! TODO
+            holding.setSymbol(symbol);
+            holding.setBuyDate(timeManager.TimeNow());	// or getTime() and for debugging it should be Today()
+            
+            holding.insertOrUpdate();
+        }
+        
+    }    
 
 }

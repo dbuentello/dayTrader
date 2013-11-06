@@ -3,7 +3,13 @@
  */
 package util;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.regex.Pattern;
+
+import dayTrader.DayTrader_T;
 
 /**
  * @author nathan
@@ -42,5 +48,22 @@ public class Utilities_T {
         return returnVal;
     }
 
+    /**
+     * 
+     * @param date as string in yyyy-MM-dd format
+     * @return Date  the string as a date object
+     */
+    public static Date StringToDate(String date)
+    {
+    	Calendar c = Calendar.getInstance();
+		
+		SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+		try { 
+			Date d = df.parse(date);
+			c.setTime(d);
+		} catch (ParseException e1)  { /*do nothing*/ System.out.println("StringToDate parse error"); }
 
+		Date d = c.getTime();
+		return d;    	
+    }
 }

@@ -82,15 +82,21 @@ public class Calendar_T implements Persistable_IF {
      * @return the isMarketOpen
      */
     @Column( name = "is_market_open" )
-    public boolean isMarketOpen() {
+    // synonym for getter
+    public boolean getMarketOpen() {
         return isMarketOpen;
     }
+    public boolean isMarketOpen() {
+        return isMarketOpen;
+    }    
     /**
      * @param isMarketOpen the isMarketOpen to set
      */
     public void setMarketOpen(boolean isMarketOpen) {
         this.isMarketOpen = isMarketOpen;
     }
+
+
 
     @Override
     public long insertOrUpdate() throws HibernateException {

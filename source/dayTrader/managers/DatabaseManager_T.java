@@ -4,6 +4,8 @@ import interfaces.Connector_IF;
 import interfaces.Manager_IF;
 import interfaces.Persistable_IF;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
@@ -65,6 +67,10 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
                 
         metaData.addAnnotatedClass(trader.Holding_T.class);
         sessionFactory = metaData.buildMetadata().buildSessionFactory();
+        
+        metaData.addAnnotatedClass(marketdata.RTData_T.class);
+        sessionFactory = metaData.buildMetadata().buildSessionFactory();
+        
     }
     
     
@@ -323,4 +329,44 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         
     }    
 
+    /**
+     * get yesterdays (eg most recent) losers from our Holdings DB
+     * 
+     * @return returns a list of Symbols
+     */
+    public List<Symbol_T> getHoldings()
+    {
+    	Date date = timeManager.getPreviousTradeDate();
+    	/***
+        Calendar c = Calendar.getInstance();
+        c.set(Calendar.HOUR_OF_DAY, 0);
+        c.set(Calendar.MINUTE, 0);
+        c.set(Calendar.SECOND, 0);
+        c.add(Calendar.DATE,  -1);	//yesterday
+        Date date = c.getTime();
+   		***/
+    	
+    	//"SELECT symbol from Holdings WHERE DATE(buy_date) = \"$date\"";
+
+    	Session session = getSessionFactory().openSession();
+          
+    	Criteria criteria = session.createCriteria(Holding_T.class)
+              .add(Restrictions.ge("buyDate", date ));         
+          
+          @SuppressWarnings("unchecked")
+          List<Holding_T> holdings = criteria.list();
+          
+          session.close();
+          
+          List<Symbol_T> losers = new ArrayList<Symbol_T>();
+          
+          Iterator<Holding_T> it = holdings.iterator();
+          while (it.hasNext()) {
+              Holding_T h = it.next();
+              losers.add(h.getSymbol());
+          }
+          
+          return losers;      	  
+    	  
+    }
 }

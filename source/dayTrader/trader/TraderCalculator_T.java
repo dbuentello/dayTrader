@@ -174,7 +174,7 @@ public class TraderCalculator_T {
            			"WHERE symbolId = :sym AND sellDate is null";
            	Query query = session2.createQuery(hql);
            	query.setDouble("price", price);
-           	query.setDate("date", timeManager.TimeNow());
+           	query.setTimestamp("date", timeManager.TimeNow());
            	query.setParameter("sym", symbol.getId());
 
 

@@ -25,6 +25,7 @@ import util.XMLTags_T;
 
 import marketdata.MarketData_T;
 import marketdata.Symbol_T;
+import marketdata.RTData_T;
 import marketdata.TDAmeritradeConnection_T;
 
 import exceptions.ConnectionException;
@@ -106,14 +107,14 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
      */
     public void takeMarketSnapshot() {
         
-        System.out.print("Getting Quote Data");
-        
         //get the symbols for an exchange from the database
         //TODO: update to query all exchanges
         String exchange = Exchange_T.NASDAQ;
         List<Symbol_T> symbols = databaseManager.getSymbolsByExchange(exchange);
         
         logger.logText("Found " + symbols.size() + " for exchange " + exchange, Level.DEBUG);
+        
+        System.out.print("\n *** Getting Quote Data");
         
         List<String> quoteDataList = new ArrayList<String>();
         Iterator<Symbol_T> it = symbols.iterator();
@@ -145,7 +146,8 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
         //loop through our retrieved quotes and parse out the quote information
         for(int i = 0; i < quoteDataList.size(); i++) {
             parseQuote(quoteDataList.get(i));
-            if (i%100==0) { System.out.print("."); }
+            
+            System.out.print(".");		// progress
         }
         
         System.out.println("Done");
@@ -157,6 +159,12 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
         
     }
 
+    /**
+     * parse the quote data returned from TD
+     * persist in EndOfDayQuote Table
+     * 
+     * @param quoteData
+     */
     private void parseQuote(String quoteData) {
         
         int qlStart = quoteData.indexOf(XMLTags_T.QUOTE_LIST);
@@ -258,11 +266,107 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
         
         session.close();
         
-        if (quoteData.size() != 1) { logger.logText("Bad EOD price for "+symbol.getSymbol(), Level.ERROR); return 0.0;}
+        if (quoteData.size() != 1) {
+        	logger.logText("Bad EOD price for "+symbol.getSymbol(), Level.ERROR);
+        	return 0.0;
+        }
         
         double price = quoteData.get(0).getLastPrice();
         return price;
             	
     }
+
+    /**
+     * Get todays holdings symbols and query TD for latest data
+     * Persist to RTQuotes DB
+     * determine if we should sell
+     */
+    public void getRealTimeQuotes()
+    {
+    	System.out.println("*** Getting RealTime Data ***");
+    	
+    	List <Symbol_T> symbols = databaseManager.getHoldings();
+    	
+    	// this code is very similar to snapshot, except we dont need multiple iterations
+        Iterator<Symbol_T> it = symbols.iterator();
+        String symbolList = "";
+        while (it.hasNext()) {
+            
+            Symbol_T symbol = it.next();
+            
+            symbolList += symbol.getSymbol() + ",";
+        }
+                    	
+        String quoteResponse = dataSource.getQuote(symbolList);
+        //logger.logText(quoteResponse, Level.DEBUG);
+        
+        System.out.print("Parsing...");
+        
+        // parse the RT quote information and persist to RTQuotes DB
+        parseRTQuote(quoteResponse);
+        
+        System.out.println("Done");
+    }
+
+    /**
+     * parse the quote data returned from TD
+     * persist in RealTimeQuote Table
+     * just a subset of all data - symbol, last trade date, last price and volume
+     * 
+     * @param quoteData
+     */
+    private void parseRTQuote(String quoteData) {
+        
+        int qlStart = quoteData.indexOf(XMLTags_T.QUOTE_LIST);
+        
+        if (qlStart == -1) {
+            logger.logText("Failed to find start of quote list", Level.DEBUG);
+            return;
+        }
+        
+            
+        int qStart = quoteData.indexOf("<quote>");
+        while (qStart != -1) {
     
+        	// strip off beginning
+        	quoteData = quoteData.substring(qStart);
+        
+        	RTData_T rtData = new RTData_T();
+          
+        	String dateString = XMLTags_T.simpleParse(quoteData, XMLTags_T.LAST_TRADE_DATE);
+        	DateFormat df = new SimpleDateFormat("yyyy-MM-dd kk:mm:ss");
+        	Date date = null;
+        	try {
+        		date = df.parse(dateString);
+        	} catch (ParseException e) {
+        		// TODO Auto-generated catch block
+        		e.printStackTrace();
+        	}  
+        	rtData.setDate(date);
+              
+        	Symbol_T symbol = new Symbol_T(XMLTags_T.simpleParse(quoteData, XMLTags_T.SYMBOL));
+        	//rtData.setSymbolId(symbol.getId());
+        	rtData.setSymbol(symbol.getSymbol());
+              
+        	rtData.setPrice(Utilities_T.stringToDouble(XMLTags_T.simpleParse(quoteData, XMLTags_T.LAST)));
+        	rtData.setVolume(Utilities_T.stringToDouble(XMLTags_T.simpleParse(quoteData, XMLTags_T.VOLUME)).longValue());
+              
+        	//persist our individual quote to the database
+        	// note this table use INSERT IGNORE so duplicates arent added
+        	rtData.insertOrUpdate();
+                
+        	// get ready to parse next quote
+        	int qend = quoteData.indexOf("</quote>");
+        	if (qend == -1)
+        	{
+        		logger.logText("Cant find end of quote", Level.WARN);
+        		break;
+        	}
+
+        	// strip off beginning
+        	quoteData = quoteData.substring(qend);
+        	qStart = quoteData.indexOf("<quote>");
+        } // next quote
+    }
+
 }

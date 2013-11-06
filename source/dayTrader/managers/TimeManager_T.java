@@ -4,6 +4,7 @@ import interfaces.Manager_IF;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Iterator;
@@ -15,12 +16,17 @@ import marketdata.MarketData_T;
 import marketdata.Symbol_T;
 
 import org.apache.log4j.Level;
+import org.hibernate.Criteria;
+import org.hibernate.Session;
+import org.hibernate.criterion.Order;
+import org.hibernate.criterion.Restrictions;
 
 //SAL
 //import org.apache.log4j.Logger;
 //import org.jboss.logging.Logger.Level;
 
 import util.Calendar_T;
+import util.Utilities_T;
 import dayTrader.DayTrader_T;
 
 import trader.TraderCalculator_T;
@@ -42,6 +48,9 @@ public class TimeManager_T implements Manager_IF, Runnable {
     private final int MS_IN_MINUTE = 1000 * 60;
     /** The number of minutes in one hour. */
     private final int MIN_IN_HOUR = 60;
+    /** real time scan interval */
+    private final int RT_SCAN_INTERVAL = 2 * MS_IN_MINUTE;
+    
     
     /** A reference to the java Calendar class used to format and convert Date objects. */
     private static Calendar calendar;
@@ -51,7 +60,9 @@ public class TimeManager_T implements Manager_IF, Runnable {
     private Calendar_T calendar_t;
     /** The last known time as returned by our broker. */
     private static Date time;
-    /** The time we want to execute our buys. butTime = calendar_t.marketClose() - MINUTES_BEFORE_CLOSE_TO_BUY */
+    /** scan interval keeper */
+    private static Date prevScanTime;
+    /** The time we want to execute our buys. buyTime = calendar_t.marketClose() - MINUTES_BEFORE_CLOSE_TO_BUY */
     private Date buyTime;
     /** A reference to the MarketDataManager used to retrieve market information. */
     private MarketDataManager_T marketDataManager;
@@ -70,19 +81,24 @@ public class TimeManager_T implements Manager_IF, Runnable {
         time = new Date(System.currentTimeMillis());
         calendar = Calendar.getInstance();
         calendar.setTime(time);
+        
+        prevScanTime = new Date(System.currentTimeMillis() - 10000);  // before now
+
     }
     
 
     public void run() {
         
         boolean running = true;
-        int i = 0;
+
         /*
          * This loop will update the application time every three seconds and when a trigger time is reached
          * execute the appropriate actions. Triggers times can be the market open, a specified buy time,
          * and the market close.
          */
 
+        Date d = getNextTradeDate();
+        
         while (running) {
 
             try {            
@@ -90,7 +106,16 @@ public class TimeManager_T implements Manager_IF, Runnable {
                 //updateTime is a blocking call that won't return until the time has been updated
             	updateTime();
 
-
+            	/*
+            	 * During market open hours, get RealTime Quotes for our Holdings
+            	 * according to the scan interval
+            	 */
+            	if (isMarketOpen() && time.after(prevScanTime))
+            	{
+            		marketDataManager.getRealTimeQuotes();
+            		prevScanTime.setTime(prevScanTime.getTime() + RT_SCAN_INTERVAL);
+            	}
+            	
                 /*
                  * At the end of the market day, perform the following 
                  * 1. sell any outstanding positions we're still holding 
@@ -98,7 +123,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
                  * 3. identify the positions we want to buy
                  * 4. execute buy orders 
                  */
-                if (time.after(buyTime) && isMarketOpen()) {
+                if (isMarketOpen() && time.after(buyTime)) {
                     
                     //TODO: Execute any remaining sell orders and then wait until they sell,
                     //we need to wait until they sell so we have money to buy new stocks
@@ -183,14 +208,16 @@ logger.logText("Database is open = " + databaseManager.isConnected(), Level.INFO
         //--SAL--   !!!!! this was + MINUTES
         this.buyTime = new Date(calendar_t.getCloseTime().getTime() - MINUTES_BEFORE_CLOSE_TO_BUY * MS_IN_MINUTE);
 
+        // for simulation, buy date is always before now
         if ( DayTrader_T.d_simulateEOD) {
-        	
-        	//SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
-            //try { 
-          	//  long t = df.parse("2013-11-03 00:00:00").getTime();
-          	//  this.buyTime.setTime(t);
-            //} catch (ParseException e1)  { /*do nothing*/ System.out.println("sim time parse error");}
-         
+
+if (1==0) {
+        	SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
+            try { 
+          	  long t = df.parse("2013-11-06 00:00:00").getTime();
+          	  this.buyTime.setTime(t);
+            } catch (ParseException e1)  { /*do nothing*/ System.out.println("sim time parse error");}
+} else         
         	this.buyTime.setTime(0);
         }
         
@@ -221,7 +248,8 @@ logger.logText("Database is open = " + databaseManager.isConnected(), Level.INFO
      */
     public boolean isMarketOpen() {
     	
-        if ( DayTrader_T.d_simulateEOD) { return true; }
+    	if (DayTrader_T.d_ignoreMarketClosed)
+    		return true;
         
         boolean isOpen = false;
         
@@ -285,7 +313,7 @@ logger.logText("Database is open = " + databaseManager.isConnected(), Level.INFO
     }
 
     /**
-     * Update the time be retrieving the last known time from the broker.
+     * Update the time by retrieving the last known time from the broker.
      * 
      */
     private void updateTime() {
@@ -318,7 +346,7 @@ else  //SALxx - get system time
 	long now = System.currentTimeMillis();
 	setTime(now);
 	Date d = new Date(now);
-	System.out.println("updateTime(): " + now + " " + d.toString());
+	//System.out.println("updateTime(): " + now + " " + d.toString());
 }
 
         return;
@@ -345,6 +373,8 @@ else  //SALxx - get system time
     }
     
     /**
+     * get the time - not this also does an update time (get from server) which blocks
+     *  if you dont want to block, use TimeNow
      * @return the time   
      */
     public Date getTime() {
@@ -360,5 +390,123 @@ else  //SALxx - get system time
         this.time.setTime(time);
     }
 
+    /**
+     * return date of the most current open market (accounts for weekends and holidays)
+     * 
+     * @return Date    Date(0) on error
+     */
+    public Date getCurrentTradeDate()
+    {
+    	if (!DayTrader_T.d_useSimulateTime.isEmpty())
+    		return Utilities_T.StringToDate(DayTrader_T.d_useSimulateTime);
+
+    	
+    	//SELECT date, market_is_open FROM calendar WHERE date BETWEEN DATE_ADD(\"$date\", INTERVAL -7 DAY) AND \"$date\" ORDER BY date DESC
+        Session session = databaseManager.getSessionFactory().openSession();
+        
+        Calendar c = Calendar.getInstance();
+        c.setTime(Today());
+        c.add(Calendar.DATE, -7);
+        Date lastWeek = c.getTime();
+
+        Criteria criteria = session.createCriteria(Calendar_T.class)
+            .add(Restrictions.between("date", lastWeek, Today()))        		
+            .addOrder(Order.desc("date"));
+
+        @SuppressWarnings("unchecked")
+        List<Calendar_T> dates = criteria.list();
+        
+        session.close();
+        
+        Iterator<Calendar_T> it = dates.iterator();
+        while (it.hasNext()) {
+            Calendar_T date = it.next();
+            if (date.isMarketOpen()) return date.getDate();
+        }
+      
+        Date d = new Date(0);
+        return d;		// error
+    }
+
+    /**
+     * Previous Trade Date (previous date market was open)
+	 * return date of the previous open market date (accounts for weekends and holidays)
+	 * input is the 'current' date; return is the date previous
+	 * default input is today
+     * 
+     * @return Date  Date(0) on error
+     */
+    public Date getPreviousTradeDate()
+    {
+    	
+    	//SELECT date, market_is_open FROM calendar WHERE date BETWEEN DATE_ADD(\"$date\", INTERVAL -8 DAY) AND DATE_ADD(\"$date\", INTERVAL -1 DAY) ORDER BY date DESC
+        Session session = databaseManager.getSessionFactory().openSession();
+        
+        Calendar c = Calendar.getInstance();
+        c.setTime(getCurrentTradeDate());
+        c.add(Calendar.DATE, -1);
+        Date yesterday = c.getTime();
+        
+        c.add(Calendar.DATE, -7);
+        Date lastWeek = c.getTime();      
+
+        Criteria criteria = session.createCriteria(Calendar_T.class)
+            .add(Restrictions.between("date", lastWeek, yesterday))        		
+            .addOrder(Order.desc("date"));
+
+        @SuppressWarnings("unchecked")
+        List<Calendar_T> dates = criteria.list();
+        
+        session.close();
+        
+        Iterator<Calendar_T> it = dates.iterator();
+        while (it.hasNext()) {
+            Calendar_T date = it.next();
+            if (date.isMarketOpen()) return date.getDate();
+        }
+      
+        Date d = new Date(0);
+        return d;		// error
+    }
+
+    
+    /**
+     * return date of the next current open market (accounts for weekends and holidays)
+     * 
+     * @return Date    Date(0) on error
+     */
+    public Date getNextTradeDate()
+    {
+   	
+    	//SELECT date, market_is_open FROM calendar WHERE date BETWEEN DATE_ADD(\"$date\", INTERVAL 1 DAY) AND DATE_ADD(\"$date\", INTERVAL 8 DAY) AND market_is_open = 1 ORDER BY date LIMIT 1
+        Session session = databaseManager.getSessionFactory().openSession();
+        
+        Calendar c = Calendar.getInstance();
+        c.setTime(getCurrentTradeDate());
+        c.add(Calendar.DATE, 1);
+        Date nextDay = c.getTime();
+        
+        c.add(Calendar.DATE, 7);
+        Date nextWeek = c.getTime();       
+
+        Criteria criteria = session.createCriteria(Calendar_T.class)
+            .add(Restrictions.between("date", nextDay, nextWeek))
+            .add(Restrictions.eq("marketOpen", true))
+            .addOrder(Order.asc("date"))
+            .setMaxResults(1);
+
+        @SuppressWarnings("unchecked")
+        List<Calendar_T> dates = criteria.list();
+
+        session.close();
+        
+        if (!dates.isEmpty())
+        	return dates.get(0).getDate();
+        
+      
+        Date d = new Date(0);
+        return d;		// error
+    }
+    
 }
 

@@ -35,14 +35,17 @@ public class DayTrader_T {
     // enable simulation of EndOfDay logic at any time and exit
     public static boolean d_simulateEOD = true;
     
-    // if not null, use this simulated time
+    // override is marketOpen - make it open
+    public static boolean d_ignoreMarketClosed = true;
+    
+    // if not null, use this simulated time as current time
     public static String d_useSimulateTime = "";    
-    //public static String d_useSimulateTime = "2013-11-01";
+    //public static String d_useSimulateTime = "2013-11-02";
     
     // get EndOfDayQuotes from TD - only needs to be run once.  if you run it multiple
     // times, first delete all of todays EOD data DELETE FROM EndOfDayQuotes WHERE DATE(date) = CURRENT_DATE()
+    //public static boolean d_takeSnapshot = false;
     public static boolean d_takeSnapshot = false;
-    //public static boolean d_takeSnapshot = true;
     
     // use system time instead of IB time
     public static boolean d_useSystemTime = true;

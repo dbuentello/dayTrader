@@ -14,6 +14,8 @@ import managers.LoggerManager_T;
 import managers.MarketDataManager_T;
 import managers.TimeManager_T;
 
+import util.dtLogger_T;
+
 
 public class DayTrader_T {
   /* {src_lang=Java}*/
@@ -26,32 +28,41 @@ public class DayTrader_T {
     private static BrokerManager_T brokerManager = null;
     private static LoggerManager_T loggerManager = null;
     private static TimeManager_T timeManager = null;
+    
+    public static dtLogger_T dtLog;
 
     /*** global testing/development parameters ***/
     
     // we can run w/o IB (BrokerMgr) and not execute trades
     public static boolean d_useIB = false;
     
-    // enable simulation of EndOfDay logic at any time and exit
-    public static boolean d_simulateEOD = true;
+    // enable simulation of EndOfDay logic at any time (and exit)
+    public static boolean d_simulateBuyTime = false;
     
     // override is marketOpen - make it open
-    public static boolean d_ignoreMarketClosed = true;
+    public static boolean d_ignoreMarketClosed = false;
     
     // if not null, use this simulated time as current time
-    public static String d_useSimulateTime = "";    
-    //public static String d_useSimulateTime = "2013-11-02";
+    public static String d_useSimulateDate = "";    
+    //public static String d_useSimulateDate = "2013-11-06";
     
     // get EndOfDayQuotes from TD - only needs to be run once.  if you run it multiple
     // times, first delete all of todays EOD data DELETE FROM EndOfDayQuotes WHERE DATE(date) = CURRENT_DATE()
     //public static boolean d_takeSnapshot = false;
     public static boolean d_takeSnapshot = false;
     
+    // enable RT logic
+    public static boolean d_getRTData = true;
+    
     // use system time instead of IB time
     public static boolean d_useSystemTime = true;
     
     /*** end development defines ***/
     
+    /* our one and only log file */
+    private static String dtLogFilename = "/home/steve/dtLogj.txt";
+    private static boolean echoLog = true;
+    private static boolean logTimestamp = true;
     
 	/**
      * 
@@ -67,6 +78,7 @@ public class DayTrader_T {
         brokerManager = new BrokerManager_T();
         loggerManager = new LoggerManager_T();
         timeManager = new TimeManager_T();
+        dtLog = new dtLogger_T();
         
         initialize();
         run();
@@ -82,6 +94,8 @@ public class DayTrader_T {
 		if (d_useIB) { serviceManager.put(brokerManager.getClass(), brokerManager); }
 		serviceManager.put(loggerManager.getClass(), loggerManager);
 		serviceManager.put(timeManager.getClass(), timeManager);
+		
+		dtLog.open(dtLogFilename); dtLog.setEcho(echoLog); dtLog.setTimeStamp(logTimestamp);
 		
 		//threads.add(new Thread(databaseManager));
 		//threads.add(new Thread(brokelrManager));
@@ -138,7 +152,7 @@ public class DayTrader_T {
             thread.interrupt();
         }
         
-        
+        dtLog.close();
 		
 	}
 	

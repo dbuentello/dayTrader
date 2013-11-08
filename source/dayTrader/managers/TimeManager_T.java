@@ -13,6 +13,7 @@ import java.util.List;
 import javax.persistence.Transient;
 
 import marketdata.MarketData_T;
+import marketdata.RTData_T;
 import marketdata.Symbol_T;
 
 import org.apache.log4j.Level;
@@ -30,6 +31,10 @@ import util.Utilities_T;
 import dayTrader.DayTrader_T;
 
 import trader.TraderCalculator_T;
+
+//SALxx
+import util.dtLogger_T;
+
 
 /**
  * This manager class will keep track of the current market trading time as returned by our brokerage
@@ -49,7 +54,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
     /** The number of minutes in one hour. */
     private final int MIN_IN_HOUR = 60;
     /** real time scan interval */
-    private final int RT_SCAN_INTERVAL = 2 * MS_IN_MINUTE;
+    private final int RT_SCAN_INTERVAL = 5 * MS_IN_MINUTE;
     
     
     /** A reference to the java Calendar class used to format and convert Date objects. */
@@ -70,9 +75,12 @@ public class TimeManager_T implements Manager_IF, Runnable {
     private BrokerManager_T brokerManager;
     /** A reference to the DatabaseManager */
     private DatabaseManager_T databaseManager;
+    /** our calculator **/
+    private TraderCalculator_T tCalculator;
     
 //SAL
 //    private LoggerManager_T logger;
+    private dtLogger_T Log = DayTrader_T.dtLog;
     
     
     public TimeManager_T() {
@@ -96,8 +104,9 @@ public class TimeManager_T implements Manager_IF, Runnable {
          * execute the appropriate actions. Triggers times can be the market open, a specified buy time,
          * and the market close.
          */
+//TEST
 
-        Date d = getNextTradeDate();
+//TEST
         
         while (running) {
 
@@ -109,13 +118,21 @@ public class TimeManager_T implements Manager_IF, Runnable {
             	/*
             	 * During market open hours, get RealTime Quotes for our Holdings
             	 * according to the scan interval
+            	 * 
+            	 * determine if we should sell nowon
             	 */
+if (DayTrader_T.d_getRTData) {
+	
             	if (isMarketOpen() && time.after(prevScanTime))
             	{
-            		marketDataManager.getRealTimeQuotes();
+            		List <RTData_T> rtData = marketDataManager.getRealTimeQuotes();
+            		
+            		tCalculator.shouldWeSell(rtData);
+            		
             		prevScanTime.setTime(prevScanTime.getTime() + RT_SCAN_INTERVAL);
             	}
-            	
+
+}
                 /*
                  * At the end of the market day, perform the following 
                  * 1. sell any outstanding positions we're still holding 
@@ -124,59 +141,64 @@ public class TimeManager_T implements Manager_IF, Runnable {
                  * 4. execute buy orders 
                  */
                 if (isMarketOpen() && time.after(buyTime)) {
+
                     
+                	// get todays closing market info from TD and store in EndOfDayQuotes
+                	// this needs to be first in the EndOfDay Logic as other routines depend on
+                	// todays End of Day Data
+//WARNING!!!
+// TODO: this only needs to run once for debugging/development - dont want to run more than
+// once before we auto delete previous data
+                	if ( DayTrader_T.d_takeSnapshot) { marketDataManager.takeMarketSnapshot(); }
+
+                	// We need to conclude todays business by selling any remaining stocks
+                	// Then calculate our net position for toay
+                	
                     //TODO: Execute any remaining sell orders and then wait until they sell,
                     //we need to wait until they sell so we have money to buy new stocks
                     //but is this really feasible? Will the money be credited to our account immediately
                     //if the money isn't instantly credited what do we do? how do we buy additional positions?
                     //what is we can't sell a position? how are we going to handle that?
+                	// Nathan - liquidateHoldings should
  
                 	//SALxx--   we can run w/o a broker mgr - TODO: this is only for development                
-                	if (brokerManager != null) brokerManager.liquidateHoldings();
-                	else { TraderCalculator_T calc = new TraderCalculator_T(); calc.simulateLiquidateHoldings(); }
-                                       
-                	// get todays closing market info from TD and store in EndOfDayQuotes
-// WARNING!!!
-                	// TODO: this only needs to run once for debugging/development - dont want to run more than
-                	// once before we auto delete previous data
-                    if ( DayTrader_T.d_takeSnapshot) { marketDataManager.takeMarketSnapshot(); }
-                
-                    // SALxx- test
-                    System.out.println("** Determing todays candidates ***");
+                	if (brokerManager != null)  brokerManager.liquidateHoldings();
+                	else 						tCalculator.simulateLiquidateHoldings();
+
+            		tCalculator.calculateNet();
+            		
+                    // Now we can determine todays holdings candidates (biggest losers for today)
+                    Log.println("** Determing todays candidates ***");
                     List<Symbol_T> losers = databaseManager.determineBiggestLosers();
                     
+                    // TODO: save in log file
                     Iterator<Symbol_T> it = losers.iterator();
-                    System.out.print("\nBiggest Losers are: ");
+                    Log.print("\nBiggest Losers are: ");
                     while (it.hasNext()) {
                         Symbol_T symbol = it.next();
-                        System.out.print(symbol.getSymbol()+ " ");
+                        Log.print(symbol.getSymbol()+ " ");
                     }
-                    System.out.println();
+                    Log.newline();
+
                     
-                    // Update Holdings Table w/losers
+                    
+                    // Finally, update Holdings Table w/tomorrow candidates
                     databaseManager.updateHoldings(losers);
                     
                     // calculate buy positions
-                    TraderCalculator_T calc = new TraderCalculator_T();
-                    calc.updateBuyPositions(losers);
-                   
-                    //SALxx - test
-                    
-                    //TODO: identify and buy positions to buy. un-comment this when ready to test
-                    //brokerManager.buyBiggestLosers(losers);
-                                        
+                    tCalculator.updateBuyPositions(losers);
                     
                     
-                    //set     @Transientbuy_time to tomorrow so we don't execute this block again
-                    //SALx-- CHECK THIS
+                    //set buy_time to tomorrow so we don't execute this block again
+                    //TODO: CHECK THIS
                     buyTime.setTime(buyTime.getTime() + (MS_IN_MINUTE * MIN_IN_HOUR * 24));
                     
                     //TODO: For now terminate the application at the end of each day
-                    System.out.println("*** dayTrader is exiting.  Bye ***");
+                    Log.println("*** dayTrader is exiting.  Bye ***");
                     throw new InterruptedException("Terminating TimeManager thread because the market is now closed");
                 }
                 
-                //at some time if a BUY order hasn't been filled, just cancel it
+                // TODO: at some time if a BUY order hasn't been filled, just cancel it
 //                if (time.after(cancel_time)) {
 //                    //TODO: perform order cancels
 //                }
@@ -194,7 +216,8 @@ public class TimeManager_T implements Manager_IF, Runnable {
         marketDataManager = (MarketDataManager_T) DayTrader_T.getManager(MarketDataManager_T.class);
         brokerManager = (BrokerManager_T) DayTrader_T.getManager(BrokerManager_T.class);
         databaseManager = (DatabaseManager_T) DayTrader_T.getManager(DatabaseManager_T.class);
- 
+        
+        tCalculator = new TraderCalculator_T(); 
         
 //SALxx
 //logger = (LoggerManager_T) DayTrader_T.getManager(LoggerManager_T.class);
@@ -209,17 +232,7 @@ logger.logText("Database is open = " + databaseManager.isConnected(), Level.INFO
         this.buyTime = new Date(calendar_t.getCloseTime().getTime() - MINUTES_BEFORE_CLOSE_TO_BUY * MS_IN_MINUTE);
 
         // for simulation, buy date is always before now
-        if ( DayTrader_T.d_simulateEOD) {
-
-if (1==0) {
-        	SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
-            try { 
-          	  long t = df.parse("2013-11-06 00:00:00").getTime();
-          	  this.buyTime.setTime(t);
-            } catch (ParseException e1)  { /*do nothing*/ System.out.println("sim time parse error");}
-} else         
-        	this.buyTime.setTime(0);
-        }
+        if ( DayTrader_T.d_simulateBuyTime) { this.buyTime.setTime(0); }
         
     }
 
@@ -295,11 +308,11 @@ if (1==0) {
         Calendar c = Calendar.getInstance();
         c.setTime(time);
         
-        if (!DayTrader_T.d_useSimulateTime.isEmpty())
+        if (!DayTrader_T.d_useSimulateDate.isEmpty())
         {
         	 SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
         	  try { 
-        	    Date d = df.parse(DayTrader_T.d_useSimulateTime);
+        	    Date d = df.parse(DayTrader_T.d_useSimulateDate);
         	    c.setTime(d);
         	  } catch (ParseException e1)  { /*do nothing*/ System.out.println("sim time parse error");}
         	    
@@ -397,8 +410,8 @@ else  //SALxx - get system time
      */
     public Date getCurrentTradeDate()
     {
-    	if (!DayTrader_T.d_useSimulateTime.isEmpty())
-    		return Utilities_T.StringToDate(DayTrader_T.d_useSimulateTime);
+    	if (!DayTrader_T.d_useSimulateDate.isEmpty())
+    		return Utilities_T.StringToDate(DayTrader_T.d_useSimulateDate);
 
     	
     	//SELECT date, market_is_open FROM calendar WHERE date BETWEEN DATE_ADD(\"$date\", INTERVAL -7 DAY) AND \"$date\" ORDER BY date DESC

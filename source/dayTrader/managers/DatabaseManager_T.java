@@ -70,7 +70,10 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         
         metaData.addAnnotatedClass(marketdata.RTData_T.class);
         sessionFactory = metaData.buildMetadata().buildSessionFactory();
-        
+
+        metaData.addAnnotatedClass(trader.DailyNet_T.class);
+        sessionFactory = metaData.buildMetadata().buildSessionFactory();
+         
     }
     
     
@@ -256,7 +259,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         
         Criteria criteria = session.createCriteria(MarketData_T.class)
 //SALxx            .add(Restrictions.ge("date", timeManager.mysqlDate() + "00:00:00" ))
-            .add(Restrictions.ge("lastTradeTimestamp", timeManager.Today() ))
+            .add(Restrictions.ge("lastTradeTimestamp", timeManager.getCurrentTradeDate() ))
             .add(Restrictions.gt("volume", Trader_T.MIN_TRADE_VOLUME))
 //SALxx		.add(Restrictions.gt("price", Trader_T.MIN_BUY_PRICE))
             .add(Restrictions.gt("lastPrice", Trader_T.MIN_BUY_PRICE))
@@ -291,6 +294,13 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
     
     public synchronized void updateHoldings(List<Symbol_T> losers) {
         
+    	// for development only
+    	Date date;
+    	if (!DayTrader_T.d_useSimulateDate.isEmpty())
+    		date = timeManager.getCurrentTradeDate();
+    	else
+    		date = timeManager.TimeNow();
+    	
     	// TODO - move this to a delete method
         Session session = getSessionFactory().openSession();
 
@@ -302,7 +312,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
 
             String hql = "DELETE FROM trader.Holding_T WHERE buy_date >= :date";
             Query query = session.createQuery(hql);
-            query.setDate("date", timeManager.Today());
+            query.setDate("date", date);
 
             int nrows = query.executeUpdate();
  
@@ -322,7 +332,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
             
             Holding_T holding = new Holding_T(0);	//SALxx - do we need an orderId now? - YUP!!!! TODO
             holding.setSymbol(symbol);
-            holding.setBuyDate(timeManager.TimeNow());	// or getTime() and for debugging it should be Today()
+            holding.setBuyDate(date);
             
             holding.insertOrUpdate();
         }
@@ -337,15 +347,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
     public List<Symbol_T> getHoldings()
     {
     	Date date = timeManager.getPreviousTradeDate();
-    	/***
-        Calendar c = Calendar.getInstance();
-        c.set(Calendar.HOUR_OF_DAY, 0);
-        c.set(Calendar.MINUTE, 0);
-        c.set(Calendar.SECOND, 0);
-        c.add(Calendar.DATE,  -1);	//yesterday
-        Date date = c.getTime();
-   		***/
-    	
+  	
     	//"SELECT symbol from Holdings WHERE DATE(buy_date) = \"$date\"";
 
     	Session session = getSessionFactory().openSession();

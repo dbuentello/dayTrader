@@ -17,6 +17,8 @@ import org.hibernate.criterion.Order;
 import org.hibernate.criterion.Restrictions;
 
 import dayTrader.DayTrader_T;
+import util.dtLogger_T;
+
 
 import trader.Trader_T;
 import util.Exchange_T;
@@ -27,6 +29,8 @@ import marketdata.MarketData_T;
 import marketdata.Symbol_T;
 import marketdata.RTData_T;
 import marketdata.TDAmeritradeConnection_T;
+
+import trader.TraderCalculator_T;
 
 import exceptions.ConnectionException;
 import interfaces.Connector_IF;
@@ -45,6 +49,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
     /** Map to hold the most recent snapshot taken of the market. **/
     private HashMap<Long, MarketData_T> lastSnapshot = new HashMap<Long, MarketData_T>();
     
+    private dtLogger_T Log;
     
     public MarketDataManager_T() {
     
@@ -58,6 +63,8 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
         databaseManager = (DatabaseManager_T) DayTrader_T.getManager(DatabaseManager_T.class);
         timeManager     = (TimeManager_T) DayTrader_T.getManager(TimeManager_T.class);
         dataSource = new TDAmeritradeConnection_T();
+        
+        Log = DayTrader_T.dtLog;
         
         try {
             connect();
@@ -114,7 +121,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
         
         logger.logText("Found " + symbols.size() + " for exchange " + exchange, Level.DEBUG);
         
-        System.out.print("\n *** Getting Quote Data");
+        Log.print("\n *** Getting Quote Data");
         
         List<String> quoteDataList = new ArrayList<String>();
         Iterator<Symbol_T> it = symbols.iterator();
@@ -128,7 +135,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
             
             //Get 100 quotes at a time. If we're on the last item in the symbol list, get the remaining symbols 
             if ((count % 100) == 0 || it.hasNext() == false) {
-            	System.out.print(".");		// progress
+            	Log.print(".");		// progress
             	
             	String quoteResponse = dataSource.getQuote(symbolList);
                 //logger.logText(quoteResponse, Level.DEBUG);
@@ -140,17 +147,17 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
             count++;
         }
         
-        System.out.println("Done");
-        System.out.print("Parsing");
+        Log.println("Done");
+        Log.print("Parsing");
         
         //loop through our retrieved quotes and parse out the quote information
         for(int i = 0; i < quoteDataList.size(); i++) {
             parseQuote(quoteDataList.get(i));
             
-            System.out.print(".");		// progress
+            Log.print(".");		// progress
         }
         
-        System.out.println("Done");
+        Log.println("Done");
     }
 
     @Override
@@ -258,7 +265,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
         Session session = databaseManager.getSessionFactory().openSession();
         
         Criteria criteria = session.createCriteria(MarketData_T.class)
-            .add(Restrictions.ge("lastTradeTimestamp", timeManager.Today() ))
+            .add(Restrictions.ge("lastTradeTimestamp", timeManager.getCurrentTradeDate() ))
             .add(Restrictions.eq("symbolId", symbol.getId()));
 
         @SuppressWarnings("unchecked")
@@ -279,11 +286,12 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
     /**
      * Get todays holdings symbols and query TD for latest data
      * Persist to RTQuotes DB
-     * determine if we should sell
+     * 
+     * @return a list of RTData for each holding (empty on return)
      */
-    public void getRealTimeQuotes()
+    public List<RTData_T> getRealTimeQuotes()
     {
-    	System.out.println("*** Getting RealTime Data ***");
+    	Log.println("*** Getting RealTime Data ***");
     	
     	List <Symbol_T> symbols = databaseManager.getHoldings();
     	
@@ -300,12 +308,14 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
         String quoteResponse = dataSource.getQuote(symbolList);
         //logger.logText(quoteResponse, Level.DEBUG);
         
-        System.out.print("Parsing...");
+        Log.print("Parsing...");
         
         // parse the RT quote information and persist to RTQuotes DB
-        parseRTQuote(quoteResponse);
+        List<RTData_T> rtData = parseRTQuote(quoteResponse);
         
-        System.out.println("Done");
+        Log.println("Done");
+        
+        return rtData;
     }
 
     /**
@@ -313,15 +323,19 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
      * persist in RealTimeQuote Table
      * just a subset of all data - symbol, last trade date, last price and volume
      * 
-     * @param quoteData
+     * @param quoteData returned from TD
+     * @return a list of RTData for each holding.  on error, the list will be empty
      */
-    private void parseRTQuote(String quoteData) {
+    private List<RTData_T> parseRTQuote(String quoteData) {
         
+    	List <RTData_T> retData = new ArrayList<RTData_T>();
+    	
         int qlStart = quoteData.indexOf(XMLTags_T.QUOTE_LIST);
         
         if (qlStart == -1) {
             logger.logText("Failed to find start of quote list", Level.DEBUG);
-            return;
+            // throw
+            return retData;
         }
         
             
@@ -354,7 +368,9 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
         	//persist our individual quote to the database
         	// note this table use INSERT IGNORE so duplicates arent added
         	rtData.insertOrUpdate();
-                
+            
+        	retData.add(rtData);
+        	
         	// get ready to parse next quote
         	int qend = quoteData.indexOf("</quote>");
         	if (qend == -1)
@@ -367,6 +383,8 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
         	quoteData = quoteData.substring(qend);
         	qStart = quoteData.indexOf("<quote>");
         } // next quote
+        
+        return retData;
     }
 
 }

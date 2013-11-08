@@ -20,6 +20,7 @@ import marketdata.Symbol_T;
 
 import org.hibernate.Criteria;
 import org.hibernate.HibernateException;
+import org.hibernate.Query;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
 import org.hibernate.criterion.Restrictions;
@@ -385,6 +386,88 @@ public class Holding_T implements Persistable_IF {
         return exists;
     }
 
+    /**
+     * Update the sell parameters (price and date) for this symbol for the most
+     * recent entry for this symbol in the Holdings table.  Its sell date will be null
+     * before it is updated - that is the trigger
+     * 
+     * @param symId
+     * @param price
+     * @param date
+     * @return
+     * @throws HibernateException
+     */
+    // this is because update doesnt work
+    //  (also because we need to return a status)
+    public int updateSellPosition(long symId, Double price, Date date)  throws HibernateException {
+
+    	Session session = DatabaseManager_T.getSessionFactory().openSession();
+        Transaction tx = null;
+        
+        int nrows = 0;
+        
+        try {
+            tx = session.beginTransaction();
+            
+          	String hql = "UPDATE trader.Holding_T " +
+           			"SET execSellPriceLow = :price, sellDate = :date " +	// TODO: change this fieldname
+           			"WHERE symbolId = :sym AND sellDate is null";
+           	Query query = session.createQuery(hql);
+           	query.setDouble("price", price);
+           	query.setTimestamp("date", date);
+           	query.setParameter("sym", symId);
+
+        	nrows = query.executeUpdate();
+        	
+            tx.commit();
+        } catch (HibernateException e) {
+            //TODO: for now just print to stdout, we'll change this to a log file later
+            e.printStackTrace();
+            if (tx != null) tx.rollback();
+            throw e;
+        } finally {
+            session.close();
+        }
+        
+        return nrows;
+    	
+    }
+
+    // also because update doesnt work!!!
+    public int updateNet(long id, Double net)  throws HibernateException {
+        
+    	Session session =  DatabaseManager_T.getSessionFactory().openSession();
+
+    	int nrows = 0;
+    	
+        // updates must be within a transaction
+        Transaction tx = null;
+    
+        try {
+        	tx = session.beginTransaction();
+
+        	String hql = "UPDATE trader.Holding_T " +
+        			"SET execSellPriceHigh = :net " +
+        			"WHERE id = :id";
+        	Query query = session.createQuery(hql);
+        	query.setDouble("net", net);
+        	query.setParameter("id", id);
+
+        	nrows = query.executeUpdate();
+             
+        	tx.commit();
+        } catch (HibernateException e) {
+        	//TODO: for now just print to stdout, we'll change this to a log file later
+        	e.printStackTrace();
+        	if (tx != null) tx.rollback();
+        } finally {
+        	session.close();
+        } 
+        
+        return nrows;
+    }
+     
+    
     /**
      * Specifies the number of shares that have been executed.
      * @return the filled

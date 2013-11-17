@@ -7,6 +7,7 @@ import java.util.List;
 import managers.BrokerManager_T;
 import marketdata.MarketData_T;
 import marketdata.Symbol_T;
+import accounts.Account_T;
 
 import com.ib.controller.OrderType;
 import com.ib.controller.Types.Action;
@@ -30,7 +31,7 @@ public class Trader_T {
     private BrokerManager_T brokerManager = null;
     
 
-    /**
+    /**buyBiggestLosers
      * 
      */
     public Trader_T() {
@@ -120,10 +121,15 @@ public class Trader_T {
             order.setClientId(clientId);
             
             order.getOrder().m_action = Action.BUY.toString();
+            
             //submit these orders as market-to-limit orders
             order.getOrder().m_orderType = OrderType.MTL.toString();
+            
             //get the latest price of this symbol
-            MarketData_T snapshot = brokerManager.reqSymbolSnapshot(symbol);
+            brokerManager.reqSymbolSnapshot(symbol);
+            
+            // TODO: wait until we get the data
+            MarketData_T snapshot = brokerManager.getSymbolSnapshot();
             //TODO: how do I know when the price is updated?
             
             order.getOrder().m_totalQuantity = (int) Math.floor(buyAmount / snapshot.getAskPrice());
@@ -135,22 +141,100 @@ public class Trader_T {
             order.getOrder().m_blockOrder = false;
             order.getOrder().m_outsideRth = false;
            
-            //the contractId field will already be populated
-            order.getContract().m_currency = "USD";
-            order.getContract().m_exchange = symbol.getExchange();
-            order.getContract().m_primaryExch = symbol.getExchange();
-            //order.getContract().m_expiry = String.valueOf(TimeManager_T.getYear4Digit() + TimeManager_T.getMonthDigit());
-            order.getContract().m_localSymbol = symbol.getSymbol();
+            //the contractId field will already be populated - SALxx where?
             order.getContract().m_symbol = symbol.getSymbol();
+            order.getContract().m_exchange = symbol.getExchange();
+            order.getContract().m_secType = SecType.STK.toString();  
+            order.getContract().m_currency = "USD";
+            //order.getContract().m_primaryExch = symbol.getExchange();
+            //order.getContract().m_expiry = String.valueOf(TimeManager_T.getYear4Digit() + TimeManager_T.getMonthDigit());
+            //order.getContract().m_localSymbol = symbol.getSymbol();
             //order.getContract().m_right = "PUT";
-            order.getContract().m_secType = SecType.STK.toString();
-            
-            
+             
         }
-        
-        
         
         return buyOrders;
     }
 
+    /**
+     * Create a market buy or sell order for the provided Holding
+     * 
+     * @param Holding - the Holding to buy or sell
+     * @param String "BUY" or "SELL"
+     * 
+     * @return Holding - the holding with updated order data
+     */
+    public Holding_T createMarketOrder(Holding_T holding, String buyOrSell ) {
+        
+    	Account_T acct = brokerManager.getAccount();
+    	// TODO: check for valid acct
+    	
+        //get the next available orderID
+        int orderId = brokerManager.reqNextValidId();
+        if (orderId == 0)
+        	System.out.println("BAD ERROR orderId is 0!");
+        
+        Holding_T buyOrder = new Holding_T(orderId);
+        
+        // real important TODO: copy other Holdings fields!!!!
+        buyOrder.setSymbol(holding.getSymbol());
+        
+        
+        //calculate the amount in dollars that we're allowed to buy
+        double buyAmount = (acct.getBalance() - MIN_ACCOUNT_BALANCE) / MAX_BUY_POSITIONS;  
+
+        buyOrder.setClientId(acct.getClientId());
+            
+       // buyOrder.getOrder().m_action = Action.BUY.toString();
+        buyOrder.getOrder().m_action = buyOrSell;
+        
+        //submit these orders as market-to-limit orders
+        //buyOrder.getOrder().m_orderType = OrderType.MTL.toString();
+        
+        //SALxx - lets try market first
+        buyOrder.getOrder().m_orderType = OrderType.MKT.toString();
+        
+        //get the latest price of this symbol - IB doesnt provide this for our acct!
+        //brokerManager.reqSymbolSnapshot(symbol);
+        //MarketData_T snapshot = brokerManager.getSymbolSnapshot();
+        //buyOrder.getOrder().m_totalQuantity = (int) Math.floor(buyAmount / snapshot.getAskPrice());
+        
+        // so, we use whats in our Holdings, which was the most recent price from TD
+        // SALxx should we be using ask price?
+        // SALx -- TODO: we're only using remaining for buy_volume
+        buyOrder.getOrder().m_totalQuantity = 1; // holding.getRemaining();
+                
+        //SALxx do we need to specify price for MKT? I dont think so
+        
+        // SALxx are these others necessary?
+        buyOrder.getOrder().m_transmit = true;
+            
+        buyOrder.getOrder().m_lmtPrice = 0;
+        buyOrder.getOrder().m_auxPrice = 0;
+        buyOrder.getOrder().m_allOrNone = false;
+        buyOrder.getOrder().m_blockOrder = false;
+        buyOrder.getOrder().m_outsideRth = false;
+           
+        // SALxx can the contractId be the same as the orderId? MOST DEFINITELY NOT! keep as 0
+        // buyOrder.setContractId(orderId);
+        buyOrder.getContract().m_symbol = holding.getSymbol().getSymbol();
+//TEST this
+        buyOrder.getContract().m_symbol = "MSFT";
+
+        buyOrder.getContract().m_exchange = holding.getSymbol().getExchange();
+// try this
+        buyOrder.getContract().m_exchange = "SMART";
+        buyOrder.getContract().m_primaryExch = "ISLAND";       
+        
+        buyOrder.getContract().m_secType = SecType.STK.toString();  
+        buyOrder.getContract().m_currency = "USD";
+        
+        //buyOrder.getContract().m_primaryExch = holding.getSymbol().getExchange();
+        //buyOrder.getContract().m_localSymbol = holding.getSymbol().getSymbol();        
+        
+        return buyOrder;
+    }
+
+
+    
 }

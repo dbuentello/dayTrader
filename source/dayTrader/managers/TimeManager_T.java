@@ -35,6 +35,11 @@ import trader.TraderCalculator_T;
 //SALxx
 import util.dtLogger_T;
 
+//SALxx - only needed during testing
+import accounts.Account_T;
+import trader.Holding_T;
+import trader.Trader_T;
+
 
 /**
  * This manager class will keep track of the current market trading time as returned by our brokerage
@@ -80,7 +85,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
     
 //SAL
 //    private LoggerManager_T logger;
-    private dtLogger_T Log = DayTrader_T.dtLog;
+    private dtLogger_T Log;
     
     
     public TimeManager_T() {
@@ -89,7 +94,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
         time = new Date(System.currentTimeMillis());
         calendar = Calendar.getInstance();
         calendar.setTime(time);
-        
+
         prevScanTime = new Date(System.currentTimeMillis() - 10000);  // before now
 
     }
@@ -104,9 +109,77 @@ public class TimeManager_T implements Manager_IF, Runnable {
          * execute the appropriate actions. Triggers times can be the market open, a specified buy time,
          * and the market close.
          */
+if (1==0) {
 //TEST
+        brokerManager.updateAccount();
+        Account_T acct = brokerManager.getAccount();
+        
+        // wait until response is received
+        int waitCntr=0;
+        int MAX_WAIT = 10;
+/****        
+        while (!acct.isUpdated() && waitCntr < MAX_WAIT) {
+            
+            try {
+                Thread.sleep(250);
+                waitCntr++;
+                acct = brokerManager.getAccount();
+            } catch (InterruptedException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }           
+        }
 
+        
+        if (waitCntr == MAX_WAIT)
+        	System.out.println("ERROR: reqAccountUpdates timeout!");
+        else {
+        	System.out.println("Cash Balance is $"+acct.getBalance());
+            System.out.println("WaitCntr="+waitCntr);        	
+        }
+***/
+        
+        //Symbol_T s = new Symbol_T(12711);
+        Symbol_T s = new Symbol_T(7967);		// IBM
+        if (brokerManager.reqSymbolSnapshot(s))
+        {
+        	MarketData_T md = brokerManager.getSymbolSnapshot();
+            System.out.println("data for "+s.getSymbol()+" = "+md.getLastPrice());          
+        }
+        else System.out.println("error getting IB snapshot");
+        
+/***
+        waitCntr=0;
+        MAX_WAIT = 10;
+        while (!brokerManager.marketDataUpdated && waitCntr < MAX_WAIT) {
+            
+            try {
+                Thread.sleep(1000);
+                waitCntr++;
+            } catch (InterruptedException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
+            
+        }
+        
+        if (waitCntr == MAX_WAIT)
+        	System.out.println("ERROR: reqMktData timeout!");
+        else {
+          MarketData_T md = brokerManager.getSymbolSnapshot();
+          System.out.println("data for "+s.getSymbol()+" = "+md.getLastPrice());
+        }
+***/
+}
+
+if (1==0) {
+	TestBuyOrSell("SELL");
+
+	//running = false;
+}
 //TEST
+        
+        Log.println("\n*** Day Trader V.11.12.0 has started at "+TimeNow()+" ***\n");
         
         while (running) {
 
@@ -152,14 +225,14 @@ if (DayTrader_T.d_getRTData) {
                 	if ( DayTrader_T.d_takeSnapshot) { marketDataManager.takeMarketSnapshot(); }
 
                 	// We need to conclude todays business by selling any remaining stocks
-                	// Then calculate our net position for toay
+                	// Then calculate our net position for today
                 	
                     //TODO: Execute any remaining sell orders and then wait until they sell,
                     //we need to wait until they sell so we have money to buy new stocks
                     //but is this really feasible? Will the money be credited to our account immediately
                     //if the money isn't instantly credited what do we do? how do we buy additional positions?
                     //what is we can't sell a position? how are we going to handle that?
-                	// Nathan - liquidateHoldings should
+                	// Nathan - liquidateHoldings should incorporate this logic
  
                 	//SALxx--   we can run w/o a broker mgr - TODO: this is only for development                
                 	if (brokerManager != null)  brokerManager.liquidateHoldings();
@@ -173,7 +246,7 @@ if (DayTrader_T.d_getRTData) {
                     
                     // TODO: save in log file
                     Iterator<Symbol_T> it = losers.iterator();
-                    Log.print("\nBiggest Losers are: ");
+                    Log.print("Biggest Losers are: ");
                     while (it.hasNext()) {
                         Symbol_T symbol = it.next();
                         Log.print(symbol.getSymbol()+ " ");
@@ -194,7 +267,7 @@ if (DayTrader_T.d_getRTData) {
                     buyTime.setTime(buyTime.getTime() + (MS_IN_MINUTE * MIN_IN_HOUR * 24));
                     
                     //TODO: For now terminate the application at the end of each day
-                    Log.println("*** dayTrader is exiting.  Bye ***");
+                    Log.println("\n*** dayTrader is exiting at "+TimeNow()+"  Bye ***");
                     throw new InterruptedException("Terminating TimeManager thread because the market is now closed");
                 }
                 
@@ -219,10 +292,12 @@ if (DayTrader_T.d_getRTData) {
         
         tCalculator = new TraderCalculator_T(); 
         
+        Log = DayTrader_T.dtLog;
+
 //SALxx
 //logger = (LoggerManager_T) DayTrader_T.getManager(LoggerManager_T.class);
-LoggerManager_T logger = (LoggerManager_T) DayTrader_T.getManager(LoggerManager_T.class);       
-logger.logText("Database is open = " + databaseManager.isConnected(), Level.INFO);
+//LoggerManager_T logger = (LoggerManager_T) DayTrader_T.getManager(LoggerManager_T.class);       
+//logger.logText("Database is open = " + databaseManager.isConnected(), Level.INFO);
 
         calendar_t = (Calendar_T) databaseManager.query(Calendar_T.class, time);
         
@@ -339,6 +414,7 @@ logger.logText("Database is open = " + databaseManager.isConnected(), Level.INFO
 if (!DayTrader_T.d_useSystemTime) {
         //the broker manager will invoke the setTime() method when the current time has been returned so
         //loop until we get an updated time.
+		//we can get stuck in an infinite loop here if we never connect to IB
         while(oldTime == time.getTime()) {
 
             brokerManager.reqCurrentTime();
@@ -359,7 +435,8 @@ else  //SALxx - get system time
 	long now = System.currentTimeMillis();
 	setTime(now);
 	Date d = new Date(now);
-	//System.out.println("updateTime(): " + now + " " + d.toString());
+	
+//System.out.println("updateTime(): " + now + " " + d.toString());
 }
 
         return;
@@ -520,6 +597,37 @@ else  //SALxx - get system time
         Date d = new Date(0);
         return d;		// error
     }
+
+  //TEST Code
+    public void TestBuyOrSell(String buyOrSell)
+    {
+    	brokerManager.updateAccount();  // we need an account to start
+    	
+        Trader_T trader = new Trader_T();
+
+        Long id = new Long(2210);
+        
+        Session session = databaseManager.getSessionFactory().openSession();
+        
+        Criteria criteria = session.createCriteria(Holding_T.class)
+            .add(Restrictions.eq("id", id));
+
+
+        @SuppressWarnings("unchecked")
+        List<Holding_T> holdingData = criteria.list();
+        
+        session.close();
+        
+        Holding_T holding = holdingData.get(0);
+
+        Symbol_T symbol = holding.getSymbol();
+
+       
+        Holding_T order = trader.createMarketOrder(holding, buyOrSell);
+        brokerManager.placeOrder(order);
+        
+    }
+ //TEST     
     
 }
 

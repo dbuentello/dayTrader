@@ -40,7 +40,7 @@ public class DayTrader_T {
     public static boolean d_simulateBuyTime = false;
     
     // override is marketOpen - make it open
-    public static boolean d_ignoreMarketClosed = false;
+    public static boolean d_ignoreMarketClosed = true;
     
     // if not null, use this simulated time as current time
     public static String d_useSimulateDate = "";    
@@ -49,7 +49,7 @@ public class DayTrader_T {
     // get EndOfDayQuotes from TD - only needs to be run once.  if you run it multiple
     // times, first delete all of todays EOD data DELETE FROM EndOfDayQuotes WHERE DATE(date) = CURRENT_DATE()
     //public static boolean d_takeSnapshot = false;
-    public static boolean d_takeSnapshot = false;
+    public static boolean d_takeSnapshot = true;
     
     // enable RT logic
     public static boolean d_getRTData = true;
@@ -60,9 +60,9 @@ public class DayTrader_T {
     /*** end development defines ***/
     
     /* our one and only log file */
-    private static String dtLogFilename = "/home/steve/dtLogj.txt";
+    private static String dtLogFilename = "/home/steve/dayTrader_test.log";
     private static boolean echoLog = true;
-    private static boolean logTimestamp = true;
+    private static boolean logTimestamp = false;
     
 	/**
      * 
@@ -98,7 +98,7 @@ public class DayTrader_T {
 		dtLog.open(dtLogFilename); dtLog.setEcho(echoLog); dtLog.setTimeStamp(logTimestamp);
 		
 		//threads.add(new Thread(databaseManager));
-		//threads.add(new Thread(brokelrManager));
+		threads.add(new Thread(brokerManager));
 		//threads.add(new Thread(loggerManager));
 		threads.add(new Thread(marketDataManager));
 		threads.add(new Thread(timeManager));

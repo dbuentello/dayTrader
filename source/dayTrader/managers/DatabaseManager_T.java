@@ -367,7 +367,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
               Holding_T h = it.next();
               losers.add(h.getSymbol());
           }
-          
+        	  
           return losers;      	  
     	  
     }

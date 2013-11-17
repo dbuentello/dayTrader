@@ -117,6 +117,7 @@ public class TraderCalculator_T {
      */
     public void simulateLiquidateHoldings()
     {
+	
     	// for development only
     	Date date;
     	if (!DayTrader_T.d_useSimulateDate.isEmpty())
@@ -138,11 +139,11 @@ public class TraderCalculator_T {
         
         if (holdingData.size() == 0)
         {
-        	Log.println("There are no remaining holdings at the end of the day");
+        	Log.println("There are no remaining holdings to sell at the end of the day");
         	return;
         }
                 
-       Log.println("There are "+holdingData.size()+" remaining Holdings");
+       Log.println("There are "+holdingData.size()+" remaining Holdings to sell at the end of the day:");
             
        Iterator<Holding_T> it = holdingData.iterator();
        while (it.hasNext()) {
@@ -159,9 +160,20 @@ public class TraderCalculator_T {
            Date sellDate = date;
            
            holding.setSellDate(sellDate);
-           holding.setExecSellPriceLow(price);	// SAL - why is there a high and low?  TODO change this
+           holding.setExecSellPriceLow(price);	// TODO change this field name
            
-           Log.print(" "+symbol.getSymbol());
+           // for info
+           double buyPrice = getBuyPrice(symbol.getId());
+       	
+           String net = "EVEN";
+           if (price > buyPrice) { net = "GAIN"; }
+           if (price < buyPrice) { net = "LOSS"; }
+
+           double delta = price - buyPrice;
+           delta = round(delta);
+
+           Log.println("*** SELL " +symbol.getId()+ " at a " +net+" of $"+delta+" ("+price+" : "+buyPrice+") at "+date.toString()+" ***"); 
+
 
            // $stmt = "UPDATE $tableName SET sell_price = $price, sell_date= \"$date\" WHERE symbol = \"$symbol\" AND sell_date is NULL";
            //>>> holding.update(); SAL why doesnt this worK??? TODO
@@ -170,6 +182,7 @@ public class TraderCalculator_T {
            holding.updateSellPosition(symbol.getId(), price, sellDate);
 
        }
+       Log.newline();
 
     }
     
@@ -190,7 +203,9 @@ public class TraderCalculator_T {
     private double getCapital()
     {
     	// TODO!!!
-    	//SELECT price from DailyNet ORDER BY date DESC LIMIT 1";
+    	//DailyNet_T dailyNet = getLatestDailyNet();
+    	//if (dailyNet.getPrice() == null)
+    	//    return 0.0;						// TODO
     	
         return 10000.00;   
   
@@ -223,7 +238,7 @@ public class TraderCalculator_T {
         
         if (holdingData.size() != Trader_T.MAX_BUY_POSITIONS)
         {
-        	Log.println("WARNING something is fishy in Holdings... Only "+holdingData.size()+" rows retrieved.  Should be "+Trader_T.MAX_BUY_POSITIONS);
+        	Log.println("WARNING! something is fishy in Holdings... "+holdingData.size()+" rows retrieved.  Should be "+Trader_T.MAX_BUY_POSITIONS);
         }
             
         Iterator<Holding_T> it = holdingData.iterator();
@@ -243,6 +258,7 @@ public class TraderCalculator_T {
         		double buyTotal  = buyPrice * volume;
         		double sellTotal = sellPrice * volume;
         		double net = sellTotal - buyTotal;
+        		net = round(net);
         		
         		// update the Holdings net for this stock in the Holdings Table
         		
@@ -262,8 +278,21 @@ public class TraderCalculator_T {
         // update daily table with net for today
 
         // get latest capital record from DB
+        
+        double startCapital;
+        
+        // TODO:
+if (1==0) {
+        DailyNet_T dailyNet = getLatestDailyNet();
+        dailyNet.setNet(cumNet);
+        dailyNet.setVolume(cumVol);
+        dailyNet.update();			// nope
+        dailyNet.updateNet(); 		//yup
+        
+        startCapital = dailyNet.getPrice();		// TODO put double here
+} else {
+	
         //"SELECT id, price from DailyNet ORDER BY date DESC LIMIT 1";
-        //session = databaseManager.getSessionFactory().openSession();
 
         criteria = session.createCriteria(DailyNet_T.class)
         	.addOrder(Order.desc("date"))
@@ -275,13 +304,13 @@ public class TraderCalculator_T {
             
         if (dailyNet.size() != 1)
         {
-         	Log.println("FATAL calculateNet() Cant get starting capital value from DailyNet!");
+         	Log.println("FATAL: calculateNet() Cant get starting capital value from DailyNet!");
          	// throw exception
          	return;			//SALxx TODO
         }
-    
-        long id = dailyNet.get(0).getId();           // TODO: the time now or last trade date?
-        double startCapital = dailyNet.get(0).getPrice();
+        
+        long id = dailyNet.get(0).getId();
+        startCapital = dailyNet.get(0).getPrice();
 
         // update our net for today
         // UPDATE DailyNet SET $netName=$cum_net, totalVolume=$cum_vol WHERE id=$id;";
@@ -291,17 +320,17 @@ public class TraderCalculator_T {
         dn.update();					// nope
         								// yup
         dn.updateNet(cumNet, cumVol, dn.getId());
-        
+}        
 
         // tell us about it
         Date today = timeManager.getCurrentTradeDate();
-        Log.println("Net for "+today.toString()+" is $"+cumNet+" on "+cumVol+" shares");
+        Log.println("*** Net for "+today.toString()+" is $"+cumNet+" on "+cumVol+" shares ***\n");
 
 
         // add new record for starting point for tomorrow
         Date date = timeManager.getNextTradeDate();
 
-        // we can do it two ways - cumulative or start fresh every day
+        // we can do it two ways - cumulative (pev+cumNet) or start fresh every day
         // TEST--- always start at 10000
         startCapital = 10000;
         // TEST---
@@ -337,6 +366,8 @@ public class TraderCalculator_T {
         	
         	String symbol = data.getSymbol();		// TODO change RT table to symId!!
         	Symbol_T sym = new Symbol_T(symbol);
+        	
+        	// TODO: we should check if its already sold
         	
         	double price = data.getPrice();			// current RT price
         	
@@ -425,8 +456,9 @@ if (1==0) {
 	 				if (price < buyPrice) { net = "LOSS"; }
 
 	 				double delta = price - buyPrice;
+	 				delta = round(delta);
 
-	 				Log.println(" *** SELL " +sym.getId()+ " at a " +net+" of $"+delta+" ("+price+" : "+buyPrice+") at "+date.toString()+" ***"); 
+	 				Log.println("*** SELL " +sym.getId()+ " at a " +net+" of $"+delta+" ("+price+" : "+buyPrice+") at "+date.toString()+" ***"); 
 
 // print LOGFILE "\n".timeStamp().":<1> *** SELL $symbol at a $net of \$$delta ($price : $buy_price)  at $date ***";
 //if ($_dbg) { print DBGFILE "\n".timeStamp().":<1>  *** SELL $symbol at a $net of \$$delta ($price : $buy_price) at $date ***"; }
@@ -467,7 +499,7 @@ if (1==0) {
         
         if (holdingData.size() != 1)
         {
-        	Log.println("WARNING getBuyDate returns empty");
+        	Log.println("WARNING: getBuyDate returns empty for SymbolId:" + symbolId  + " (" + holdingData.size() + ")");
         	return 0.00;
         }
 
@@ -495,7 +527,7 @@ if (1==0) {
         session.close();
         
         if (holdingData.size() != 1) {
-           Log.println("*** Error getting upper limit for SymbolId:" + symId);
+           Log.println("ERROR: getUpperSellLimit() cant get upper limit for SymbolId:" + symId + " (" + holdingData.size() + ")");
            return 0;
         }
 
@@ -545,6 +577,48 @@ if (1==0) {
         
         return nrows;
     }
+
+    /**
+     * get the latest (last) record from the DailyNet Table
+     * we want to get the starting capital at the start of the day,
+     * and the record id for the end of the day update
+     * 
+     * @return DaiyNet_T
+     */
+    private DailyNet_T getLatestDailyNet()
+    {
+    	//"SELECT id, price from DailyNet ORDER BY date DESC LIMIT 1";
+
+       	Session session = DatabaseManager_T.getSessionFactory().openSession();
+       	
+       	Criteria criteria = session.createCriteria(DailyNet_T.class)
+       			.addOrder(Order.desc("date"))
+       			.setMaxResults(1);
+
+       	@SuppressWarnings("unchecked")
+       	List<DailyNet_T> dailyNet = criteria.list();
+        
+       	if (dailyNet.size() != 1)
+       	{
+       		Log.println("FATAL: getLatestDailyNet() Cant get starting capital record from DailyNet!");
+       		// throw exception
+       		DailyNet_T badRet = new DailyNet_T();
+       		return badRet;			//SALxx TODO now the id is 0, and price is null
+       	}
+       	
+       	return dailyNet.get(0);
+    }
     
-     
+    
+    // round price to 3 digits
+    public double round(double n)
+    {
+  	    double d = (double)((long)(n*1000.0+0.5))/1000.0;
+  	  
+    	  Double nd = ((n * 1000.0) + 0.5);
+    	  int ni = nd.intValue();
+    	  n = (double)ni/1000;
+    	  
+    	  return n;
+    }
 }

@@ -36,7 +36,7 @@ import com.ib.controller.Types.Action;
 import dayTrader.DayTrader_T;
 import exceptions.ConnectionException;
 
-public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
+public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runnable {
   /* {src_lang=Java}*/
 
     private final String GATEWAY_HOST = "localhost";
@@ -62,7 +62,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
     /** Reference to a MarketData_T quote that can be used to store requested data. */
     private MarketData_T marketData = new MarketData_T();
     /** Boolean indicating if the marketData has been updated. */
-    private boolean marketDataUpdated = false;
+    public boolean marketDataUpdated = false;
     
     
     /**
@@ -77,30 +77,32 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
         
     }
 
-    
     /**
-     * @return the account
+     * required (but not used) for runnables
      */
-    public Account_T getAccount() {
-        return account;
+    public void run()
+    {
+    	
     }
+
 
     public void executeTrade() {
     }
 
 	@Override
 	public void error(Exception e) {
-		
+		System.out.println("Error exception="+e.getMessage());		
 	}
 	
 	@Override
 	public void error(String str) {
+		System.out.println("Error str="+str);
 		
 	}
 	
 	@Override
 	public void error(int id, int errorCode, String errorMsg) {
-		
+		System.out.println("Error code="+errorCode+" "+errorMsg);		
 	}
 	
 	@Override
@@ -111,9 +113,12 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
 	@Override
 	public void tickPrice(int tickerId, int field, double price, int canAutoExecute) {
 		
+		System.out.println("SALxx- tickPrice type= "+field+" $"+price);
 	    if (TickType.getField(field) == TickType.getField(TickType.ASK)) {
 	        marketData.setAskPrice(price);
 	    }
+	    
+		marketDataUpdated = true;		    
 	}
 	
 	@Override
@@ -131,6 +136,8 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
 	@Override
 	public void tickGeneric(int tickerId, int tickType, double value) {
 		
+		System.out.println("SALxx- tickGeneric Id= "+tickerId+"="+value);
+		marketDataUpdated = true;	
 	}
 	
 	@Override
@@ -144,6 +151,14 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
 			String futureExpiry, double dividendImpact, double dividendsToExpiry) {
 		
 	}
+
+	@Override
+	public void tickSnapshotEnd(int reqId) {
+	    
+		System.out.println("SALxx - tickSnapshotEnd Id= "+reqId);
+		marketDataUpdated = true;
+	}
+
 	
 	/**
 	 * This method is invoked by the IB server every time an order status changes, upon connecting
@@ -155,7 +170,14 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
 			double avgFillPrice, int permId, int parentId, double lastFillPrice,
 			int clientId, String whyHeld) {
 		
-	    //if we already have a reference to this holding, just update the fields
+        System.out.println("[orderStatus] " + orderId +" "+ status +" ("+ filled +" "+
+              remaining +") at$"+ avgFillPrice +" ["+ permId +" "+ parentId +" "+ clientId +"]");
+
+//SALxx dont do this for now...
+// the insertorupdate is failing, due to a bad symbol
+if (1==0) {
+	
+        //if we already have a reference to this holding, just update the fields
 	    //otherwise add the new holding to our map
 	    Holding_T holding = holdings.get(orderId);
 	    if (holding == null) {
@@ -207,18 +229,24 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
         
 	    //update the DB with our holding
 	    holding.insertOrUpdate();
+} //SALxx
+
 	}
 	
 	@Override
 	public void openOrder(int orderId, Contract contract, Order order,
 			OrderState orderState) {
 		
-	    holdings.put(orderId, new Holding_T(order, contract, orderState));
+		System.out.println("[openOrder] id="+orderId);
+		
+	    //SALxx--  holdings.put(orderId, new Holding_T(order, contract, orderState));
 		
 	}
 	
 	@Override
 	public void openOrderEnd() {
+		
+		System.out.println("[openOrderEnd]");
 		
 	    //Log our current holdings if the appropriate logging level is set
         if (logger.logLevel().toInt() >= Level.INFO_INT) {
@@ -234,20 +262,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
         }
         
 	}
-	
-	@Override
-	public void updateAccountValue(String key, String value, String currency,
-			String accountName) {
-	    
-	    //TODO: Handle other types of account updates
-	    if (key == "CashBalance") {
-	        account.setBalance(Integer.valueOf(value));
-	    } else {
-	        logger.logText("Received key: " + key + " in updateAccountValue() for account: "
-	                + accountName + " and don't know how to parse.", Level.INFO);
-	    }
-		
-	}
+
 	
 	@Override
 	public void updatePortfolio(Contract contract, int position,
@@ -256,27 +271,6 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
 		
 	}
 	
-	@Override
-	public void updateAccountTime(String timeStamp) {
-	    SimpleDateFormat df = new SimpleDateFormat();
-		try {
-            account.setUpdateTime(df.parse(timeStamp));
-        } catch (ParseException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
-	}
-	
-	@Override
-	public void accountDownloadEnd(String accountName) {
-		account.setUpdated(true);
-		ibClientSocket.reqAccountUpdates(false, account.getAccountCode());
-	}
-	
-	@Override
-	public void nextValidId(int orderId) {
-		this.nextValidId = orderId;
-	}
 	
 	@Override
 	public void contractDetails(int reqId, ContractDetails contractDetails) {
@@ -362,6 +356,12 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
 	
 	
 	public void currentTime(long time) {
+		//SALxx - there is an initialize problem, if bm is initialized before tm is
+		// the first request for time will return here while tm is null
+	    if (timeManager == null) {
+	    	System.out.println("bm:currentTime - Init error - time manager is null");
+	    	timeManager = (TimeManager_T) DayTrader_T.getManager(TimeManager_T.class);
+	    }
 		timeManager.setTime(time);
 		System.out.println("updating time = " + time);
 	}
@@ -377,12 +377,6 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
 	}
 	
 	@Override
-	public void tickSnapshotEnd(int reqId) {
-	    
-		marketDataUpdated = true;
-	}
-	
-	@Override
 	public void marketDataType(int reqId, int marketDataType) {
 		
 	}
@@ -392,6 +386,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
 		
 	}
 	
+	// TODO we could introduce retry logic or fail completely
 	public void connect() throws ConnectionException {
 	
 	    if (isConnected()) {
@@ -438,6 +433,9 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
 	    } catch (ConnectionException e) {
 	        // TODO Handle the exception
 	        e.printStackTrace();
+	        							//SALxx - fix this!
+	        logger.logText("FATAL - cont connect to IB", Level.ERROR);
+	        return;						//SALxx - we cant do much w/o a connection
 	    }
 	    
 	    trader = new Trader_T();
@@ -492,11 +490,13 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
             while (!isConnected()) {
                 try {
                     connect();
-                    Thread.sleep(5000);
+                    Thread.sleep(5000);		// SALxx - this never gets called if we cant connect
                 } catch (ConnectionException e) {
                     e.printStackTrace();
+                    break;					// SALxx - and we're stuck in an infinite loop
                 } catch (InterruptedException e) {
                     e.printStackTrace();
+                    break;
                 } 
                 
             }
@@ -504,44 +504,151 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
     }
     
     /**
-     * Request that our account be updated.
+     * @return the account
+     * 
+     * be sure to checked that isUpdated() is true
      */
-    public void updateAccount() {
+    public Account_T getAccount() {
+        return account;
+    }
+    
+    /**
+     * Request that our account be updated.  Wait for the update
+     * 
+     * updated will be set in the updateAccountValues() and updateAccountTime() callbacks
+     *
+     * @return boolean updated
+     */
+    public boolean updateAccount() {
+    	
         account.setUpdated(false);
         ibClientSocket.reqAccountUpdates(true, account.getAccountCode());
+        
+        // wait until response is received
+        int waitCntr=0;
+        int MAX_WAIT = 10;
+        while (!account.isUpdated() && waitCntr < MAX_WAIT) {
+            
+            try {
+                Thread.sleep(250);
+                waitCntr++;
+            } catch (InterruptedException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }           
+        }
+
+        
+        if (waitCntr == MAX_WAIT)
+        {
+        	System.out.println("ERROR: reqAccountUpdates timeout!");
+        }
+        
+        // debugging
+        System.out.println("Cash Balance is $"+account.getBalance());
+        System.out.println("WaitCntr="+waitCntr);        	
+
+
+        return account.isUpdated();
     }
+
+	@Override
+	public void accountDownloadEnd(String accountName) {
+		
+		System.out.println("SALxx- accountDownloadEnd");
+		
+		//account.setUpdated(true);
+		ibClientSocket.reqAccountUpdates(false, account.getAccountCode());
+	}
+	
+	@Override
+	public void updateAccountTime(String timeStamp) {
+		
+		// SALxx-  throws exception bad date!!!
+/***		
+	    SimpleDateFormat df = new SimpleDateFormat();
+		try {
+            account.setUpdateTime(df.parse(timeStamp));
+        } catch (ParseException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+***/
+	}
+	
+	
+	@Override
+	public void updateAccountValue(String key, String value, String currency,
+			String accountName) {
+	    
+	    //TODO: Handle other types of account updates - including time above!
+	    if (key.equals("CashBalance")) {		// SALxx  was incorrectly == "CashBalance"
+	        account.setBalance(Integer.valueOf(value));
+	        account.setUpdated(true);					//SALxx - this was missing
+	        System.out.println("SALxx -AccountValue callback= "+value);
+	    }
+/*SALxx	    
+	    else {
+	        logger.logText("Received key: " + key + " in updateAccountValue() for account: "
+	                + accountName + " and don't know how to parse.", Level.INFO);
+	    }
+**/		
+	}
     
     /**
      * Get a snapshot of a single quote from IB.
      * @param tickerId
+     * 
+     * marketDataUpdated will be set in tickGeneric
+     * SALxx - not working!!!
      */
-    public MarketData_T reqSymbolSnapshot(Symbol_T symbol) {
+    public boolean reqSymbolSnapshot(Symbol_T symbol) {
         
         Contract contract = new Contract();
         contract.m_currency = "USD";
         contract.m_exchange = symbol.getExchange();
-        contract.m_localSymbol = symbol.getSymbol();
+    //SALxx - try this    
+    contract.m_exchange = "SMART";
+        //contract.m_localSymbol = symbol.getSymbol();  //SALxx - dont think this is eeded
         contract.m_secType = "STK";
         contract.m_symbol = symbol.getSymbol();
         
+        marketDataUpdated = false;
         
-        ibClientSocket.reqMktData((int) symbol.getId(), contract, "", true);
-        
-        while (!marketDataUpdated) {
+        // take a snapshot (true), the genericTicklist must be empty
+        // callback is tickGeneric? or tickSnaphotEnd?
+        ibClientSocket.reqMktData((int) symbol.getId(), contract, null, true);
+
+        // wait for result
+        int waitCntr=0;
+        int MAX_WAIT = 10;
+        while (!marketDataUpdated && waitCntr < MAX_WAIT) {
             
             try {
                 Thread.sleep(1000);
+                waitCntr++;
             } catch (InterruptedException e) {
                 // TODO Auto-generated catch block
                 e.printStackTrace();
             }
+            
         }
-        marketDataUpdated = false;
         
-        return marketData;
+        if (waitCntr == MAX_WAIT)
+        	System.out.println("ERROR: reqMktData timeout!");
+       
+        // debug
+        System.out.println("data for "+symbol.getSymbol()+" = "+marketData.getLastPrice());
+    
+        return marketDataUpdated;
+       
     }
     
-    
+    public MarketData_T getSymbolSnapshot()
+    {
+    	return marketData;
+    }
+
     /** 
      * Get the next valid order id from IB
      * @return next valid order id
@@ -549,18 +656,29 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
     public int reqNextValidId() {
         int orderId = nextValidId;
         
+        int retryCntr=0;
+        int MAX_RETRIES=10;
+        
         ibClientSocket.reqIds(1);
-        while (orderId == nextValidId) {
+        while (orderId == nextValidId && retryCntr < MAX_RETRIES) {
             try {
                 Thread.sleep(250);
             } catch (InterruptedException e) {
                 // TODO Auto-generated catch block
                 e.printStackTrace();
             }
+            retryCntr++;
         }
         
         return orderId;
     }
+    
+	@Override
+	public void nextValidId(int orderId) {
+		System.out.println("Recieved next Valid Id: "+orderId);
+		//this.nextValidId = orderId;
+		this.nextValidId = orderId;
+	}
     
     /**
      * Sell any holdings that we currently own
@@ -597,7 +715,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
         //update our account to get the latest cash balance, sleep while the account get updated
         //TODO: put in a timeout after so many attempts
         while (account.isUpdated()) {
-            updateAccount();
+            updateAccount();			// SALxx FIX THIS!!! I added wait logic in updateAcct 
             try {
                 Thread.sleep(1000);
             } catch (InterruptedException e) {
@@ -622,6 +740,18 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
         
     }
 
+    public boolean placeOrder(Holding_T order)
+    {
+        ibClientSocket.placeOrder(order.getOrderId(), order.getContract(), order.getOrder());
+        logger.logText("Placing buy order #" + order.getOrderId() + " for symbol: " 
+                + order.getSymbol().getSymbol(), Level.DEBUG);
+    
+        // TODO: wait for acknowledgment
+        System.out.println("Placed order "+order.getOrderId()+" for "+order.getSymbol().getSymbol());
+    	
+        return true;
+    }
+    
     @Override
     public void position(String account, Contract contract, int pos,
             double avgCost) {
@@ -639,6 +769,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
     public void accountSummary(int reqId, String account, String tag,
             String value, String currency) {
         // TODO Auto-generated method stub
+    	System.out.println("SALxx - Account Summary");
         
     }
 
@@ -647,5 +778,6 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF {
         // TODO Auto-generated method stub
         
     }
-        
+ 
+
 }

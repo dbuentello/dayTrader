@@ -121,7 +121,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
         
         logger.logText("Found " + symbols.size() + " for exchange " + exchange, Level.DEBUG);
         
-        Log.print("\n *** Getting Quote Data");
+        Log.print("\n*** Getting End of Day Quote Data");
         
         List<String> quoteDataList = new ArrayList<String>();
         Iterator<Symbol_T> it = symbols.iterator();
@@ -147,17 +147,18 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
             count++;
         }
         
-        Log.println("Done");
-        Log.print("Parsing");
+        Log.println("Done ***");
+        
+        System.out.print("Parsing");
         
         //loop through our retrieved quotes and parse out the quote information
         for(int i = 0; i < quoteDataList.size(); i++) {
             parseQuote(quoteDataList.get(i));
             
-            Log.print(".");		// progress
+            System.out.print(".");		// progress
         }
         
-        Log.println("Done");
+        System.out.println("Done");
     }
 
     @Override
@@ -234,8 +235,15 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
                 //SAL - why??
                 lastSnapshot.put(marketData.getSymbolId(), marketData);
                 
-                //persist our individual quote to the database             
-                marketData.insertOrUpdate();
+                //persist our individual quote to the database 
+            	// but not for stocks with 0 price or open!!
+                //SALxx- do we really need to get the doublevalue?
+            	if (marketData.getLastPrice().doubleValue() == 0.00)
+            		Log.println("WARNING: NULL price for " + marketData.getSymbol().getId() + "! Not updating EODQuote table");
+            	else if (marketData.getOpen().doubleValue() == 0.00)
+            		Log.println("WARNING: NULL open for " + marketData.getSymbol().getId() + "! Not updating EODQuote table");
+            	else
+            		marketData.insertOrUpdate();
                 
                 // get ready to parse next quote
                 int qend = quoteData.indexOf("</quote>");
@@ -291,9 +299,10 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
      */
     public List<RTData_T> getRealTimeQuotes()
     {
-    	Log.println("*** Getting RealTime Data ***");
+    	Log.println("*** Getting RealTime Data at "+timeManager.TimeNow()+" ***");
     	
     	List <Symbol_T> symbols = databaseManager.getHoldings();
+    	if (symbols.isEmpty()) Log.println("ERROR: getHoldings returns empty");
     	
     	// this code is very similar to snapshot, except we dont need multiple iterations
         Iterator<Symbol_T> it = symbols.iterator();
@@ -306,14 +315,16 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
         }
                     	
         String quoteResponse = dataSource.getQuote(symbolList);
-        //logger.logText(quoteResponse, Level.DEBUG);
+//logger.logText(quoteResponse, Level.DEBUG);
+
+		if (quoteResponse.isEmpty()) Log.println("ERROR: getQuote returns null");
         
-        Log.print("Parsing...");
+        //System.out.print("Parsing...");
         
         // parse the RT quote information and persist to RTQuotes DB
         List<RTData_T> rtData = parseRTQuote(quoteResponse);
         
-        Log.println("Done");
+        //System.out.println("Done");
         
         return rtData;
     }

@@ -52,7 +52,7 @@ public class Symbol_T implements PropertyAccessor, Persistable_IF {
     public Symbol_T() {
     }
     
-    
+    //SALxx- doesnt work!
     public Symbol_T(String symbol) {
         DatabaseManager_T databaseManager = (DatabaseManager_T) DayTrader_T.getManager(DatabaseManager_T.class);
         Symbol_T sym = databaseManager.getSymbol(symbol);
@@ -63,6 +63,7 @@ public class Symbol_T implements PropertyAccessor, Persistable_IF {
             this.name = sym.name;
             this.sector = sym.sector;
             this.symbol = sym.symbol;
+            this.exchange = sym.exchange;
         }
     }
 
@@ -77,6 +78,7 @@ public class Symbol_T implements PropertyAccessor, Persistable_IF {
             this.name = sym.name;
             this.sector = sym.sector;
             this.symbol = sym.symbol;
+            this.exchange = sym.exchange;
         }
     }
    

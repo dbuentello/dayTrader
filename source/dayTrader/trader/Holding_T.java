@@ -447,7 +447,7 @@ public class Holding_T implements Persistable_IF {
         	tx = session.beginTransaction();
 
         	String hql = "UPDATE trader.Holding_T " +
-        			"SET execSellPriceHigh = :net " +
+        			"SET execSellPriceHigh = :net " +		// TODO change field name
         			"WHERE id = :id";
         	Query query = session.createQuery(hql);
         	query.setDouble("net", net);

@@ -167,7 +167,7 @@ public class MarketData_T implements Persistable_IF {
 //        try {
 //            tx = session.beginTransaction();
 //            marketData = (MarketData_T) session.get(MarketData_T.class, id);
-//SALxx	      session.delete(marketData);
+//		      session.delete(marketData);
 //            tx.commit();
 //        } catch (HibernateException e) {
 //            //TODO: for now just print to stdout, we'll change this to a log file later
@@ -202,20 +202,22 @@ public class MarketData_T implements Persistable_IF {
         boolean exists = true;
 
         //query the database to see if a MarketData object with the same symbolId and timestamp already exists in the db
+        // TODO: this should really only check the date portion of the timestamp
+        // so that only one symbol per DAY is entered
+        // right now there will be multiple entries
         Session session = DatabaseManager_T.getSessionFactory().openSession();
         Criteria criteria = session.createCriteria(MarketData_T.class)
                 .add(Restrictions.eq("symbolId", marketData.getSymbolId()))
-                .add(Restrictions.eq("date", marketData.getLastTradeTimestamp()));
-                // SALxx or is it
-        		//.add(Restrictions.eq("lastTradeTimestamp", marketData.getLastTimestamp()));  
- 
-        // SALxx - failing right here....
+                .add(Restrictions.eq("lastTradeTimestamp", marketData.getLastTradeTimestamp()));
+                //.add(Restrictions.eq("date", marketData.getLastTradeTimestamp()));
         
-        //If no symbol was found the consider this MarketData object to be unique and safe to insert into the db
-//--SALxx        if (criteria.list().size() == 0) {
+        //If no symbol was found for this date, consider this MarketData object to be unique and safe to insert into the db
+        if (criteria.list().size() == 0) {
             exists = false;
-//--SALxx        }
+        }
         
+        session.close();
+ 
         return exists;
     }
     

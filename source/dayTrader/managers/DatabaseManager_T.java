@@ -287,12 +287,15 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
 
     /**
      * Update the Holdings database with the symbolIds for the day's biggest losers.
-     * Only todays date and symbol id are populated to indicate these are the candidates
+     * Only todays date as buy-date, buy action and symbol id are populated to indicate
+     * these are the candidates
+     * 
+     * All previous entries for today are delete so we only have one set of entries
      *
      * @returns nothing, but throws fatal exception on errors
      */
     
-    public synchronized void updateHoldings(List<Symbol_T> losers) {
+    public synchronized void addHoldings(List<Symbol_T> losers) {
         
     	// for development only
     	Date date;
@@ -325,12 +328,14 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
             session.close();
         }      
        
-        
+        // create initial holdings entries in the DB.  All it contains is the
+        // symbol and buy date.  All other information (including the orderid) will
+        // need to be filled in before submission
         Iterator<Symbol_T> it = losers.iterator();
         while (it.hasNext()) {
             Symbol_T symbol = it.next();
             
-            Holding_T holding = new Holding_T(0);	//SALxx - do we need an orderId now? - YUP!!!! TODO
+            Holding_T holding = new Holding_T(0);	// supply an orderId placeholder
             holding.setSymbol(symbol);
             holding.setBuyDate(date);
             
@@ -371,4 +376,28 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
           return losers;      	  
     	  
     }
+    
+    /**
+     * Get all the orders with order status "Submitted"
+     * 
+     * @return List of Holdings
+     */
+    public List<Holding_T> getSubmittedOrders() {
+
+        Session session = getSessionFactory().openSession();
+        //Criteria criteria = session.createCriteria(Holding_T.class)
+        //        .add(Restrictions.eq("orderStatus", "Submitted"));		// TODO use def
+
+        Criteria criteria = session.createCriteria(Holding_T.class)
+                .add(Restrictions.or(Restrictions.eq("orderStatus", "Submitted"),
+                                     Restrictions.eq("orderStatus", "PreSubmitted")) );		// TODO use def
+       
+        @SuppressWarnings("unchecked")
+        List<Holding_T> results = criteria.list();        
+        
+        session.close();
+
+        return results;
+    }
+ 
 }

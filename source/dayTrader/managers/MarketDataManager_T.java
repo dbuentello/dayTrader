@@ -42,7 +42,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
     private TDAmeritradeConnection_T dataSource = null;
     /** A reference to the DatabaseManager class. */
     private DatabaseManager_T databaseManager;
-    /** A reference to the time manager. */				//SALxx for TimeNow (may be overkill)
+    /** A reference to the time manager. */
     private TimeManager_T timeManager;
     /** A reference to the LoggerManager class. */
     private LoggerManager_T logger;
@@ -62,7 +62,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
         logger          = (LoggerManager_T) DayTrader_T.getManager(LoggerManager_T.class);
         databaseManager = (DatabaseManager_T) DayTrader_T.getManager(DatabaseManager_T.class);
         timeManager     = (TimeManager_T) DayTrader_T.getManager(TimeManager_T.class);
-        dataSource = new TDAmeritradeConnection_T();
+        dataSource      = new TDAmeritradeConnection_T();
         
         Log = DayTrader_T.dtLog;
         
@@ -322,8 +322,16 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
         //System.out.print("Parsing...");
         
         // parse the RT quote information and persist to RTQuotes DB
+		
+		// suppress duplicate insert errors (maybe quicker than checking for existence)
+		// --- doesnt work --- wrong logger?
+		//Level prevLevel = org.apache.log4j.Logger.getLogger("net.sf.hibernate").getLevel();
+		//org.apache.log4j.Logger.getLogger("net.sf.hibernate").setLevel(org.apache.log4j.Level.ERROR);
+		
         List<RTData_T> rtData = parseRTQuote(quoteResponse);
-        
+ 
+		//org.apache.log4j.Logger.getLogger("net.sf.hibernate").setLevel(prevLevel);
+
         //System.out.println("Done");
         
         return rtData;
@@ -332,7 +340,8 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
     /**
      * parse the quote data returned from TD
      * persist in RealTimeQuote Table
-     * just a subset of all data - symbol, last trade date, last price and volume
+     * just a subset of all data - symbol, last trade date, last price
+     * ask price, bid price and volume
      * 
      * @param quoteData returned from TD
      * @return a list of RTData for each holding.  on error, the list will be empty
@@ -370,10 +379,13 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
         	rtData.setDate(date);
               
         	Symbol_T symbol = new Symbol_T(XMLTags_T.simpleParse(quoteData, XMLTags_T.SYMBOL));
+        	// TODO: this table still uses symbol, not symb id
         	//rtData.setSymbolId(symbol.getId());
         	rtData.setSymbol(symbol.getSymbol());
               
         	rtData.setPrice(Utilities_T.stringToDouble(XMLTags_T.simpleParse(quoteData, XMLTags_T.LAST)));
+        	rtData.setAskPrice(Utilities_T.stringToDouble(XMLTags_T.simpleParse(quoteData, XMLTags_T.ASK)));
+        	rtData.setBidPrice(Utilities_T.stringToDouble(XMLTags_T.simpleParse(quoteData, XMLTags_T.BID)));
         	rtData.setVolume(Utilities_T.stringToDouble(XMLTags_T.simpleParse(quoteData, XMLTags_T.VOLUME)).longValue());
               
         	//persist our individual quote to the database

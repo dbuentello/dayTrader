@@ -66,4 +66,20 @@ public class Utilities_T {
 		Date d = c.getTime();
 		return d;    	
     }
+    
+    /**
+     *  round price to 3 digits
+     * @param double
+     * @return rounded n
+     */
+    public static double round(double n)
+    {
+  	    double d = (double)((long)(n*1000.0+0.5))/1000.0;
+  	  
+    	  Double nd = ((n * 1000.0) + 0.5);
+    	  int ni = nd.intValue();
+    	  n = (double)ni/1000;
+    	  
+    	  return n;
+    }
 }

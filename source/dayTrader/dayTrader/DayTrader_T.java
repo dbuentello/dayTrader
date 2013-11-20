@@ -36,15 +36,12 @@ public class DayTrader_T {
     // we can run w/o IB (BrokerMgr) and not execute trades
     public static boolean d_useIB = false;
     
-    // enable simulation of EndOfDay logic at any time (and exit)
-    public static boolean d_simulateBuyTime = false;
-    
     // override is marketOpen - make it open
     public static boolean d_ignoreMarketClosed = true;
     
     // if not null, use this simulated time as current time
     public static String d_useSimulateDate = "";    
-    //public static String d_useSimulateDate = "2013-11-06";
+    //public static String d_useSimulateDate = "2013-11-20 15:50:00";
     
     // get EndOfDayQuotes from TD - only needs to be run once.  if you run it multiple
     // times, first delete all of todays EOD data DELETE FROM EndOfDayQuotes WHERE DATE(date) = CURRENT_DATE()
@@ -60,7 +57,7 @@ public class DayTrader_T {
     /*** end development defines ***/
     
     /* our one and only log file */
-    private static String dtLogFilename = "/home/steve/dayTrader_test.log";
+    private static String dtLogFilename = "/home/steve/dayTrader.log";
     private static boolean echoLog = true;
     private static boolean logTimestamp = false;
     
@@ -145,10 +142,18 @@ public class DayTrader_T {
 	
 	public static void terminate() {
 	    
+		Iterator<Manager_IF> mit = serviceManager.values().iterator();
+		while (mit.hasNext()) {
+		    Manager_IF mgr = mit.next();
+		    //Initialize each manager
+		    mgr.terminate();
+		    
+		}
+		
 	    Iterator<Thread> it = threads.iterator();
         while (it.hasNext()) {
             Thread thread = it.next();
-            //start each manager thread
+            //stop each manager thread
             thread.interrupt();
         }
         

@@ -47,6 +47,8 @@ public class RTData_T implements PropertyAccessor, Persistable_IF {
     private Date date;
     private String symbol;
     private Double price;
+    private Double ask;		// for Buys
+    private Double bid;		// for Sells
     private long volume;
     
     /**
@@ -103,7 +105,7 @@ public class RTData_T implements PropertyAccessor, Persistable_IF {
     }
     
     /**
-     * @return the price
+     * @return the current price
      */
     @Column(name="price")
     public Double getPrice() {
@@ -115,6 +117,35 @@ public class RTData_T implements PropertyAccessor, Persistable_IF {
     public void setPrice(Double price) {
         this.price = price;
     }
+
+    /**
+     * @return the ask price (for buys)
+     */
+    @Column(name="ask")
+    public Double getAskPrice() {
+        return ask;
+    }
+    /**
+     * @param price
+     */
+    public void setAskPrice(Double price) {
+        this.ask = price;
+    }
+
+    /**
+     * @return the bid price (for buys)
+     */
+    @Column(name="bid")
+    public Double getBidPrice() {
+        return bid;
+    }
+    /**
+     * @param price
+     */
+    public void setBidPrice(Double price) {
+        this.bid = price;
+    }
+     
     
     /**
      * @return the volume

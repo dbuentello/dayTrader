@@ -31,14 +31,11 @@ import util.Utilities_T;
 import dayTrader.DayTrader_T;
 
 import trader.TraderCalculator_T;
+import trader.Trader_T;
 
-//SALxx
 import util.dtLogger_T;
 
-//SALxx - only needed during testing
-import accounts.Account_T;
-import trader.Holding_T;
-import trader.Trader_T;
+
 
 
 /**
@@ -53,7 +50,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
     /** Time in minutes before the close of the market day that we want to capture our snapshot of the market
      * and execute our buy orders.
      */
-    private final int MINUTES_BEFORE_CLOSE_TO_BUY = 15;    //SALxx
+    private final int MINUTES_BEFORE_CLOSE_TO_BUY = 15;
     /** The number of milliseconds in one minute. */
     private final int MS_IN_MINUTE = 1000 * 60;
     /** The number of minutes in one hour. */
@@ -82,6 +79,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
     private DatabaseManager_T databaseManager;
     /** our calculator **/
     private TraderCalculator_T tCalculator;
+    private Trader_T trader;
     
 //SAL
 //    private LoggerManager_T logger;
@@ -109,77 +107,17 @@ public class TimeManager_T implements Manager_IF, Runnable {
          * execute the appropriate actions. Triggers times can be the market open, a specified buy time,
          * and the market close.
          */
-if (1==0) {
+
 //TEST
-        brokerManager.updateAccount();
-        Account_T acct = brokerManager.getAccount();
-        
-        // wait until response is received
-        int waitCntr=0;
-        int MAX_WAIT = 10;
-/****        
-        while (!acct.isUpdated() && waitCntr < MAX_WAIT) {
-            
-            try {
-                Thread.sleep(250);
-                waitCntr++;
-                acct = brokerManager.getAccount();
-            } catch (InterruptedException e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
-            }           
-        }
-
-        
-        if (waitCntr == MAX_WAIT)
-        	System.out.println("ERROR: reqAccountUpdates timeout!");
-        else {
-        	System.out.println("Cash Balance is $"+acct.getBalance());
-            System.out.println("WaitCntr="+waitCntr);        	
-        }
-***/
-        
-        //Symbol_T s = new Symbol_T(12711);
-        Symbol_T s = new Symbol_T(7967);		// IBM
-        if (brokerManager.reqSymbolSnapshot(s))
-        {
-        	MarketData_T md = brokerManager.getSymbolSnapshot();
-            System.out.println("data for "+s.getSymbol()+" = "+md.getLastPrice());          
-        }
-        else System.out.println("error getting IB snapshot");
-        
-/***
-        waitCntr=0;
-        MAX_WAIT = 10;
-        while (!brokerManager.marketDataUpdated && waitCntr < MAX_WAIT) {
-            
-            try {
-                Thread.sleep(1000);
-                waitCntr++;
-            } catch (InterruptedException e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
-            }
-            
-        }
-        
-        if (waitCntr == MAX_WAIT)
-        	System.out.println("ERROR: reqMktData timeout!");
-        else {
-          MarketData_T md = brokerManager.getSymbolSnapshot();
-          System.out.println("data for "+s.getSymbol()+" = "+md.getLastPrice());
-        }
-***/
-}
-
-if (1==0) {
-	TestBuyOrSell("SELL");
-
-	//running = false;
-}
+//trader.TestCode();
 //TEST
-        
+
         Log.println("\n*** Day Trader V.11.12.0 has started at "+TimeNow()+" ***\n");
+
+        // TODO: whenever we start, get open orders, and unrecorded execute orders
+    	if (DayTrader_T.d_useIB)
+    		trader.getOutstandingOrders();  // from IB 
+        
         
         while (running) {
 
@@ -192,7 +130,7 @@ if (1==0) {
             	 * During market open hours, get RealTime Quotes for our Holdings
             	 * according to the scan interval
             	 * 
-            	 * determine if we should sell nowon
+            	 * determine if we should sell now
             	 */
 if (DayTrader_T.d_getRTData) {
 	
@@ -200,7 +138,7 @@ if (DayTrader_T.d_getRTData) {
             	{
             		List <RTData_T> rtData = marketDataManager.getRealTimeQuotes();
             		
-            		tCalculator.shouldWeSell(rtData);
+            		trader.shouldWeSell(rtData);
             		
             		prevScanTime.setTime(prevScanTime.getTime() + RT_SCAN_INTERVAL);
             	}
@@ -208,8 +146,8 @@ if (DayTrader_T.d_getRTData) {
 }
                 /*
                  * At the end of the market day, perform the following 
-                 * 1. sell any outstanding positions we're still holding 
-                 * 2. get a market snapshot
+                 * 1. get a market snapshot
+                 * 2. sell any outstanding positions we're still holding 
                  * 3. identify the positions we want to buy
                  * 4. execute buy orders 
                  */
@@ -232,11 +170,7 @@ if (DayTrader_T.d_getRTData) {
                     //but is this really feasible? Will the money be credited to our account immediately
                     //if the money isn't instantly credited what do we do? how do we buy additional positions?
                     //what is we can't sell a position? how are we going to handle that?
-                	// Nathan - liquidateHoldings should incorporate this logic
- 
-                	//SALxx--   we can run w/o a broker mgr - TODO: this is only for development                
-                	if (brokerManager != null)  brokerManager.liquidateHoldings();
-                	else 						tCalculator.simulateLiquidateHoldings();
+                	trader.liquidateHoldings();
 
             		tCalculator.calculateNet();
             		
@@ -256,10 +190,10 @@ if (DayTrader_T.d_getRTData) {
                     
                     
                     // Finally, update Holdings Table w/tomorrow candidates
-                    databaseManager.updateHoldings(losers);
+                    databaseManager.addHoldings(losers);
                     
                     // calculate buy positions
-                    tCalculator.updateBuyPositions(losers);
+                    trader.updateBuyPositions(losers);
                     
                     
                     //set buy_time to tomorrow so we don't execute this block again
@@ -291,6 +225,7 @@ if (DayTrader_T.d_getRTData) {
         databaseManager = (DatabaseManager_T) DayTrader_T.getManager(DatabaseManager_T.class);
         
         tCalculator = new TraderCalculator_T(); 
+        trader      = new Trader_T();
         
         Log = DayTrader_T.dtLog;
 
@@ -302,12 +237,11 @@ if (DayTrader_T.d_getRTData) {
         calendar_t = (Calendar_T) databaseManager.query(Calendar_T.class, time);
         
         updateTime();
-        
-        //--SAL--   !!!!! this was + MINUTES
+
         this.buyTime = new Date(calendar_t.getCloseTime().getTime() - MINUTES_BEFORE_CLOSE_TO_BUY * MS_IN_MINUTE);
 
         // for simulation, buy date is always before now
-        if ( DayTrader_T.d_simulateBuyTime) { this.buyTime.setTime(0); }
+        if (!DayTrader_T.d_useSimulateDate.isEmpty()) { this.buyTime.setTime(0); }
         
     }
 
@@ -369,7 +303,10 @@ if (DayTrader_T.d_getRTData) {
         return date;
     }
 
-//SALxx
+    /**
+     * 
+     * @return the current time
+     */
     public Date TimeNow() {
         return time;
     }
@@ -598,36 +535,6 @@ else  //SALxx - get system time
         return d;		// error
     }
 
-  //TEST Code
-    public void TestBuyOrSell(String buyOrSell)
-    {
-    	brokerManager.updateAccount();  // we need an account to start
-    	
-        Trader_T trader = new Trader_T();
 
-        Long id = new Long(2210);
-        
-        Session session = databaseManager.getSessionFactory().openSession();
-        
-        Criteria criteria = session.createCriteria(Holding_T.class)
-            .add(Restrictions.eq("id", id));
-
-
-        @SuppressWarnings("unchecked")
-        List<Holding_T> holdingData = criteria.list();
-        
-        session.close();
-        
-        Holding_T holding = holdingData.get(0);
-
-        Symbol_T symbol = holding.getSymbol();
-
-       
-        Holding_T order = trader.createMarketOrder(holding, buyOrSell);
-        brokerManager.placeOrder(order);
-        
-    }
- //TEST     
-    
 }
 

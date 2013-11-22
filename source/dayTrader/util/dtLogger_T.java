@@ -85,6 +85,9 @@ public class dtLogger_T {
 		print("\n");
 	}
 	
+	// debugging overloads TODO
+
+	
 	public void setEcho(boolean on)
 	{
 		echo = on;

@@ -33,23 +33,24 @@ public class DayTrader_T {
 
     /*** global testing/development parameters ***/
     
-    // we can run w/o IB (BrokerMgr) and not execute trades
-    public static boolean d_useIB = false;
+    // For Testing, we can run w/o IB (BrokerMgr) and not execute trades
+    public static boolean d_useIB = true;
+    // or without TD if we want dont need to update the Quote data
+    public static boolean d_useTD = true;
     
     // override is marketOpen - make it open
     public static boolean d_ignoreMarketClosed = true;
     
     // if not null, use this simulated time as current time
     public static String d_useSimulateDate = "";    
-    //public static String d_useSimulateDate = "2013-11-20 15:50:00";
+    //public static String d_useSimulateDate = "2013-11-21 15:50:00";
     
     // get EndOfDayQuotes from TD - only needs to be run once.  if you run it multiple
     // times, first delete all of todays EOD data DELETE FROM EndOfDayQuotes WHERE DATE(date) = CURRENT_DATE()
-    //public static boolean d_takeSnapshot = false;
     public static boolean d_takeSnapshot = true;
     
     // enable RT logic
-    public static boolean d_getRTData = true;
+    public static boolean d_getRTData = false;
     
     // use system time instead of IB time
     public static boolean d_useSystemTime = true;
@@ -57,7 +58,7 @@ public class DayTrader_T {
     /*** end development defines ***/
     
     /* our one and only log file */
-    private static String dtLogFilename = "/home/steve/dayTrader.log";
+    private static String dtLogFilename = "/home/steve/dayTrader_test.log";
     private static boolean echoLog = true;
     private static boolean logTimestamp = false;
     
@@ -86,12 +87,14 @@ public class DayTrader_T {
 	public static void initialize() {
 	    
 		serviceManager.put(databaseManager.getClass(), databaseManager);
-		serviceManager.put(marketDataManager.getClass(), marketDataManager);
+		
+		//--SAL--
+		if (d_useTD) { serviceManager.put(marketDataManager.getClass(), marketDataManager); }
 		//--SAL--
 		if (d_useIB) { serviceManager.put(brokerManager.getClass(), brokerManager); }
-		serviceManager.put(loggerManager.getClass(), loggerManager);
+
 		serviceManager.put(timeManager.getClass(), timeManager);
-		
+		serviceManager.put(loggerManager.getClass(), loggerManager);		
 		dtLog.open(dtLogFilename); dtLog.setEcho(echoLog); dtLog.setTimeStamp(logTimestamp);
 		
 		//threads.add(new Thread(databaseManager));
@@ -112,7 +115,6 @@ public class DayTrader_T {
 	}
 	
 	public static void run() {
-		
 	    
 	    Iterator<Thread> it = threads.iterator();
         while (it.hasNext()) {
@@ -121,7 +123,7 @@ public class DayTrader_T {
             thread.run();
         }
         
-        //TODO: uncomment me when ready for production
+        //TODO: uncomment me when ready for production  SALxx - why??
         //sleep();
         
 	}

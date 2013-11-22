@@ -64,14 +64,17 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
     private EClientSocket ibClientSocket;
     
     
-    /** List of the accounts being managed. */
+    /** Our Account */
     Account_T account;
+    
     /** The next valid order id. */
     private int nextValidId = 0;
+    
     /** Reference to a MarketData_T quote that can be used to store requested data. */
     private MarketData_T marketData = new MarketData_T();
     
     /** update complete indicators */
+    private boolean nextValidIdComplete = false;
     public boolean marketDataUpdated = false;
     private boolean openOrderEndComplete = false;
     private boolean reqOrderEndComplete = false;
@@ -187,9 +190,10 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 		//from the database.
 		
 		
-		// Put this in trader...  TODO: here in init or somewhere else?
+		// SALxx I put this in trader:getOutstandinOrders...
+		// and put in line before we run() time manager
 		// this could take a while, so the other inits may not yet be complete!!!!
-		// May be best to put in line before we run() time manager
+
 		/***
 		// Open holdings in the DB are those with a buy_date and volume != filled (selldate is null) or
 		// sell_date will a volume != filled
@@ -204,8 +208,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
         int reqId = 25;				//Test
         ibClientSocket.reqExecutions(reqId, filter);
 		***/
-		
-		//trader.getOutstandingOrders();
+
 	}
 	
 	@Override
@@ -323,6 +326,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
         
         if (isConnected()) {
             //the reqCurrentTime() method returns through the currentTime() method
+        	// and that updates the timemgr
             ibClientSocket.reqCurrentTime();
         } else {
             while (!isConnected()) {
@@ -357,6 +361,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
      * Request that our account be updated.  Wait for the update
      * 
      * updated will be set in the updateAccountValues() and updateAccountTime() callbacks
+     * then use getAccount() to retrieve the info
      *
      * @return boolean updated
      */
@@ -386,8 +391,8 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
         }
         
         // debugging
-        System.out.println("Cash Balance is $"+account.getBalance());
-        System.out.println("WaitCntr="+waitCntr);        	
+        System.out.print("Cash Balance is $"+account.getBalance());
+        System.out.println(" (WaitCntr="+waitCntr+")");        	
 
 
         return account.isUpdated();
@@ -396,7 +401,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	@Override
 	public void accountDownloadEnd(String accountName) {
 		
-		System.out.println("SALxx- accountDownloadEnd");
+		System.out.println("[accountDownloadEnd]");
 		
 		// we've got everything
 	    account.setUpdated(true);
@@ -430,7 +435,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	        account.setBalance(Integer.valueOf(value));
 	        account.setUpdated(true);					//SALxx - this was missing
 	        											// TODO; set flag on AccountDownloadEnd
-	        System.out.println("SALxx -AccountValue callback= "+value);
+	        System.out.println("[AccountValue callback] CashBalance= "+value);
 	    }
 /*SALxx	    
 	    else {
@@ -552,16 +557,18 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 
     /** 
      * Get the next valid order id from IB
-     * @return next valid order id
+     * This is a blocking call
+     * 
+     * @return next valid order id, 0 on timeout error
      */
     public int reqNextValidId() {
-        int orderId = nextValidId;
+        nextValidIdComplete = false;
         
         int retryCntr=0;
         int MAX_RETRIES=10;
         
         ibClientSocket.reqIds(1);		// request only 1 id
-        while (orderId == nextValidId && retryCntr < MAX_RETRIES) {
+        while (!nextValidIdComplete && retryCntr < MAX_RETRIES) {
             try {
                 Thread.sleep(250);
             } catch (InterruptedException e) {
@@ -571,89 +578,28 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
             retryCntr++;
         }
         
-        return orderId;
+        if (retryCntr == MAX_RETRIES)
+        	return 0;
+        
+        return nextValidId;
     }
     
 	@Override
 	public void nextValidId(int orderId) {
-		System.out.println("Recieved next Valid Id: "+orderId);
-		//this.nextValidId = orderId;
-		this.nextValidId = orderId;
+		System.out.println("[NextValidId] recieved next Valid Id: "+orderId);
+
+		nextValidId = orderId;
+		
+		nextValidIdComplete = true;
 	}
     
 	
-	
-    /**
-     * Sell any holdings that we currently own
-     */
-/***	
-    public void liquidateHoldings() {
-        
-        ArrayList<Holding_T> orders = new ArrayList<Holding_T>();
-        Iterator<Holding_T> it = holdings.values().iterator();
-        while (it.hasNext()) {
-            Holding_T holding = it.next();
-            if(holding.isOwned()) {
-                orders.add(holding);
-            }
-        }
-        
-        
-        orders = (ArrayList<Holding_T>) trader.createSellOrders(orders);
-        
-        it = orders.iterator();
-        while(it.hasNext()) {
-            Holding_T sellOrder = it.next();
-            ibClientSocket.placeOrder(sellOrder.getOrderId(), sellOrder.getContract(), sellOrder.getOrder());
-            logger.logText("Placing sell order #" + sellOrder.getOrderId() + " for symbol: " 
-                    + sellOrder.getSymbol().getSymbol(), Level.DEBUG);
-        }
-    }
-***/    
-
-    /**
-     * Calculate the market's biggest losers and then buy those positions.
-     */
-	
-/***	
-    public void buyBiggestLosers() {
-        
-        //update our account to get the latest cash balance, sleep while the account get updated
-        //TODO: put in a timeout after so many attempts
-        while (account.isUpdated()) {
-            updateAccount();			// SALxx FIX THIS!!! I added wait logic in updateAcct 
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
-            }
-        }
-            
-        // SALxx - moved into TimeMgr  List<Symbol_T> biggestLosers = databaseManager.getBiggestLosers();
-        // TODO: pass in losers as an arg
-        List<Symbol_T> biggestLosers = new ArrayList<Symbol_T>();
-        
-        List<Holding_T> buyOrders = trader.createMktBuyOrders(biggestLosers, account.getClientId()); 
-        
-        Iterator<Holding_T> it = buyOrders.iterator();
-        while (it.hasNext()) {
-            Holding_T buyOrder = it.next();
-            ibClientSocket.placeOrder(buyOrder.getOrderId(), buyOrder.getContract(), buyOrder.getOrder());
-            logger.logText("Placing buy order #" + buyOrder.getOrderId() + " for symbol: " 
-                    + buyOrder.getSymbol().getSymbol(), Level.DEBUG);
-        }
-        
-    }
-***/
 	/***** Orders ****/
     
     public boolean placeOrder(Holding_T order)
     {
         ibClientSocket.placeOrder(order.getOrderId(), order.getContract(), order.getOrder());
         
-        //logger.logText("Placing " + order.getOrder().m_action + " order #" + order.getOrderId() + " for symbol: " + order.getSymbol().getSymbol(), Level.DEBUG);
-
         System.out.println("Placed " + order.getOrder().m_action + " order "+ order.getOrderId()+" for "+ order.getSymbol().getSymbol());
 
         // TODO? wait for (first) acknowledgment
@@ -666,6 +612,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
     
     /**
      * This is used to initialize the holdings map with unfilled holdings
+     * New holdings will be place in the map by placeOrder
      * 
      * @param holding
      */
@@ -713,7 +660,10 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
         holding.setLastFillPrice(lastFillPrice);
         
         //determine the necessary action based on the status of our order
-        if (holding.getOrderStatus().equalsIgnoreCase(OrderStatus.Submitted.toString())) {
+        if (holding.getOrderStatus().equalsIgnoreCase(OrderStatus.PreSubmitted.toString())) {
+        	// do nothing more
+        }   
+        else if (holding.getOrderStatus().equalsIgnoreCase(OrderStatus.Submitted.toString())) {
             
         	// SALxx check this!!  WHY?
             //If a buy order has been at least partially filled, update the buy time
@@ -750,8 +700,10 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
         	System.out.println("orderStatus() Unhandled status: " + holding.getOrderStatus());
         
 	    // update the DB with our holding (note - this has buy/sell logic)
-        holding.updateMarketPosition();
-
+        if (holding.updateMarketPosition() == 0)
+        	// note: only a warning, because nothing may have changed
+        	// we get duplicate callbacks sometimes
+        	System.out.println("[WARNING] order status not updated in DB");
 
 	}
 	
@@ -806,14 +758,14 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
     public void accountSummary(int reqId, String account, String tag,
             String value, String currency) {
         // TODO Auto-generated method stub
-    	System.out.println("SALxx - Account Summary");
+    	System.out.println("[Account Summary]");
         
     }
 
     @Override
     public void accountSummaryEnd(int reqId) {
         // TODO Auto-generated method stub
-    	System.out.println("SALxx - Account Summary End");        
+    	System.out.println("[Account Summary End]");        
     }
  
     @Override
@@ -871,9 +823,9 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	
 	@Override
 	public void execDetails(int reqId, Contract contract, Execution execution) {
-		System.out.println("[execDetails] for contract for reqId: " +reqId);
-		System.out.println(contract.m_symbol+": exec price $"+execution.m_price +"/$"+ execution.m_avgPrice +
-				" shares: "+execution.m_shares + " at "+execution.m_time);
+		System.out.print  ("[execDetails] for OrderId "+execution.m_orderId+" (reqId: " +reqId+") ");
+		System.out.println(contract.m_symbol+" exec price $"+execution.m_price +"/$"+ execution.m_avgPrice +
+				" shares: "+execution.m_shares+"/"+execution.m_cumQty + " at "+execution.m_time);
 	
 		// save these
         executedOrders.add(execution);

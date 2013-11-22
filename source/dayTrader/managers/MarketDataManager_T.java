@@ -119,7 +119,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
         String exchange = Exchange_T.NASDAQ;
         List<Symbol_T> symbols = databaseManager.getSymbolsByExchange(exchange);
         
-        logger.logText("Found " + symbols.size() + " for exchange " + exchange, Level.DEBUG);
+        //logger.logText("Found " + symbols.size() + " for exchange " + exchange, Level.DEBUG);
         
         Log.print("\n*** Getting End of Day Quote Data");
         
@@ -262,34 +262,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
         }
     }
     
-    /**
-     * Get todays End of Day Price for this symbol from EODQuote database
-     * 
-     * @return (double) price
-     */ 
-    public double getEODPrice(Symbol_T symbol)
-    {
-    	//"SELECT price from EndOfDayQuotes where symbol = \"$symbol\" AND DATE(date) = \"$date\"";
-        Session session = databaseManager.getSessionFactory().openSession();
-        
-        Criteria criteria = session.createCriteria(MarketData_T.class)
-            .add(Restrictions.ge("lastTradeTimestamp", timeManager.getCurrentTradeDate() ))
-            .add(Restrictions.eq("symbolId", symbol.getId()));
 
-        @SuppressWarnings("unchecked")
-        List<MarketData_T> quoteData = criteria.list();
-        
-        session.close();
-        
-        if (quoteData.size() != 1) {
-        	logger.logText("Bad EOD price for "+symbol.getSymbol(), Level.ERROR);
-        	return 0.0;
-        }
-        
-        double price = quoteData.get(0).getLastPrice();
-        return price;
-            	
-    }
 
     /**
      * Get todays holdings symbols and query TD for latest data
@@ -301,7 +274,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
     {
     	Log.println("*** Getting RealTime Data at "+timeManager.TimeNow()+" ***");
     	
-    	List <Symbol_T> symbols = databaseManager.getHoldings();
+    	List <Symbol_T> symbols = databaseManager.getHoldingsSymbols();
     	if (symbols.isEmpty()) Log.println("ERROR: getHoldings returns empty");
     	
     	// this code is very similar to snapshot, except we dont need multiple iterations

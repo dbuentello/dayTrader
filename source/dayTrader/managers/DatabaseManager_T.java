@@ -346,10 +346,11 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
 
     /**
      * get yesterdays (eg most recent) losers from our Holdings DB
+     * used to retrieve RT market data
      * 
      * @return returns a list of Symbols
      */
-    public List<Symbol_T> getHoldings()
+    public List<Symbol_T> getHoldingsSymbols()
     {
     	Date date = timeManager.getPreviousTradeDate();
   	
@@ -376,6 +377,30 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
           return losers;      	  
     	  
     }
+ 
+    /*
+     * Get todays Holdings - this is used for any retrieval done for Today, eg
+     * Buying todays holdings
+     */
+    public List<Holding_T> getCurrentHoldings()
+    {
+    	Date date = timeManager.getCurrentTradeDate();
+  	
+    	//"SELECT * from Holdings WHERE DATE(buy_date) = \"$date\"";
+
+    	Session session = getSessionFactory().openSession();
+          
+    	Criteria criteria = session.createCriteria(Holding_T.class)
+              .add(Restrictions.ge("buyDate", date ));         
+          
+          @SuppressWarnings("unchecked")
+          List<Holding_T> holdings = criteria.list();
+          
+          session.close();
+                 	  
+          return holdings;      	  
+    	  
+    }
     
     /**
      * Get all the orders with order status "Submitted"
@@ -389,8 +414,10 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         //        .add(Restrictions.eq("orderStatus", "Submitted"));		// TODO use def
 
         Criteria criteria = session.createCriteria(Holding_T.class)
-                .add(Restrictions.or(Restrictions.eq("orderStatus", "Submitted"),
-                                     Restrictions.eq("orderStatus", "PreSubmitted")) );		// TODO use def
+                .add(Restrictions.disjunction()
+                		.add(Restrictions.eq("orderStatus", "Submitted"))
+                        .add(Restrictions.eq("orderStatus", "PreSubmitted"))
+                        .add(Restrictions.eq("orderStatus", "Inactive")));		// TODO use def
        
         @SuppressWarnings("unchecked")
         List<Holding_T> results = criteria.list();        
@@ -399,5 +426,34 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
 
         return results;
     }
- 
+    
+    /**
+     * Get todays End of Day Price for this symbol from EODQuote database
+     * 
+     * @return (double) price
+     */ 
+    public double getEODPrice(Symbol_T symbol)
+    {
+    	//"SELECT price from EndOfDayQuotes where symbol = \"$symbol\" AND DATE(date) = \"$date\"";
+        Session session = getSessionFactory().openSession();
+        
+        Criteria criteria = session.createCriteria(MarketData_T.class)
+            .add(Restrictions.ge("lastTradeTimestamp", timeManager.getCurrentTradeDate() ))
+            .add(Restrictions.eq("symbolId", symbol.getId()));
+
+        @SuppressWarnings("unchecked")
+        List<MarketData_T> quoteData = criteria.list();
+        
+        session.close();
+        
+        if (quoteData.size() != 1) {
+        	//Log.println("[ERROR] Bad EOD price for "+symbol.getSymbol());
+        	return -1.0;
+        }
+        
+        double price = quoteData.get(0).getLastPrice();
+        return price;
+            	
+    }
+    
 }

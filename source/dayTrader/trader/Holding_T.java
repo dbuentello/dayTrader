@@ -128,6 +128,29 @@ public class Holding_T implements Persistable_IF {
     }
 
     /**
+     * Copy without contract or order
+     */
+    public Holding_T(int orderId, Holding_T another) {
+        this.order = new Order();
+        this.order.m_orderId = orderId;
+        this.contract = new Contract();
+        
+        // copy 'important' fields - only retain the fields needed
+        // to create a buy or sell order
+        this.id = another.id;
+        this.setSymbol(another.getSymbol());
+        this.volume = another.volume;
+        this.buyDate = another.buyDate;
+        this.sellDate = another.sellDate;
+        this.buy_price = another.buy_price;
+        this.actualBuyPrice = another.actualBuyPrice;
+        this.sellPrice = another.sellPrice;
+        
+
+    }
+   
+    
+    /**
      * The total dollar amount of this holding that have been sold and are now realized gains/losses.
      * 
      * @return realized gains/losses
@@ -834,6 +857,19 @@ public class Holding_T implements Persistable_IF {
         }
         
         return owned;
+    }
+    
+    /** 
+     * are we allowed to sell this holding?
+     * 
+     * @return true if we own it (bought but not sold) and the volume has been filled
+     */
+    public boolean canSell()
+    {	
+    	if (isOwned() && (volume == filled))
+    		return true;
+    	else
+    		return false;
     }
 
 }

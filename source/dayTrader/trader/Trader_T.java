@@ -45,7 +45,7 @@ public class Trader_T {
     public static final double MIN_BUY_PRICE = 0.50;
 //TEST--   
     /** The maximum number of positions we want to buy. */
-    public static final int MAX_BUY_POSITIONS = 25;
+    public static final int MAX_BUY_POSITIONS = 5;				//SALxx TEST
     /** The minimum account balance we want to have. */
     public static final int MIN_ACCOUNT_BALANCE = 25000;
     
@@ -78,18 +78,27 @@ public class Trader_T {
      * Sell all remaining holdings at the end of the day and record in our
      * Holdings DB
      * 
-     * The logic is based on the fact that when a holding is sold, the sell date
-     * will be entered into the DB.  Any holding without a sell date needs to be sold
+     * The logic is based on the fact that when as a holding is sold during the day
+     * the sell date is entered into the DB.
+     * Any holding without a sell date needs to be sold at the end of the day
+     * 
+     * @return true if all have been immediately liquidated.  If not, we'll
+     *              have to figure out why
      */
-    public void liquidateHoldings()
+    public boolean liquidateHoldings()
     {
-	
-    	// for development only
+    	boolean allFilled = true;		// assume the best
+		
+    	// simdate is for development only TODO: date or timestamp?
+    	// SALxx is this necessary getCurrentTradeDate may return what we need
+    	// but check it to make sure it returns timestamp and note just Date!!!
     	Date date;
     	if (!DayTrader_T.d_useSimulateDate.isEmpty())
     		date = timeManager.getCurrentTradeDate();
     	else
     		date = timeManager.TimeNow();
+    	
+    	// retrieve unsold holdings
     	
     	//"SELECT symbolId, buy_price FROM $tableName where sell_date is NULL";
         Session session = databaseManager.getSessionFactory().openSession();
@@ -97,58 +106,127 @@ public class Trader_T {
         Criteria criteria = session.createCriteria(Holding_T.class)
             .add(Restrictions.isNull("sellDate"));
 
-
         @SuppressWarnings("unchecked")
         List<Holding_T> holdingData = criteria.list();
         
         session.close();
+  
         
         if (holdingData.size() == 0)
         {
         	Log.println("There are no remaining holdings to sell at the end of the day");
-        	return;
+        	return true;
         }
                 
-       Log.println("There are "+holdingData.size()+" remaining Holdings to sell at the end of the day:");
+        Log.println("There are "+holdingData.size()+" remaining Holdings to sell at the end of the day:");
             
-       Iterator<Holding_T> it = holdingData.iterator();
-       while (it.hasNext()) {
-           Holding_T holding = it.next();
+        Iterator<Holding_T> it = holdingData.iterator();
+        while (it.hasNext()) {
+        	Holding_T holding = it.next();
 
-           // this is where the sell should be executed
-           // if we get immediate confirmation, use the actual sell price, not EOD price
-           // if we dont get immediate confirmation that all share sells were executed, we'll
-           // need alternate logic
-           
-           // update our Holdings DB
-           Symbol_T symbol = holding.getSymbol();
-           double price  = marketDataManager.getEODPrice(symbol);	// the price now
-           Date sellDate = date;
-           
-           holding.setSellDate(sellDate);
-           holding.setSellPrice(price);
-           
-           // for info
-           double buyPrice = getBuyPrice(symbol.getId());
-       	
-           String net = "EVEN";
-           if (price > buyPrice) { net = "GAIN"; }
-           if (price < buyPrice) { net = "LOSS"; }
+        	// first, determine if we can sell this holding - the buy had to be complete
+        	if (!holding.canSell()) {
+        		Log.println("[ATTENTION] Holding "+holding.getSymbolId()+" can not be sold "+
+        				holding.getVolume()+"/"+holding.getFilled());
+        		continue;
+        	}
+        	
+        	// update these two fields... the date is a trigger field, desired price is for stats
+            double desiredPrice  = databaseManager.getEODPrice(holding.getSymbol());	// the price now
+	           
+            holding.setSellDate(date);
+            holding.setSellPrice(desiredPrice);
+            //holding.insertOrUpdate(); //SAL why dont either of these worK??? TODO
+            // holding.update()
+        
+            // this does....
+            if (holding.updateSellPosition(holding.getSymbolId(), desiredPrice, date) != 1)
+	        	System.out.println("[ERROR] sell order date not updated in DB");
 
-           double delta = price - buyPrice;
-           delta = Utilities_T.round(delta);
 
-           Log.println("*** SELL " +symbol.getId()+ " at a " +net+" of $"+delta+" ("+price+" : "+buyPrice+") at "+date.toString()+" ***"); 
+        	// this is where the sell is executed
+            // if we get immediate confirmation, use the actual sell price, not EOD price
+            // if we dont get immediate confirmation that all share sells were executed, we'll
+            // need alternate logic
+            
+            Log.print("Placing SELL order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") ");
+        	
+if (DayTrader_T.d_useIB) {
+			// update the holding with the order and contract
+			holding = createMarketOrder(holding, "SELL");
 
-           //holding.insertOrUpdate(); //SAL why dont either of these worK??? TODO
-           // holding.update()
-           
-           // this does....
-           holding.updateSellPosition(symbol.getId(), price, sellDate);
+			Log.println("OrderId: "+holding.getOrderId());
+			
+			if (holding.getOrderId() == 0)
+   			    continue;
+			
+   			// add the desired sell price (so it will be persisted)
+            double tmp  = databaseManager.getEODPrice(holding.getSymbol());	// the price now
+   			holding.setSellPrice(tmp);
+   			
+			// place a sell order
+	        brokerManager.placeOrder(holding);
+	        
+	        // check if there is an immediate response (brokerMgr orderStatus will update the DB)
+	    	try { Thread.sleep(10000); }
+	        catch (InterruptedException e) { e.printStackTrace(); }
+	    	
+	        session = databaseManager.getSessionFactory().openSession();
+	        
+	        Criteria criteria2 = session.createCriteria(Holding_T.class)
+	            .add(Restrictions.eq("id", holding.getId()));
 
-       }
-       Log.newline();
+	        @SuppressWarnings("unchecked")
+	        List<Holding_T> check = criteria2.list();
+	        
+	        session.close();
 
+	        if (check.get(0).getOrderStatus().equalsIgnoreCase("Filled"))
+	        {
+	        	Log.println("[DEBUG] cool... we got an immediate fill at $"+holding.getAvgFillPrice());
+	        }
+	        else {
+	        	allFilled = false;
+	        	Log.println("[DEBUG] we did not get an immediate fill. "+ holding.getVolume()+"/"+holding.getRemaining());
+
+	        	continue;			// dont show gain/loss info
+	        }
+	        // and do what?
+}
+else
+{
+			// fake it... set the status to filled, etc order id will be -1 to 
+			// indicate simulation, and other ids will be null
+			holding.setOrderId(-1);
+			holding.setOrderStatus("Filled");
+			holding.setFilled(holding.getVolume());
+	        holding.setRemaining(0);
+	        holding.setAvgFillPrice(holding.getSellPrice());
+	        holding.setLastFillPrice(holding.getSellPrice());
+	        
+	        if (holding.updateMarketPosition() == 0)
+	        	System.out.println("[WARNING] order status not updated in DB");
+	  
+}
+
+            // for info
+// TODO: actualBuy - isnt this in holdings already?
+            double buyPrice  = getBuyPrice(holding.getSymbolId());
+       	    double sellPrice = holding.getSellPrice();
+       	    
+            String net = "EVEN";
+            if (sellPrice > buyPrice) { net = "GAIN"; }
+            if (sellPrice < buyPrice) { net = "LOSS"; }
+
+            double delta = sellPrice - buyPrice;
+            delta = Utilities_T.round(delta);
+
+            Log.println("*** SELL " +holding.getSymbolId()+ " at a " +net+" of $"+delta+" ("+sellPrice+" : "+buyPrice+") at "+date.toString()+" ***"); 
+
+        }
+        Log.newline();
+
+        return allFilled;
     }
 
     /**
@@ -359,7 +437,7 @@ public class Trader_T {
         while (it.hasNext()) {
             Symbol_T symbol = it.next();
       
-            double buyPrice = marketDataManager.getEODPrice(symbol);
+            double buyPrice = databaseManager.getEODPrice(symbol);
             int buyVolume = (int)(buyTotal/buyPrice);
             double adjustedBuyTotal = buyVolume * buyPrice;
     	
@@ -395,6 +473,63 @@ public class Trader_T {
         
     }
 
+    /**
+     * Buy todays holdings
+     * 
+     * @return true if all the orders are filled immediately
+     */
+    public boolean buyHoldings() {
+    	
+    	boolean allFilled = true;		// assume the best
+    	
+    	List<Holding_T> holdings = databaseManager.getCurrentHoldings();
+ 
+        Iterator<Holding_T> it = holdings.iterator();
+        while (it.hasNext()) {
+            Holding_T holding = it.next();
+
+            Log.print("[DEBUG] Placing BUY order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") ");
+            
+if (DayTrader_T.d_useIB) {
+   			// update the holding with the order and contract
+   			holding = createMarketOrder(holding, "BUY");
+    		
+   			Log.println("OrderId: "+holding.getOrderId());
+   			
+   			// place a sell order
+   	        brokerManager.placeOrder(holding);
+    	        
+   	        // check if there is an immediate response (brokerMgr orderStatus will update the DB)
+   	    	try { Thread.sleep(10000); }
+   	        catch (InterruptedException e) { e.printStackTrace(); }
+    	    	
+   	        Session session = databaseManager.getSessionFactory().openSession();
+    	        
+   	        Criteria criteria = session.createCriteria(Holding_T.class)
+   	            .add(Restrictions.eq("id", holding.getId()));
+
+   	        @SuppressWarnings("unchecked")
+   	        List<Holding_T> check = criteria.list();
+    	        
+   	        session.close();
+
+   	        if (check.get(0).getOrderStatus().equalsIgnoreCase("Filled"))
+   	        {
+   	        	Log.println("[DEBUG] cool... we got an immediate fill at $"+holding.getAvgFillPrice());
+   	        }
+   	        else
+   	        	allFilled = false;
+   	        
+   	        // and now what???
+}
+else Log.newline();
+            
+        }
+        
+        return allFilled;	
+    }
+    
+    
     /**
     * get the buy price for this symbol from the Holdings Table.  Get the last
     * holdings by previous date
@@ -440,7 +575,7 @@ public class Trader_T {
      * @param Holding - the Holding to buy or sell
      * @param String "BUY" or "SELL"
      * 
-     * @return Holding - the holding with updated order data
+     * @return Holding - the holding with updated order/contract data
      */
     public Holding_T createMarketOrder(Holding_T holding, String buyOrSell ) {
         
@@ -449,26 +584,35 @@ public class Trader_T {
     	
         //get the next available orderID
         int orderId = brokerManager.reqNextValidId();
-        // TODO - this is really bad
+        // Major TODO - this is really bad
         if (orderId == 0)
-        	System.out.println("BAD ERROR orderId is 0!");
+        	Log.println("[BAD ERROR] orderId is 0!");
  
+/***
+ * SALxx This is probably not necessary, nor desirable
+ * a holding will have 2 orderids - one for a buy and one for a sell!!!
+ * it probably doesnt have to be persisted, but its useful
+ *  
         int existingOrderId = holding.getOrder().m_orderId;
         if (existingOrderId < orderId)
         {
-        	System.out.println("Holding "+holding.getId()+" has already been placed with orderId "+existingOrderId);
+        	Log.println("[DEBUG] Holding "+holding.getId()+" has already been placed with orderId "+existingOrderId);
         	// two options: resubmit (eg 'modify' with existing order Id, or return) We'll do A for now
         	orderId = existingOrderId;
         }
-        
+***/
+ 
+/***SALxx
         Holding_T order = new Holding_T(orderId);
         
         // copy other Holdings fields that we'll need
-        // TODO: create a Holdings copy constructor
         order.setId(holding.getId());
         order.setSymbol(holding.getSymbol());
         //order.setVolume(holding.getVolume());
-        
+***/
+    	Holding_T order = new Holding_T(orderId, holding);	
+
+
         order.setClientId(acct.getClientId());
         
         // the actual time of this transaction
@@ -484,7 +628,7 @@ public class Trader_T {
         
         //calculate the amount in dollars that we're allowed to buy
         // TODO: we should do this before we get here and have it stored in the DB
-        double buyAmount = (acct.getBalance() - MIN_ACCOUNT_BALANCE) / MAX_BUY_POSITIONS;  
+        //double buyAmount = (acct.getBalance() - MIN_ACCOUNT_BALANCE) / MAX_BUY_POSITIONS;  
 
             
         // the order type and action
@@ -503,7 +647,7 @@ public class Trader_T {
         
         // so, we use whats in our Holdings, which was the most recent price from TD
         // SALxx should we be using ask price? (for market we dont need to specify a price at all
-        order.getOrder().m_totalQuantity =  holding.getVolume();
+        order.getOrder().m_totalQuantity =  order.getVolume();
         
 //SALxx--TEST
         //order.getOrder().m_totalQuantity = 1;
@@ -521,7 +665,7 @@ public class Trader_T {
            
         // the contractId must be 0 (constructor default)
         // order.setContractId(0);
-        order.getContract().m_symbol = holding.getSymbol().getSymbol();
+        order.getContract().m_symbol = order.getSymbol().getSymbol();
         order.getContract().m_exchange = "SMART";
         order.getContract().m_primaryExch = "ISLAND";       
         //order.getContract().m_primaryExch = holding.getSymbol().getExchange();
@@ -551,13 +695,16 @@ public class Trader_T {
         	reqIds.add((Integer)holding.getOrderId());
         }
 
-    	
     	return reqIds;
     }
     
   
-
-    public boolean getOutstandingOrders()
+    /**
+     * get all outstanding orders as defined as not filled in the DB
+     * 
+     * @return the number of remaining outstanding orders
+     */
+    public int getOutstandingOrders()
     {
     	// 1. get all holdings from the DB that have a status of Submitted or PreSubmitted
     	// 2. for each unfilled holding, see if the order was executed while we were away
@@ -566,69 +713,148 @@ public class Trader_T {
     	// 4b. if they really are still open, put this info into our brokers holdings map first.
     	//     openOrder will confirm and update as necessary
 
+    	
     	// see which holdings in our DB are still in the 'not filled' state   	
     	//ArrayList<Integer> submittedOrders = getSubmittedOrders();
     	List<Holding_T> holdings = databaseManager.getSubmittedOrders();
     	
+    	Log.println("[DEBUG] There are "+holdings.size() + " outstanding in DB");
+    	if (holdings.size() != 0) { Log.println("...checking execution status..."); } else { Log.newline(); }
+    	
+    	// we'll return this number
+    	int nOpen = holdings.size();
+    	
+     	
+		// see if any orders in the submitted state have been filled (executed)
+    	
+    	// request the executed orders from IB
+    	// will contain all the executed orders for TODAY
+		// can return multiples for partial fills
+       	// TODO probably dont have to do this if there's nothing in the submitted state
+    	// (particularly since the hit loop wont be executed)
+
+    	int reqId = 1;		// an arbitraryId
+		List<Execution> executedOrders = brokerManager.reqExecutions(reqId, 2000);
+
     	Iterator<Holding_T> hit = holdings.iterator();
     	while (hit.hasNext())
     	{
     		Holding_T holding = hit.next();
+    	
+    		// match em with the executed orders
+    		Iterator <Execution> e = executedOrders.iterator();
+    		while (e.hasNext())
+    		{
+    			Execution executedOrder = e.next();    	
     		
-    		int reqId = holding.getOrderId(); 		
-    	
-    		// see if any orders in the submitted state have been filled (executed)
-    		List<Execution> executedOrders = brokerManager.reqExecutions(reqId, 2000);
-    	
-    		// do a sanity check - check the number of shares
-    		// if its correct, update the DB as "Filled" (buy/sell?)
-    		Iterator<Execution> it = executedOrders.iterator();
-    		while (it.hasNext()) {
-    			Execution executedOrder = it.next();
-    			System.out.println("getOustandingOrders reqId: " + reqId + " exec price $"+executedOrder.m_price +"/$"+ executedOrder.m_avgPrice +
-    				" shares: "+executedOrder.m_shares + " at "+executedOrder.m_time);
+    			if (executedOrder.m_orderId == holding.getOrderId())
+    			{
+    				// check the cumulative number of shares executed
+    				// if its correct, update the DB as "Filled" (buy/sell?)
+
+    				Log.println("[DEBUG] filled executed order for OrderId "+executedOrder.m_orderId+" (reqId:"+reqId+") "+
+    						" exec price $"+executedOrder.m_price +"/$"+ executedOrder.m_avgPrice +
+    						" shares: "+executedOrder.m_shares+"/"+executedOrder.m_cumQty + " at "+executedOrder.m_time);
         
-           		if (holding.getVolume() == executedOrder.m_shares) {
-            		System.out.println("number of shares match woohoo");
+    				if (holding.getVolume() == executedOrder.m_cumQty) {
+    					
+    					Log.println("[DEBUG] number of shares match woohoo...updating DB");
             		
-            		holding.setOrderStatus("Filled");
-            		holding.setFilled(executedOrder.m_shares);
-            		holding.setRemaining(0);
-            		holding.setAvgFillPrice(executedOrder.m_price);  // if buy, actualBuyPrice will be updated when persisted
+    					holding.setOrderStatus("Filled");
+    					holding.setFilled(executedOrder.m_cumQty);
+    					holding.setRemaining(0);
+//SALxx TODO: make sure buy price in DB is updated here....            		
+    					holding.setAvgFillPrice(executedOrder.m_avgPrice);  // if buy, actualBuyPrice will be updated when persisted
             		
-            		holding.updateMarketPosition();
-            	}
-           		else {
-           			// since its still not filled, it needs to be sent to the broker
-           			// so it can be updated as necessary when OrderStatus is called
-           			// (initiated below)
-           	    	brokerManager.updateHoldings(holding);          			
-           		}
+    					holding.updateMarketPosition();	//persist
+            		
+    					nOpen--;						// one less to deal with
+    				}
+    				else {
+    					// since its still not filled, it needs to be sent to the broker
+    					// so it can be updated as necessary when OrderStatus is called
+    					// (initiated below)
+    					// its OK to add the same holding multiple times as the brokerMgr keeps
+    					// this as a hashmap (only one entry per orderId)
+    					brokerManager.updateHoldings(holding);          			
+    				}
+    			} // it was our holding's orderId
             }  // next executed order       
         } //next holding
     	    	
-    	// request all our open orders from IB
-    	// this may be overkill... maybe we just need to request it
+    	// request all our open orders from IB.. it should agree with our DB
+    	
+    	// TODO: this may be overkill... maybe we just need to request it to force
+    	// OrderStaus to be called
     	// and not care about the returned data (it will be updated asynchronously when orderStatus is called)
     	// but may be good to wait for initialization
-    	System.out.println("Reqesting Open Orders...");
+    	Log .println("[DEBUG] Reqesting Open Orders from IB...");
     	List<Order> openOrders = brokerManager.reqOpenOrders(2000);
  
     	// sanity check - the lists should agree TODO
+    	if (openOrders.size() != nOpen)
+    		Log.println("IB Open Orders and ours dont agree! "+openOrders.size()+"/"+nOpen);
 
         if (openOrders.size() > 0) {
         	Iterator<Order> oit = openOrders.iterator();
         	int n = openOrders.size();
             while (oit.hasNext()) {
                 Order o = (Order) oit.next();
-                System.out.println("Open Order: " +o.m_orderId+" "+o.m_action);
+                Log.println("[DEBUG] IB Open Order: " +o.m_orderId+" "+o.m_action);
             }
         } else
-            System.out.println("There are no currently open orders");
+            Log.println("[DEBUG] There are no currently open IB orders");
  	
-    	return true;
+    	return nOpen;
     }
     
+    /**
+     * At the End of the day, make sure all orders that were bought yesterday are filled
+     * we do that by waiting a bit, then calling this method.  Hopefully in the interrim
+     * OrderStatuses have come in and the DB has been updated with Filled
+     * 
+     * TODO: what happens if they're not?
+     * 
+     * @return number of unfilled holdings
+     */
+    public int EODReconciliation() {
+ 
+    	Date date = timeManager.getPreviousTradeDate();
+
+    	// this gets the remaining, unexecuted unfilled orders
+    	int nOpenOrders = getOutstandingOrders();
+    	
+    	// check the DB to be sure all of todays orders are filled
+    	//"SELECT symbolId, buy_price FROM $tableName where sell_date is NULL";
+        Session session = databaseManager.getSessionFactory().openSession();
+        
+        Criteria criteria = session.createCriteria(Holding_T.class)
+            .add(Restrictions.ne("orderStatus", "Filled"))
+            .add(Restrictions.ge("buyDate", date));
+
+        @SuppressWarnings("unchecked")
+        List<Holding_T> holdingData = criteria.list();
+        
+        session.close();
+  
+        
+        if (holdingData.size() == 0)
+        {
+        	Log.println("[DEBUG] Great! There are no unfilled holdings remaining.");
+        	return 0;
+        }
+                
+        Log.println("[DEBUG] Uh oh! There are "+holdingData.size()+" unfilled Holdings remaining:");
+            
+        Iterator<Holding_T> it = holdingData.iterator();
+        while (it.hasNext()) {
+        	Holding_T holding = it.next();
+    	    Log.println("[DEBUG] "+ holding.getSymbol().getSymbol() + "("+holding.getSymbolId()+"): "+holding.getOrderStatus()+
+    	    			" filled: "+holding.getFilled());
+        }
+    	
+        return holdingData.size();
+    }
     
 
 
@@ -655,10 +881,24 @@ if (1==0) {
 		//TestBuyOrSell("BUY");
     	//getSubmittedOrders();    // from our DB
     	getOutstandingOrders();  // from IB
-
-    	// catch any stragglers
     	try { Thread.sleep(10000); }
         catch (InterruptedException e) { e.printStackTrace(); }
+    	int nRemaining = EODReconciliation();
+
+    	// catch any stragglers (wait for 10 seconds)
+    	try { Thread.sleep(10000); }
+        catch (InterruptedException e) { e.printStackTrace(); }
+}
+
+if (1==0) {
+	// these return the same list
+	// reqId is only needed to matchup request and return - it can be arbitrary (or always 1)
+	int reqId = 0;
+	List<Execution> executedOrders = brokerManager.reqExecutions(reqId, 2000);
+	
+	reqId = 33;
+    executedOrders = brokerManager.reqExecutions(reqId, 2000);
+	
 }
 
     }
@@ -668,7 +908,7 @@ if (1==0) {
     {
     	System.out.println("***TEST BuyOrSell***");
     	
-    	brokerManager.updateAccount();  // we need an account to start
+    	//brokerManager.updateAccount();  // we need an account to start
 
         Long id = new Long(2501);		// get this holdingId from the DB (CRDChen)
         

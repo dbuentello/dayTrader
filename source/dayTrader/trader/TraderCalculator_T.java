@@ -74,7 +74,7 @@ public class TraderCalculator_T {
     }
     
     /**
-     * for the most recent updates to Holdings, the net profit/loss field (now criteria)
+     * for the most recent updates to Holdings, the net profit/loss field
 	 * will be empty.  Update the sell total, and calculate the net. Add this to our daily net table
 	 * must be done before todays losers are determined, and the Holdings Table updated for the new losers
      */
@@ -113,7 +113,7 @@ public class TraderCalculator_T {
         	
         	if (sellPrice == 0.00)
         	{
-        		Log.println("Error! no sell price for "+holding.getSymbolId());
+        		Log.println("[ERROR] CalculateNet() no sell price for "+holding.getSymbolId());
         	}
         	else
         	{

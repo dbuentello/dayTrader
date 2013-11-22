@@ -22,10 +22,6 @@ import org.hibernate.Session;
 import org.hibernate.criterion.Order;
 import org.hibernate.criterion.Restrictions;
 
-//SAL
-//import org.apache.log4j.Logger;
-//import org.jboss.logging.Logger.Level;
-
 import util.Calendar_T;
 import util.Utilities_T;
 import dayTrader.DayTrader_T;
@@ -50,7 +46,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
     /** Time in minutes before the close of the market day that we want to capture our snapshot of the market
      * and execute our buy orders.
      */
-    private final int MINUTES_BEFORE_CLOSE_TO_BUY = 15;
+    private final int MINUTES_BEFORE_CLOSE_TO_BUY = 75;
     /** The number of milliseconds in one minute. */
     private final int MS_IN_MINUTE = 1000 * 60;
     /** The number of minutes in one hour. */
@@ -77,12 +73,11 @@ public class TimeManager_T implements Manager_IF, Runnable {
     private BrokerManager_T brokerManager;
     /** A reference to the DatabaseManager */
     private DatabaseManager_T databaseManager;
-    /** our calculator **/
+    
+    /** our trader / calculator **/
     private TraderCalculator_T tCalculator;
     private Trader_T trader;
     
-//SAL
-//    private LoggerManager_T logger;
     private dtLogger_T Log;
     
     
@@ -102,6 +97,13 @@ public class TimeManager_T implements Manager_IF, Runnable {
         
         boolean running = true;
 
+        // we'll need this before we can use any brokerMgr/trader functions
+        // and as it could take time to init, do it here
+        // TODO: maybe centralize this function, and at leat make it a trader
+        // method so we dont need the broker in this class
+if (DayTrader_T.d_useIB) {
+		brokerManager.updateAccount();
+}      	
         /*
          * This loop will update the application time every three seconds and when a trigger time is reached
          * execute the appropriate actions. Triggers times can be the market open, a specified buy time,
@@ -109,16 +111,25 @@ public class TimeManager_T implements Manager_IF, Runnable {
          */
 
 //TEST
-//trader.TestCode();
+//trader.TestCode(); running = false;
+//trader.liquidateHoldings(); running = false;
+//boolean b = trader.buyHoldings(); running = false;
+//trader.getOutstandingOrders();
+//boolean b = trader.liquidateHoldings();
+//running = false;
 //TEST
 
-        Log.println("\n*** Day Trader V.11.12.0 has started at "+TimeNow()+" ***\n");
+        Log.println("\n*** Day Trader V.11.21.0 has started at "+TimeNow()+" ***\n");
 
-        // TODO: whenever we start, get open orders, and unrecorded execute orders
-    	if (DayTrader_T.d_useIB)
-    		trader.getOutstandingOrders();  // from IB 
-        
-        
+        // whenever we start, get open orders, and unrecorded execute orders
+if (DayTrader_T.d_useIB) {
+	
+		Log.println("Retrieving Outstanding orders...");
+   		int nOpenOrders = trader.getOutstandingOrders();  // from IB 
+   		Log.println("There are "+nOpenOrders+" Open Orders");
+}
+
+
         while (running) {
 
             try {            
@@ -132,6 +143,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
             	 * 
             	 * determine if we should sell now
             	 */
+// debug only            	
 if (DayTrader_T.d_getRTData) {
 	
             	if (isMarketOpen() && time.after(prevScanTime))
@@ -142,7 +154,6 @@ if (DayTrader_T.d_getRTData) {
             		
             		prevScanTime.setTime(prevScanTime.getTime() + RT_SCAN_INTERVAL);
             	}
-
 }
                 /*
                  * At the end of the market day, perform the following 
@@ -160,7 +171,11 @@ if (DayTrader_T.d_getRTData) {
 //WARNING!!!
 // TODO: this only needs to run once for debugging/development - dont want to run more than
 // once before we auto delete previous data
-                	if ( DayTrader_T.d_takeSnapshot) { marketDataManager.takeMarketSnapshot(); }
+if ( DayTrader_T.d_takeSnapshot) {
+
+					marketDataManager.takeMarketSnapshot();
+}
+
 
                 	// We need to conclude todays business by selling any remaining stocks
                 	// Then calculate our net position for today
@@ -170,15 +185,33 @@ if (DayTrader_T.d_getRTData) {
                     //but is this really feasible? Will the money be credited to our account immediately
                     //if the money isn't instantly credited what do we do? how do we buy additional positions?
                     //what is we can't sell a position? how are we going to handle that?
-                	trader.liquidateHoldings();
+                	boolean allSold = trader.liquidateHoldings();
 
+                    // TODO: hang around a while so we can check if the orders
+                    // have been filled.  This will then do another query to
+                	// see if any OrderStatus have occurred since we tried to liquidate
+if (DayTrader_T.d_useIB) {
+					if (!allSold)
+					{
+						int nRemaining = trader.EODReconciliation();
+						if (nRemaining != 0)
+							Log.println("Yikes! There are still "+nRemaining+" unsold holdings.");
+					}
+                                  
+                    
+                    // TODO: now we can calculate net for the end of the day
+                	// NOTE: current calculateNet() needs to be called before todays
+                	//       biggest losers are persisted - we could change that
+                  	
+                	// how much did we gain or lose today?  Persist in DB and log
+                	// NOTE: we wont know until all the orders are executed
             		tCalculator.calculateNet();
-            		
+}  // useIB          		
                     // Now we can determine todays holdings candidates (biggest losers for today)
                     Log.println("** Determing todays candidates ***");
                     List<Symbol_T> losers = databaseManager.determineBiggestLosers();
                     
-                    // TODO: save in log file
+                    // save in log file
                     Iterator<Symbol_T> it = losers.iterator();
                     Log.print("Biggest Losers are: ");
                     while (it.hasNext()) {
@@ -188,16 +221,29 @@ if (DayTrader_T.d_getRTData) {
                     Log.newline();
 
                     
-                    
-                    // Finally, update Holdings Table w/tomorrow candidates
+                    // TODO: combine these two methods?
+                    // Finally, update Holdings Table w/tomorrows candidates
                     databaseManager.addHoldings(losers);
                     
-                    // calculate buy positions
+                    // calculate buy positions (buy price and volume)
                     trader.updateBuyPositions(losers);
+                    
+                    // Now buy them - this will wait a bit for immediate fills
+                    // TODO: but what do we do if they arent all filled now?
+                    boolean allBought = trader.buyHoldings();
+                    
+                    // if (!notAllFilled) check again?
+                    if (!allBought)
+                    	Log.println("Yikes! not all holdings were bought.");
+                    
+                    // TODO: If we wait around long enough, the unfilled ones should fill
+                    // but if we're too close to the end of the day, they may not be filled until tomorrow,
+                    // or we could cancel (remainder)
+                    // TODO: CreateEndOfDayReport on Sell/Buy DayTrader_YYYY-MM-DD.rpt
                     
                     
                     //set buy_time to tomorrow so we don't execute this block again
-                    //TODO: CHECK THIS
+                    //TODO: Check that this works
                     buyTime.setTime(buyTime.getTime() + (MS_IN_MINUTE * MIN_IN_HOUR * 24));
                     
                     //TODO: For now terminate the application at the end of each day
@@ -228,11 +274,6 @@ if (DayTrader_T.d_getRTData) {
         trader      = new Trader_T();
         
         Log = DayTrader_T.dtLog;
-
-//SALxx
-//logger = (LoggerManager_T) DayTrader_T.getManager(LoggerManager_T.class);
-//LoggerManager_T logger = (LoggerManager_T) DayTrader_T.getManager(LoggerManager_T.class);       
-//logger.logText("Database is open = " + databaseManager.isConnected(), Level.INFO);
 
         calendar_t = (Calendar_T) databaseManager.query(Calendar_T.class, time);
         
@@ -281,7 +322,6 @@ if (DayTrader_T.d_getRTData) {
                 + calendar.get(Calendar.DAY_OF_MONTH);
         
         //SALxx - changed to use date rather than string as string query doesnt work
-        //Calendar_T open = brokerManager(Calendar_T) databaseManager.query(Calendar_T.class, date);
         Calendar_T open = (Calendar_T) databaseManager.query(Calendar_T.class, time);
         
         //TODO: Can we use TDA or IB to determine if the market is open or not?

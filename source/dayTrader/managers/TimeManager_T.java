@@ -46,7 +46,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
     /** Time in minutes before the close of the market day that we want to capture our snapshot of the market
      * and execute our buy orders.
      */
-    private final int MINUTES_BEFORE_CLOSE_TO_BUY = 75;
+    private final int MINUTES_BEFORE_CLOSE_TO_BUY = 15;	//SALxx - is this enough time?
     /** The number of milliseconds in one minute. */
     private final int MS_IN_MINUTE = 1000 * 60;
     /** The number of minutes in one hour. */
@@ -198,7 +198,8 @@ if (DayTrader_T.d_useIB) {
 							Log.println("Yikes! There are still "+nRemaining+" unsold holdings.");
 					}
                                   
-                    
+}  // useIB  
+
                     // TODO: now we can calculate net for the end of the day
                 	// NOTE: current calculateNet() needs to be called before todays
                 	//       biggest losers are persisted - we could change that
@@ -206,7 +207,7 @@ if (DayTrader_T.d_useIB) {
                 	// how much did we gain or lose today?  Persist in DB and log
                 	// NOTE: we wont know until all the orders are executed
             		tCalculator.calculateNet();
-}  // useIB          		
+        		
                     // Now we can determine todays holdings candidates (biggest losers for today)
                     Log.println("** Determing todays candidates ***");
                     List<Symbol_T> losers = databaseManager.determineBiggestLosers();

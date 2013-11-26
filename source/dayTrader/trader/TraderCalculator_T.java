@@ -47,15 +47,6 @@ public class TraderCalculator_T {
     }
 
  
-    
-    public void calcSellPrice() {
-    }
-    
-    public void calcNumSharesToBuy() {
-    }
-    
-    public void calcDollarBuyAmount() {
-    }
 
     /**
      * Get the $ amount of available capital
@@ -90,7 +81,8 @@ public class TraderCalculator_T {
         Session session = databaseManager.getSessionFactory().openSession();
         
         Criteria criteria = session.createCriteria(Holding_T.class)
-        	.add(Restrictions.ge("buyDate", buyDate))
+//SALxx        	.add(Restrictions.ge("buyDate", buyDate))
+            .add(Restrictions.between("buyDate", buyDate, Utilities_T.tomorrow(buyDate)))
         	.add(Restrictions.isNull("net"));
         
         @SuppressWarnings("unchecked")

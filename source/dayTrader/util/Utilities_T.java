@@ -66,6 +66,20 @@ public class Utilities_T {
 		Date d = c.getTime();
 		return d;    	
     }
+ 
+    /**
+     * return next date as cdate 
+     */
+    public static Date tomorrow(Date today) {
+    	
+    	Calendar c = Calendar.getInstance();
+    	c.setTime(today);
+    	c.add(Calendar.DATE, 1);
+    	Date nextDay = c.getTime();
+    	
+    	return nextDay;
+    }
+  
     
     /**
      *  round price to 3 digits

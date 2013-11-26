@@ -12,6 +12,8 @@ import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 
+import javax.swing.text.Utilities;
+
 import marketdata.MarketData_T;
 import marketdata.Symbol_T;
 
@@ -29,6 +31,7 @@ import org.hibernate.service.ServiceRegistryBuilder;
 
 import trader.Holding_T;
 import trader.Trader_T;
+import util.Utilities_T;
 import dayTrader.DayTrader_T;
 
 /** 
@@ -257,10 +260,13 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         
         Session session = getSessionFactory().openSession();
         
+        Date d2 = Utilities_T.tomorrow(timeManager.getCurrentTradeDate());
+        
         Criteria criteria = session.createCriteria(MarketData_T.class)
 //SALxx            .add(Restrictions.ge("date", timeManager.mysqlDate() + "00:00:00" ))
-            .add(Restrictions.ge("lastTradeTimestamp", timeManager.getCurrentTradeDate() ))
-            .add(Restrictions.gt("volume", Trader_T.MIN_TRADE_VOLUME))
+//SALxx--            .add(Restrictions.ge("lastTradeTimestamp", timeManager.getCurrentTradeDate() ))
+            .add(Restrictions.between("lastTradeTimestamp", timeManager.getCurrentTradeDate(), d2 ))
+        	.add(Restrictions.gt("volume", Trader_T.MIN_TRADE_VOLUME))
 //SALxx		.add(Restrictions.gt("price", Trader_T.MIN_BUY_PRICE))
             .add(Restrictions.gt("lastPrice", Trader_T.MIN_BUY_PRICE))
 //SALxx            .addOrder(Order.asc("chgper"))
@@ -313,6 +319,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         try {
             tx = session.beginTransaction();
 
+ //SALxx TODO date between??
             String hql = "DELETE FROM trader.Holding_T WHERE buy_date >= :date";
             Query query = session.createQuery(hql);
             query.setDate("date", date);
@@ -352,14 +359,15 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
      */
     public List<Symbol_T> getHoldingsSymbols()
     {
-    	Date date = timeManager.getPreviousTradeDate();
-  	
+    	Date date = timeManager.getPreviousTradeDate();  	
+    	
     	//"SELECT symbol from Holdings WHERE DATE(buy_date) = \"$date\"";
 
     	Session session = getSessionFactory().openSession();
           
     	Criteria criteria = session.createCriteria(Holding_T.class)
-              .add(Restrictions.ge("buyDate", date ));         
+//SALxx              .add(Restrictions.ge("buyDate", date ));         
+        .add(Restrictions.between("buyDate", date, Utilities_T.tomorrow(date) ));         
           
           @SuppressWarnings("unchecked")
           List<Holding_T> holdings = criteria.list();
@@ -379,19 +387,18 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
     }
  
     /*
-     * Get todays Holdings - this is used for any retrieval done for Today, eg
+     * Get Holdings for this date - this is used for any retrieval done for Today, eg
      * Buying todays holdings
      */
-    public List<Holding_T> getCurrentHoldings()
+    public List<Holding_T> getCurrentHoldings(Date buyDate)
     {
-    	Date date = timeManager.getCurrentTradeDate();
-  	
     	//"SELECT * from Holdings WHERE DATE(buy_date) = \"$date\"";
 
     	Session session = getSessionFactory().openSession();
           
     	Criteria criteria = session.createCriteria(Holding_T.class)
-              .add(Restrictions.ge("buyDate", date ));         
+//SALxx              .add(Restrictions.ge("buyDate", buyDate ));         
+                .add(Restrictions.between("buyDate", buyDate, Utilities_T.tomorrow(buyDate) ));         
           
           @SuppressWarnings("unchecked")
           List<Holding_T> holdings = criteria.list();
@@ -401,7 +408,34 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
           return holdings;      	  
     	  
     }
-    
+
+    /*
+     * Get a Holding by SymbolId for this buy date
+     * 
+     */
+    public Holding_T getCurrentHolding(long symbolId, Date buyDate)
+    {
+    	//"SELECT * from Holdings WHERE symbolId = sid AND DATE(buy_date) = \"$date\"";
+
+    	Session session = getSessionFactory().openSession();
+          
+    	Criteria criteria = session.createCriteria(Holding_T.class)
+                .add(Restrictions.eq("symbolId", symbolId ))         
+                .add(Restrictions.between("buyDate", buyDate, Utilities_T.tomorrow(buyDate) ));         
+          
+          @SuppressWarnings("unchecked")
+          List<Holding_T> holdings = criteria.list();
+          
+          session.close();
+          
+          if (holdings.size() != 1)
+          {
+        	  // TODO: This is real bad!!!  There must be one and only 1 holding
+          }
+          
+          return holdings.get(0);      	  
+    	  
+    }
     /**
      * Get all the orders with order status "Submitted"
      * 
@@ -432,13 +466,17 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
      * 
      * @return (double) price
      */ 
+/*** NOT USED    
     public double getEODPrice(Symbol_T symbol)
     {
+    	Date date = timeManager.getCurrentTradeDate();
+    	
     	//"SELECT price from EndOfDayQuotes where symbol = \"$symbol\" AND DATE(date) = \"$date\"";
         Session session = getSessionFactory().openSession();
         
         Criteria criteria = session.createCriteria(MarketData_T.class)
-            .add(Restrictions.ge("lastTradeTimestamp", timeManager.getCurrentTradeDate() ))
+//SALxx            .add(Restrictions.ge("lastTradeTimestamp", timeManager.getCurrentTradeDate() ))
+            .add(Restrictions.between("lastTradeTimestamp", date, Utilities_T.tomorrow(date)))
             .add(Restrictions.eq("symbolId", symbol.getId()));
 
         @SuppressWarnings("unchecked")
@@ -455,5 +493,70 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         return price;
             	
     }
+***/
     
+    /**
+     * Get todays End of Day Ask Price for this symbol from EODQuote database
+     * This is the desired buy price
+     * 
+     * @return (double) price
+     */ 
+    public double getEODAskPrice(Symbol_T symbol)
+    {
+    	Date date = timeManager.getCurrentTradeDate();
+    	
+    	//"SELECT price from EndOfDayQuotes where symbol = \"$symbol\" AND DATE(date) = \"$date\"";
+        Session session = getSessionFactory().openSession();
+        
+        Criteria criteria = session.createCriteria(MarketData_T.class)
+            .add(Restrictions.between("lastTradeTimestamp", date, Utilities_T.tomorrow(date)))
+            .add(Restrictions.eq("symbolId", symbol.getId()));
+
+        @SuppressWarnings("unchecked")
+        List<MarketData_T> quoteData = criteria.list();
+        
+        session.close();
+        
+        if (quoteData.size() != 1) {
+        	//Log.println("[ERROR] Bad EOD Ask price for "+symbol.getSymbol());
+        	return -1.0;
+        }
+        
+        double price = quoteData.get(0).getAskPrice();
+        return price;
+            	
+    }
+
+    /**
+     * Get todays End of Day Bid Price for this symbol from EODQuote database
+     * This is the desired sell price
+     * 
+     * @return (double) price
+     */ 
+    public double getEODBidPrice(Symbol_T symbol)
+    {
+    	Date date = timeManager.getCurrentTradeDate();
+    	
+    	//"SELECT price from EndOfDayQuotes where symbol = \"$symbol\" AND DATE(date) = \"$date\"";
+        Session session = getSessionFactory().openSession();
+        
+        Criteria criteria = session.createCriteria(MarketData_T.class)
+            .add(Restrictions.between("lastTradeTimestamp", date, Utilities_T.tomorrow(date)))
+            .add(Restrictions.eq("symbolId", symbol.getId()));
+
+        @SuppressWarnings("unchecked")
+        List<MarketData_T> quoteData = criteria.list();
+        
+        session.close();
+        
+        if (quoteData.size() != 1) {
+        	//Log.println("[ERROR] Bad EOD Bid price for "+symbol.getSymbol());
+        	return -1.0;
+        }
+        
+        double price = quoteData.get(0).getBidPrice();
+        return price;
+            	
+    }
+ 
 }

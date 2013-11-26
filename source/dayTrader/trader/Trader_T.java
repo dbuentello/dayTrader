@@ -132,7 +132,7 @@ public class Trader_T {
         	}
         	
         	// update these two fields... the date is a trigger field, desired price is for stats
-            double desiredPrice  = databaseManager.getEODPrice(holding.getSymbol());	// the price now
+            double desiredPrice  = databaseManager.getEODBidPrice(holding.getSymbol());	// the price now
 	           
             holding.setSellDate(date);
             holding.setSellPrice(desiredPrice);
@@ -161,7 +161,7 @@ if (DayTrader_T.d_useIB) {
    			    continue;
 			
    			// add the desired sell price (so it will be persisted)
-            double tmp  = databaseManager.getEODPrice(holding.getSymbol());	// the price now
+            double tmp  = databaseManager.getEODBidPrice(holding.getSymbol());	// the price now
    			holding.setSellPrice(tmp);
    			
 			// place a sell order
@@ -210,8 +210,9 @@ else
 }
 
             // for info
-// TODO: actualBuy - isnt this in holdings already?
-            double buyPrice  = getBuyPrice(holding.getSymbolId());
+// TODO: actualBuy, actual Sell - isnt this in holdings already?
+            //double buyPrice  = getBuyPrice(holding.getSymbolId());
+			double buyPrice  = holding.getBuyPrice();
        	    double sellPrice = holding.getSellPrice();
        	    
             String net = "EVEN";
@@ -250,11 +251,19 @@ else
         	String symbol = data.getSymbol();		// TODO change RT table to symId!!
         	Symbol_T sym = new Symbol_T(symbol);
         	
-        	// TODO: we should check if its already sold
+ 			// retrieve this holding
+ 			Holding_T holding = databaseManager.getCurrentHolding(sym.getId(), timeManager.getPreviousTradeDate());
+
+        	// check if its already sold
+        	if (holding.isSold())
+        		continue;
         	
-        	double price = data.getPrice();			// current RT price
-        	
-        	double buyPrice = getBuyPrice(sym.getId());
+        	//double price = data.getPrice();			// current RT price
+        	double price = data.getBidPrice();			// current RT Bid (sell) price
+        	        	
+        	//TODO: use actualBuyPrice
+        	// shouldnt this already be in Holdings_T?
+        	double buyPrice = getBuyPrice(sym.getId()); // our holdings buy (ask) price
 
 
 			// determine if we should sell using a hard stop loss limit
@@ -321,28 +330,105 @@ else
 	 		}
 
 	 		if (sell)
-	 		{
-	 			// TODO execute sell order
+	 		{ 			
+	        	// first, determine if we can sell this holding - the buy had to be complete
+	        	if (!holding.canSell()) {
+	        		Log.println("[ATTENTION] Holding "+holding.getSymbolId()+" can not be sold "+
+	        				holding.getVolume()+"/"+holding.getFilled());
+	        		continue;
+	        	}
+	        	
+	        	// update these two fields... the date is a trigger field, desired price is for stats
+	            holding.setSellDate(date);
+	            holding.setSellPrice(price);		// desired price - may be different when the trade is executed
 
-	 			//update the Holdings Table with this info
-        		Holding_T h = new Holding_T();	// just a handle
-	 			if (h.updateSellPosition(sym.getId(), price, date) != 0)
-	 			{
-	 				String net = "EVEN";
-	 				if (price > buyPrice) { net = "GAIN"; }
-	 				if (price < buyPrice) { net = "LOSS"; }
+	 			if (holding.updateSellPosition(sym.getId(), price, date) != 1) {
+	 				Log.println("[ERROR] sell order date not updated in DB");
+	 				continue;
+	 			}
+	
+	        	// this is where the sell is executed
+	            // if we get immediate confirmation, use the actual sell price, not EOD price
+	            // if we dont get immediate confirmation that all share sells were executed, we'll
+	            // need alternate logic
+	            
+	            Log.print("Placing SELL order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") ");
+	        	
+if (DayTrader_T.d_useIB) {
+				// update the holding with the order and contract
+				holding = createMarketOrder(holding, "SELL");
 
-	 				double delta = price - buyPrice;
-	 				delta = Utilities_T.round(delta);
+				Log.println("OrderId: "+holding.getOrderId());
+				
+				if (holding.getOrderId() == 0)
+				{
+					// TODO:  real bad
+					Log.println("[ERROR] null order id!");
+	   			    continue;
+				}
+				
+	   			// add the desired sell price (so it will be persisted)
+	   			holding.setSellPrice(price);
+	   			
+				// place a sell order
+		        brokerManager.placeOrder(holding);
+		        
+		        // check if there is an immediate response (brokerMgr orderStatus will update the DB)
+		    	try { Thread.sleep(10000); }
+		        catch (InterruptedException e) { e.printStackTrace(); }
+		    	
+		        Session session = databaseManager.getSessionFactory().openSession();
+		        
+		        Criteria criteria = session.createCriteria(Holding_T.class)
+		            .add(Restrictions.eq("id", holding.getId()));
 
-	 				Log.println("*** SELL " +sym.getId()+ " at a " +net+" of $"+delta+" ("+price+" : "+buyPrice+") at "+date.toString()+" ***"); 
+		        @SuppressWarnings("unchecked")
+		        List<Holding_T> check = criteria.list();
+		        
+		        session.close();
 
-// print LOGFILE "\n".timeStamp().":<1> *** SELL $symbol at a $net of \$$delta ($price : $buy_price)  at $date ***";
-//if ($_dbg) { print DBGFILE "\n".timeStamp().":<1>  *** SELL $symbol at a $net of \$$delta ($price : $buy_price) at $date ***"; }
-//report the reason if its a gain
-//if ($_dbg) { if ($net eq "GAIN") { print DBGFILE "\n**SELL (gain)** price $price fell below .005% tolerance: $upper_threshhold (initial: $initial_upper_limit)"; } }
+		        if (check.get(0).getOrderStatus().equalsIgnoreCase("Filled"))
+		        {
+		        	Log.println("[DEBUG] cool... we got an immediate fill at $"+holding.getAvgFillPrice());
+		        }
+		        else {
+		        	Log.println("[DEBUG] we did not get an immediate fill. "+ holding.getVolume()+"/"+holding.getRemaining());
 
-	 			}  // only log if updated
+		        	continue;			// dont show gain/loss info
+		        }
+		        // and do what?
+}
+else
+{
+				// fake it... set the status to filled, etc order id will be -1 to 
+				// indicate simulation, and other ids will be null
+				holding.setOrderId(-1);
+				holding.setOrderStatus("Filled");
+				holding.setFilled(holding.getVolume());
+		        holding.setRemaining(0);
+		        holding.setAvgFillPrice(holding.getSellPrice());
+		        holding.setLastFillPrice(holding.getSellPrice());
+		        
+		        if (holding.updateMarketPosition() == 0)
+		        	System.out.println("[WARNING] order status not updated in DB");
+		  
+}
+
+	            // for info
+				// TODO: use actual Sell
+	       	    double sellPrice = holding.getSellPrice();
+	 	 			
+	 			
+	 			String net = "EVEN";
+	 			if (sellPrice > buyPrice) { net = "GAIN"; }
+	 			if (sellPrice < buyPrice) { net = "LOSS"; }
+
+	 			double delta = price - buyPrice;
+	 			delta = Utilities_T.round(delta);
+
+	 			Log.println("*** SELL " +sym.getId()+ " at a " +net+" of $"+delta+" ("+price+" : "+buyPrice+") at "+date.toString()+" ***"); 
+
+	 				
 	 		}  // if sold
         	
         }  // next holding
@@ -360,7 +446,8 @@ else
         Session session = DatabaseManager_T.getSessionFactory().openSession();
         Criteria criteria = session.createCriteria(Holding_T.class)
                 .add(Restrictions.eq("symbolId", symId))
-                .add(Restrictions.ge("buyDate", date));
+//SALxx                .add(Restrictions.ge("buyDate", date));
+                .add(Restrictions.between("buyDate", date, Utilities_T.tomorrow(date)));
 
         @SuppressWarnings("unchecked")
         List<Holding_T> holdingData = criteria.list();
@@ -437,7 +524,7 @@ else
         while (it.hasNext()) {
             Symbol_T symbol = it.next();
       
-            double buyPrice = databaseManager.getEODPrice(symbol);
+            double buyPrice = databaseManager.getEODAskPrice(symbol);
             int buyVolume = (int)(buyTotal/buyPrice);
             double adjustedBuyTotal = buyVolume * buyPrice;
     	
@@ -482,7 +569,7 @@ else
     	
     	boolean allFilled = true;		// assume the best
     	
-    	List<Holding_T> holdings = databaseManager.getCurrentHoldings();
+    	List<Holding_T> holdings = databaseManager.getCurrentHoldings(timeManager.getCurrentTradeDate());
  
         Iterator<Holding_T> it = holdings.iterator();
         while (it.hasNext()) {
@@ -521,10 +608,19 @@ if (DayTrader_T.d_useIB) {
    	        	allFilled = false;
    	        
    	        // and now what???
+   	        
+} else {
+			// simulate the fields IB would fill in..
+			holding.setOrderId(-1);
+			holding.setActualBuyPrice(holding.getBuyPrice());
+			holding.setFilled(holding.getVolume());
+			holding.setOrderStatus("Filled");
+			holding.updateMarketPosition();
+	
+			Log.newline();
 }
-else Log.newline();
             
-        }
+        }  // next holding
         
         return allFilled;	
     }
@@ -535,6 +631,7 @@ else Log.newline();
     * holdings by previous date
     */
     
+    // TODO: change to actualBuyPrice
     public Double getBuyPrice(long symbolId)
     {
 
@@ -546,8 +643,9 @@ else Log.newline();
         
         Criteria criteria = session.createCriteria(Holding_T.class)
         	.add(Restrictions.eq("symbolId", symbolId))
-        	.add(Restrictions.ge("buyDate", date));
-
+//SALxx        	.add(Restrictions.ge("buyDate", date));
+        	.add(Restrictions.between("buyDate", date, Utilities_T.tomorrow(date)));
+        
         @SuppressWarnings("unchecked")
         List<Holding_T> holdingData = criteria.list();
         
@@ -563,7 +661,7 @@ else Log.newline();
 
         return buyPrice;
     }
-    
+   
 
     
     /***************** Trade Execution ************************/
@@ -830,7 +928,8 @@ else Log.newline();
         
         Criteria criteria = session.createCriteria(Holding_T.class)
             .add(Restrictions.ne("orderStatus", "Filled"))
-            .add(Restrictions.ge("buyDate", date));
+//SALxx            .add(Restrictions.ge("buyDate", date));
+            .add(Restrictions.between("buyDate", date, Utilities_T.tomorrow(date)));
 
         @SuppressWarnings("unchecked")
         List<Holding_T> holdingData = criteria.list();

@@ -858,18 +858,26 @@ public class Holding_T implements Persistable_IF {
         
         return owned;
     }
-    
+
+    /**
+     * Return true is we have sold this position, otherwise return false
+     * 
+     */
+    @Transient
+    public boolean isSold() {
+        
+        return ((sellDate != null) && (remaining == 0));
+    }
+   
     /** 
      * are we allowed to sell this holding?
      * 
      * @return true if we own it (bought but not sold) and the volume has been filled
      */
-    public boolean canSell()
-    {	
-    	if (isOwned() && (volume == filled))
-    		return true;
-    	else
-    		return false;
+    public boolean canSell() {
+
+    	return (isOwned() && (volume == filled));
+
     }
 
 }

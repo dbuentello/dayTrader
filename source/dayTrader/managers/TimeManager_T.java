@@ -26,6 +26,7 @@ import util.Calendar_T;
 import util.Utilities_T;
 import dayTrader.DayTrader_T;
 
+import trader.Holding_T;
 import trader.TraderCalculator_T;
 import trader.Trader_T;
 
@@ -97,6 +98,14 @@ public class TimeManager_T implements Manager_IF, Runnable {
         
         boolean running = true;
 
+        Log.println("\n*** Day Trader V.11.26.0 has started at "+TimeNow()+" ***\n");
+
+        if (!isMarketOpen())
+        {
+        	Log.print("Market is not open.  Bye.");
+        	return;
+        }
+
         // we'll need this before we can use any brokerMgr/trader functions
         // and as it could take time to init, do it here
         // TODO: maybe centralize this function, and at leat make it a trader
@@ -116,10 +125,9 @@ if (DayTrader_T.d_useIB) {
 //boolean b = trader.buyHoldings(); running = false;
 //trader.getOutstandingOrders();
 //boolean b = trader.liquidateHoldings();
+//tCalculator.CreateReport();
 //running = false;
 //TEST
-
-        Log.println("\n*** Day Trader V.11.21.0 has started at "+TimeNow()+" ***\n");
 
         // whenever we start, get open orders, and unrecorded execute orders
 if (DayTrader_T.d_useIB) {
@@ -145,8 +153,12 @@ if (DayTrader_T.d_useIB) {
             	 */
 // debug only            	
 if (DayTrader_T.d_getRTData) {
-	
-            	if (isMarketOpen() && time.after(prevScanTime))
+		
+				// run every n minutes as define by RT_SCAN_INTERVAL
+				// sell a holding if it meets the criteria.  The Order is executed,
+				// but it may fill asychronously.  At the end of the day, we'll
+				// check that is has completely sold
+            	if (time.after(prevScanTime))
             	{
             		List <RTData_T> rtData = marketDataManager.getRealTimeQuotes();
             		
@@ -162,52 +174,55 @@ if (DayTrader_T.d_getRTData) {
                  * 3. identify the positions we want to buy
                  * 4. execute buy orders 
                  */
-                if (isMarketOpen() && time.after(buyTime)) {
+                if (time.after(buyTime)) {
 
-                    
-                	// get todays closing market info from TD and store in EndOfDayQuotes
-                	// this needs to be first in the EndOfDay Logic as other routines depend on
-                	// todays End of Day Data
-//WARNING!!!
-// TODO: this only needs to run once for debugging/development - dont want to run more than
-// once before we auto delete previous data
+
+                	// We need to conclude todays business by selling any remaining stocks
+                	// Then calculate our net position for today
+                	
+                    // Execute any remaining sell orders and then wait until they sell
+
+                    //we need to wait until they sell so we have money to buy new stocks
+                    //but is this really feasible? Will the money be credited to our account immediately
+                    //if the money isn't instantly credited what do we do? how do we buy additional positions?
+                    //what is we can't sell a position? how are we going to handle that?
+
+					// first, get the most recent RT data
+					List <RTData_T> rtData = marketDataManager.getRealTimeQuotes();
+
+					boolean allSold = trader.liquidateHoldings();
+
+					// get todays closing market info from TD and store in EndOfDayQuotes
+					// this will give us time for the liquidated holdings to be sold
+					// (I hope its enough time...)
 if ( DayTrader_T.d_takeSnapshot) {
 
 					marketDataManager.takeMarketSnapshot();
 }
 
 
-                	// We need to conclude todays business by selling any remaining stocks
-                	// Then calculate our net position for today
-                	
-                    //TODO: Execute any remaining sell orders and then wait until they sell,
-                    //we need to wait until they sell so we have money to buy new stocks
-                    //but is this really feasible? Will the money be credited to our account immediately
-                    //if the money isn't instantly credited what do we do? how do we buy additional positions?
-                    //what is we can't sell a position? how are we going to handle that?
-                	boolean allSold = trader.liquidateHoldings();
-
-                    // TODO: hang around a while so we can check if the orders
-                    // have been filled.  This will then do another query to
-                	// see if any OrderStatus have occurred since we tried to liquidate
+					// TODO? hang around a while so we can check if the orders
+					// have been filled.  This will then do another query to
+					// see if any OrderStatus have occurred since we tried to liquidate
 if (DayTrader_T.d_useIB) {
-					if (!allSold)
-					{
-						int nRemaining = trader.EODReconciliation();
-						if (nRemaining != 0)
-							Log.println("Yikes! There are still "+nRemaining+" unsold holdings.");
-					}
-                                  
-}  // useIB  
+					int nRemaining = trader.EODReconciliation();
+					if (nRemaining != 0)
+						Log.println("Yikes! There are still "+nRemaining+" unsold holdings.");
+}  // useIB
+
 
                     // TODO: now we can calculate net for the end of the day
                 	// NOTE: current calculateNet() needs to be called before todays
                 	//       biggest losers are persisted - we could change that
+					//   I think its OK to call it later - its based on buy date
                   	
                 	// how much did we gain or lose today?  Persist in DB and log
-                	// NOTE: we wont know until all the orders are executed
+                	// NOTE: we wont know until all the orders are executed, but they
+					// all should be by now.  It could make it difficult to buy without
+					// selling all, but we could rework the logic to do so.
             		tCalculator.calculateNet();
-        		
+
+            		
                     // Now we can determine todays holdings candidates (biggest losers for today)
                     Log.println("** Determing todays candidates ***");
                     List<Symbol_T> losers = databaseManager.determineBiggestLosers();
@@ -233,15 +248,29 @@ if (DayTrader_T.d_useIB) {
                     // TODO: but what do we do if they arent all filled now?
                     boolean allBought = trader.buyHoldings();
                     
-                    // if (!notAllFilled) check again?
-                    if (!allBought)
-                    	Log.println("Yikes! not all holdings were bought.");
+                    // if notAllFilled check again?
+                    //if (!allBought)
+                    //	Log.println("Yikes! not all holdings were bought.");
                     
                     // TODO: If we wait around long enough, the unfilled ones should fill
                     // but if we're too close to the end of the day, they may not be filled until tomorrow,
                     // or we could cancel (remainder)
-                    // TODO: CreateEndOfDayReport on Sell/Buy DayTrader_YYYY-MM-DD.rpt
                     
+                    // TODO: wait until 2 minutes before market close, or loop for a bit
+                    Thread.sleep(30000);
+                    
+					int nRemaining = trader.EODReconciliation();
+					if (nRemaining != 0)
+						Log.println("Yikes! There are still "+nRemaining+" unsold holdings.");
+
+                    // TODO: at some time if a BUY order hasn't been filled, just cancel it
+//                  if (time.after(cancel_time)) {
+//                      //TODO: perform order cancels
+//                  }
+
+                    
+                    // TODO: CreateEndOfDayReport on Sell/Buy DayTrader_YYYY-MM-DD.rpt
+                    tCalculator.CreateReport();
                     
                     //set buy_time to tomorrow so we don't execute this block again
                     //TODO: Check that this works
@@ -250,17 +279,13 @@ if (DayTrader_T.d_useIB) {
                     //TODO: For now terminate the application at the end of each day
                     Log.println("\n*** dayTrader is exiting at "+TimeNow()+"  Bye ***");
                     throw new InterruptedException("Terminating TimeManager thread because the market is now closed");
-                }
                 
-                // TODO: at some time if a BUY order hasn't been filled, just cancel it
-//                if (time.after(cancel_time)) {
-//                    //TODO: perform order cancels
-//                }
-
+                }  // end EOD
+                
             } catch (InterruptedException e) {
                 running = false;
             }
-        }
+        }  // while running
 
     }
 
@@ -576,6 +601,6 @@ else  //SALxx - get system time
         return d;		// error
     }
 
-
+    
 }
 

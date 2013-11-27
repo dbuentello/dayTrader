@@ -20,6 +20,7 @@ import util.dtLogger_T;
 import managers.DatabaseManager_T;
 import managers.LoggerManager_T;
 import managers.TimeManager_T;
+import marketdata.MarketData_T;
 
 import trader.Holding_T;
 import trader.DailyNet_T;
@@ -67,7 +68,8 @@ public class TraderCalculator_T {
     /**
      * for the most recent updates to Holdings, the net profit/loss field
 	 * will be empty.  Update the sell total, and calculate the net. Add this to our daily net table
-	 * must be done before todays losers are determined, and the Holdings Table updated for the new losers
+	 * 
+	 * ??must be done before todays losers are determined, and the Holdings Table updated for the new losers
      */
     public void calculateNet()
     {
@@ -76,8 +78,7 @@ public class TraderCalculator_T {
     	Double cumNet = 0.00;
     	long   cumVol = 0;
     	
-    	//SELECT id, buy_volume, buy_total, sell_price FROM $tableName WHERE DATE(buy_date) = \"$buy_date\" AND criteria IS NULL
-    	// criteria is actually net$ for this stock; using exec_sell_price_high  for now
+    	//SELECT id, buy_volume, buy_total, sell_price FROM $tableName WHERE DATE(buy_date) = \"$buy_date\" AND net IS NULL
         Session session = databaseManager.getSessionFactory().openSession();
         
         Criteria criteria = session.createCriteria(Holding_T.class)
@@ -109,6 +110,19 @@ public class TraderCalculator_T {
         	}
         	else
         	{
+           	    
+        		//LOG
+                String netGL = "EVEN";
+                if (sellPrice > buyPrice) { netGL = "GAIN"; }
+                if (sellPrice < buyPrice) { netGL = "LOSS"; }
+
+                double delta = sellPrice - buyPrice;
+                delta = Utilities_T.round(delta);
+
+                Log.println("*** SOLD " +holding.getSymbolId()+ " at a " +netGL+" of $"+delta+" ("+sellPrice+"/"+buyPrice+" "+
+                				holding.getRemaining()+ " remaining) at "+holding.getSellDate().toString()+" ***"); 
+
+                
         		double buyTotal  = buyPrice * volume;
         		double sellTotal = sellPrice * volume;
         		double net = sellTotal - buyTotal;
@@ -230,5 +244,75 @@ if (1==0) {
        	return dailyNet.get(0);
     }
 
+    /**
+     * Create End of Day Holdings Report
+     */
+    public void CreateReport()
+    {
+    	String reportName = "dt_"+timeManager.getCurrentTradeDate().toString();
+    	dtLogger_T report = new dtLogger_T();
+    	report.open("/home/steve/Reports/"+reportName+".rpt");
 
+    	
+    	Double cumNet = 0.00;
+    	long   cumVol = 0;
+    	
+    	Date buyDate = timeManager.getPreviousTradeDate();
+    	
+    	//SELECT * FROM Holdings WHERE DATE(buy_date) = \"$buy_date\"
+        Session session = databaseManager.getSessionFactory().openSession();
+        
+        Criteria criteria = session.createCriteria(Holding_T.class)
+            .add(Restrictions.between("buyDate", buyDate, Utilities_T.tomorrow(buyDate)));
+        
+        @SuppressWarnings("unchecked")
+        List<Holding_T> holdingData = criteria.list();
+        
+        session.close();
+        
+        if (holdingData.size() != Trader_T.MAX_BUY_POSITIONS)
+        {
+        	Log.println("WARNING! something is fishy in Holdings... "+holdingData.size()+" rows retrieved.  Should be "+Trader_T.MAX_BUY_POSITIONS);
+        }
+        
+        //                                  actual    desired
+        report.println("Symbol\t\tBuy/Sell\t\t$$\tact$$\tvolume\tleft\tEOD$$\task/bid\t\tdvol\tOrderId");
+        
+        Iterator<Holding_T> it = holdingData.iterator();
+        while (it.hasNext()) {
+        	
+        	Holding_T holding = it.next();
+        	
+        	double buyPrice  = holding.getBuyPrice();
+        	double sellPrice = holding.getSellPrice();
+        	long   volume    = holding.getVolume();
+        	
+        	double buyTotal  = buyPrice * volume;
+        	double sellTotal = sellPrice * volume;
+        	double net = sellTotal - buyTotal;
+        	net = Utilities_T.round(net);
+ 	
+        	// TODO: get EOD info
+        	MarketData_T buyData  = databaseManager.getMarketData(holding.getSymbolId(), buyDate);
+        	Date sellDate = timeManager.getCurrentTradeDate();
+        	MarketData_T sellData = databaseManager.getMarketData(holding.getSymbolId(), sellDate);
+        	
+        	report.print(holding.getSymbol().getSymbol()+ "["+holding.getSymbolId()+"]");
+        	report.print("\t"+holding.getBuyDate()+"\t$"+buyPrice+"\t$"+holding.getActualBuyPrice()+"\t"+holding.getVolume()+"\t");
+        	report.println("\t$"+buyData.getLastPrice()+"\t$"+buyData.getAskPrice()+"/$"+buyData.getBidPrice()+"\t"+buyData.getVolume().longValue());
+        	report.print("\t\t"+holding.getSellDate()+"\t$" +sellPrice+"\t$"+holding.getAvgFillPrice()+"\t"+holding.getVolume()+"\t"+holding.getRemaining());
+        	report.println("\t$"+sellData.getLastPrice()+"\t$"+sellData.getAskPrice()+"/$"+sellData.getBidPrice()+"\t"+sellData.getVolume().longValue());
+        	report.println("\t\t\t\t[net: $"+net+"]");
+        	
+        	cumNet += net;
+        	cumVol += volume;
+        	
+        }  // next Holding
+        
+        double netLessCommision = cumNet - (cumVol * 0.01);
+        report.println("\nTotal Net: $"+netLessCommision+" on "+cumVol+" shares ($"+cumNet+" less commission)");
+    
+        report.close();
+    }
+    
 }

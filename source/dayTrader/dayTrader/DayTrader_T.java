@@ -34,12 +34,12 @@ public class DayTrader_T {
     /*** global testing/development parameters ***/
     
     // For Testing, we can run w/o IB (BrokerMgr) and not execute trades
-    public static boolean d_useIB = false;
+    public static boolean d_useIB = true;
     // or without TD if we want dont need to update the Quote data
     public static boolean d_useTD = true;
     
     // override is marketOpen - make it open
-    public static boolean d_ignoreMarketClosed = false;
+    public static boolean d_ignoreMarketClosed = true;
     
     // if not null, use this simulated time as current time
     public static String d_useSimulateDate = "";    
@@ -58,7 +58,7 @@ public class DayTrader_T {
     /*** end development defines ***/
     
     /* our one and only log file */
-    private static String dtLogFilename = "/home/steve/dayTrader.log";
+    private static String dtLogFilename = "/home/steve/dayTrader_test.log";
     private static boolean echoLog = true;
     private static boolean logTimestamp = false;
     

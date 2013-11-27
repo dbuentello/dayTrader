@@ -266,7 +266,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
 
     /**
      * Get todays holdings symbols and query TD for latest data
-     * Persist to RTQuotes DB
+     * Persist to RTQuotes DB - this may only be necessary if we want to save historical data
      * 
      * @return a list of RTData for each holding (empty on return)
      */

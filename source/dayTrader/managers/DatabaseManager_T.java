@@ -15,6 +15,7 @@ import java.util.List;
 import javax.swing.text.Utilities;
 
 import marketdata.MarketData_T;
+import marketdata.RTData_T;
 import marketdata.Symbol_T;
 
 import org.hibernate.Criteria;
@@ -528,29 +529,33 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
     }
 
     /**
-     * Get todays End of Day Bid Price for this symbol from EODQuote database
+     * Get todays most recent Bid Price for this symbol from RealTimeQuote database
      * This is the desired sell price
      * 
      * @return (double) price
      */ 
-    public double getEODBidPrice(Symbol_T symbol)
+    public double getCurrentBidPrice(Symbol_T symbol)
     {
     	Date date = timeManager.getCurrentTradeDate();
     	
     	//"SELECT price from EndOfDayQuotes where symbol = \"$symbol\" AND DATE(date) = \"$date\"";
         Session session = getSessionFactory().openSession();
         
-        Criteria criteria = session.createCriteria(MarketData_T.class)
-            .add(Restrictions.between("lastTradeTimestamp", date, Utilities_T.tomorrow(date)))
-            .add(Restrictions.eq("symbolId", symbol.getId()));
+        Criteria criteria = session.createCriteria(RTData_T.class)
+            .add(Restrictions.between("date", date, Utilities_T.tomorrow(date)))
+            // TODO: RT still uses symbol, not symbolId!
+            .add(Restrictions.eq("symbol", symbol.getSymbol()))
+            .addOrder(Order.desc("date"))
+            .setMaxResults(1); 
+
 
         @SuppressWarnings("unchecked")
-        List<MarketData_T> quoteData = criteria.list();
+        List<RTData_T> quoteData = criteria.list();
         
         session.close();
         
         if (quoteData.size() != 1) {
-        	//Log.println("[ERROR] Bad EOD Bid price for "+symbol.getSymbol());
+        	//Log.println("[ERROR] Bad Current Bid price for "+symbol.getSymbol());
         	return -1.0;
         }
         
@@ -558,5 +563,35 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         return price;
             	
     }
- 
+
+    // for reporting
+    /**
+     * Get the market data for this symbol from EODQuote database for this date
+     * 
+     * @return MarketData_T
+     */ 
+    public MarketData_T getMarketData(long symbolId, Date date)
+    {	
+    	//"SELECT * from EndOfDayQuotes where symbol = \"$symbol\" AND DATE(date) = \"$date\"";
+        Session session = getSessionFactory().openSession();
+        
+        Criteria criteria = session.createCriteria(MarketData_T.class)
+            .add(Restrictions.between("lastTradeTimestamp", date, Utilities_T.tomorrow(date)))
+            .add(Restrictions.eq("symbolId", symbolId));
+
+        @SuppressWarnings("unchecked")
+        List<MarketData_T> quoteData = criteria.list();
+        
+        session.close();
+
+        // BIG TODO - catch this error!
+        if (quoteData.size() != 1) {
+        	//Log.println("[ERROR] Bad EOD Ask price for "+symbol.getSymbol());
+        	MarketData_T badData = new MarketData_T();
+        	return badData;
+        }
+        
+        return quoteData.get(0);
+        	
+    }
 }

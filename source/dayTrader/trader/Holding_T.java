@@ -860,7 +860,7 @@ public class Holding_T implements Persistable_IF {
     }
 
     /**
-     * Return true is we have sold this position, otherwise return false
+     * Return true if we have sold this position, otherwise return false
      * 
      */
     @Transient
@@ -868,7 +868,17 @@ public class Holding_T implements Persistable_IF {
         
         return ((sellDate != null) && (remaining == 0));
     }
-   
+
+    /**
+     * Return true if we are in the process of selling this position, otherwise return false
+     * 
+     */
+    @Transient
+    public boolean isSelling() {
+        
+        return ((sellDate != null) && (filled != volume));
+    }
+  
     /** 
      * are we allowed to sell this holding?
      * 

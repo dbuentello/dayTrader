@@ -132,7 +132,8 @@ public class Trader_T {
         	}
         	
         	// update these two fields... the date is a trigger field, desired price is for stats
-            double desiredPrice  = databaseManager.getEODBidPrice(holding.getSymbol());	// the price now
+        	// (and place order if we ever do a LMT order)
+            double desiredPrice  = databaseManager.getCurrentBidPrice(holding.getSymbol());	// the price now
 	           
             holding.setSellDate(date);
             holding.setSellPrice(desiredPrice);
@@ -158,15 +159,19 @@ if (DayTrader_T.d_useIB) {
 			Log.println("OrderId: "+holding.getOrderId());
 			
 			if (holding.getOrderId() == 0)
+			{
+				Log.println("[ATTENTION] Sell order not placed!");
    			    continue;
+			}
 			
-   			// add the desired sell price (so it will be persisted)
-            double tmp  = databaseManager.getEODBidPrice(holding.getSymbol());	// the price now
-   			holding.setSellPrice(tmp);
+   			// add the desired sell price (so it will be persisted) - done above
+            //double tmp  = databaseManager.getEODBidPrice(holding.getSymbol());	// the price now
+   			//holding.setSellPrice(tmp);
    			
 			// place a sell order
 	        brokerManager.placeOrder(holding);
-	        
+
+/*****
 	        // check if there is an immediate response (brokerMgr orderStatus will update the DB)
 	    	try { Thread.sleep(10000); }
 	        catch (InterruptedException e) { e.printStackTrace(); }
@@ -192,9 +197,9 @@ if (DayTrader_T.d_useIB) {
 	        	continue;			// dont show gain/loss info
 	        }
 	        // and do what?
-}
-else
-{
+*****/
+
+} else {
 			// fake it... set the status to filled, etc order id will be -1 to 
 			// indicate simulation, and other ids will be null
 			holding.setOrderId(-1);
@@ -209,6 +214,7 @@ else
 	  
 }
 
+/***
             // for info
 // TODO: actualBuy, actual Sell - isnt this in holdings already?
             //double buyPrice  = getBuyPrice(holding.getSymbolId());
@@ -223,13 +229,15 @@ else
             delta = Utilities_T.round(delta);
 
             Log.println("*** SELL " +holding.getSymbolId()+ " at a " +net+" of $"+delta+" ("+sellPrice+" : "+buyPrice+") at "+date.toString()+" ***"); 
+***/
 
-        }
+        }  // next holding
         Log.newline();
 
         return allFilled;
     }
 
+    
     /**
      * Determine if we should sell - trailing sell algorithm
      * 
@@ -254,8 +262,8 @@ else
  			// retrieve this holding
  			Holding_T holding = databaseManager.getCurrentHolding(sym.getId(), timeManager.getPreviousTradeDate());
 
-        	// check if its already sold
-        	if (holding.isSold())
+        	// check if its already sold or sell has been initiated
+        	if (holding.isSelling() || holding.isSold())
         		continue;
         	
         	//double price = data.getPrice();			// current RT price
@@ -363,7 +371,7 @@ if (DayTrader_T.d_useIB) {
 				if (holding.getOrderId() == 0)
 				{
 					// TODO:  real bad
-					Log.println("[ERROR] null order id!");
+					Log.println("[ERROR] Real bad - null order id!");
 	   			    continue;
 				}
 				
@@ -372,7 +380,8 @@ if (DayTrader_T.d_useIB) {
 	   			
 				// place a sell order
 		        brokerManager.placeOrder(holding);
-		        
+
+/****		        
 		        // check if there is an immediate response (brokerMgr orderStatus will update the DB)
 		    	try { Thread.sleep(10000); }
 		        catch (InterruptedException e) { e.printStackTrace(); }
@@ -397,6 +406,7 @@ if (DayTrader_T.d_useIB) {
 		        	continue;			// dont show gain/loss info
 		        }
 		        // and do what?
+*****/
 }
 else
 {
@@ -414,11 +424,11 @@ else
 		  
 }
 
+/****
 	            // for info
 				// TODO: use actual Sell
 	       	    double sellPrice = holding.getSellPrice();
-	 	 			
-	 			
+			
 	 			String net = "EVEN";
 	 			if (sellPrice > buyPrice) { net = "GAIN"; }
 	 			if (sellPrice < buyPrice) { net = "LOSS"; }
@@ -427,7 +437,7 @@ else
 	 			delta = Utilities_T.round(delta);
 
 	 			Log.println("*** SELL " +sym.getId()+ " at a " +net+" of $"+delta+" ("+price+" : "+buyPrice+") at "+date.toString()+" ***"); 
-
+****/
 	 				
 	 		}  // if sold
         	
@@ -524,6 +534,7 @@ else
         while (it.hasNext()) {
             Symbol_T symbol = it.next();
       
+            // get the current ask/buy price from EOD
             double buyPrice = databaseManager.getEODAskPrice(symbol);
             int buyVolume = (int)(buyTotal/buyPrice);
             double adjustedBuyTotal = buyVolume * buyPrice;
@@ -585,7 +596,8 @@ if (DayTrader_T.d_useIB) {
    			
    			// place a sell order
    	        brokerManager.placeOrder(holding);
-    	        
+
+/****   	        
    	        // check if there is an immediate response (brokerMgr orderStatus will update the DB)
    	    	try { Thread.sleep(10000); }
    	        catch (InterruptedException e) { e.printStackTrace(); }
@@ -608,7 +620,7 @@ if (DayTrader_T.d_useIB) {
    	        	allFilled = false;
    	        
    	        // and now what???
-   	        
+****/   	        
 } else {
 			// simulate the fields IB would fill in..
 			holding.setOrderId(-1);

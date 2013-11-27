@@ -643,7 +643,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
         
 	    Holding_T holding = holdings.get(orderId);
 	    if (holding == null) {
-	    	System.out.println("OrderStatus:  This is bad! no Holding for orderid "+orderId);
+	    	System.out.println("[ERROR] OrderStatus()  This is bad! no Holding for orderid "+orderId);
 	        return;
 	    }
 	    
@@ -665,7 +665,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
         }   
         else if (holding.getOrderStatus().equalsIgnoreCase(OrderStatus.Submitted.toString())) {
             
-        	// SALxx check this!!  WHY?
+        	// SALxx check this!!  WHY? - my logic sets buydate when order is created
             //If a buy order has been at least partially filled, update the buy time
             //if(holding.getOrder().m_action.equalsIgnoreCase(Action.BUY.toString()) && filled > 0) {
             if(holding.isOwned() && filled > 0) {
@@ -677,7 +677,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
             //if it was sell order with no shares remaining, the order is complete and we no longer own this position
             //so update the holding sellDate. If the sellDate if populated, we will consider all shares of this holding 
             //are sold so be careful about how we update the sellDate
-			//SALxx - check this, too  FILLED should be a good enough trigger (and remaining should be 0)
+			//SALxx - TODO check this, too  FILLED should be a good enough trigger (and remaining should be 0)
             
             //if(holding.getOrder().m_action.equalsIgnoreCase(Action.SELL.toString())) {
             if(!holding.isOwned()) {
@@ -824,11 +824,19 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	@Override
 	public void execDetails(int reqId, Contract contract, Execution execution) {
 		System.out.print  ("[execDetails] for OrderId "+execution.m_orderId+" (reqId: " +reqId+") ");
-		System.out.println(contract.m_symbol+" exec price $"+execution.m_price +"/$"+ execution.m_avgPrice +
+		System.out.print  (contract.m_symbol+" exec price $"+execution.m_price +"/$"+ execution.m_avgPrice +
 				" shares: "+execution.m_shares+"/"+execution.m_cumQty + " at "+execution.m_time);
+		System.out.println("...Now calling orderStatus...");
 	
-		// save these
+		// save these, becuz...?
         executedOrders.add(execution);
+        
+        // call our orderStatus to update the DB
+        // Note that parentId is 0 (we dont use now) and that remaining is set to 0
+    	orderStatus(execution.m_orderId, "Filled", execution.m_cumQty, 0,
+    			execution.m_avgPrice, execution.m_permId, 0, execution.m_avgPrice,
+    			execution.m_clientId, "");
+   
 	}
 	
 	@Override

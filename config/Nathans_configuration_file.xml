@@ -1,0 +1,23 @@
+<dayTraderConfig>
+
+	<version>V.11.26.0</version>
+
+	<!-- Logging config params -->
+	<dtLogFileName>/home/nathan/temp/dayTrader_test.log</dtLogFileName>
+	<dtReportDirPath>/home/nathan/temp/Reports</dtReportDirPath>
+
+	<!-- Timing config params -->
+	<minutesBeforeCloseToBuy>600</minutesBeforeCloseToBuy>
+	<rtScanIntervalMinutes>5</rtScanIntervalMinutes>
+
+	<!-- Debug config params -->
+	<useIB>TRUE</useIB>
+	<useTD>TRUE</useTD>
+	<ignoreMarketClosed>TRUE</ignoreMarketClosed>
+	<useSimulateDate></useSimulateDate>
+	<takeSnapshot>TRUE</takeSnapshot>
+	<getRTData>TRUE</getRTData>
+	<useSystemTime>TRUE</useSystemTime>
+
+
+</dayTraderConfig>

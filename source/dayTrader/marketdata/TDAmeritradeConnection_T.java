@@ -77,7 +77,7 @@ public class TDAmeritradeConnection_T implements Connector_IF {
                             
                     java.util.Scanner s = new java.util.Scanner(urlConnection.getInputStream()).useDelimiter("\\A");
                     String response = s.next();
-                    sessionId = XMLTags_T.simpleParse(response, XMLTags_T.SESSION_ID);
+                    sessionId = XMLTags_T.simpleParse(response, XMLTags_T.TDA_SESSION_ID);
                     
                     if (sessionId != "") {
                         logger.logText("TDAmeritrade Session ID = " + sessionId, Level.INFO);

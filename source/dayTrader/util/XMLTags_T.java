@@ -16,25 +16,40 @@ import dayTrader.DayTrader_T;
  */
 public class XMLTags_T {
 
-    //This class will probably not be needed once we use a real XML parser
-    public final static String SESSION_ID = "session-id";
-    public final static String QUOTE_LIST = "quote-list";
-    public final static String QUOTE = "quote";
-    public final static String LAST_TRADE_DATE = "last-trade-date";
-    public final static String SYMBOL = "symbol";
-    public final static String OPEN = "open";
-    public final static String CLOSE = "close";
-    public final static String LOW = "low";
-    public final static String HIGH = "high";
-    public final static String LAST = "last";
-    public final static String VOLUME = "volume";
-    public final static String CHANGE = "change";
-    public final static String CHANGE_PERCENT = "change-percent";
-    public final static String BID = "bid";
-    public final static String ASK = "ask";
-    public final static String BID_ASK_PRICE = "bid-ask-size";
-    public final static String YEAR_LOW = "year-low";
-    public final static String YEAR_HIGH = "year-high";
+    //Tags for parsing TDA quotes
+    public final static String TDA_SESSION_ID = "session-id";
+    public final static String TDA_QUOTE_LIST = "quote-list";
+    public final static String TDA_QUOTE = "quote";
+    public final static String TDA_LAST_TRADE_DATE = "last-trade-date";
+    public final static String TDA_SYMBOL = "symbol";
+    public final static String TDA_OPEN = "open";
+    public final static String TDA_CLOSE = "close";
+    public final static String TDA_LOW = "low";
+    public final static String TDA_HIGH = "high";
+    public final static String TDA_LAST = "last";
+    public final static String TDA_VOLUME = "volume";
+    public final static String TDA_CHANGE = "change";
+    public final static String TDA_CHANGE_PERCENT = "change-percent";
+    public final static String TDA_BID = "bid";
+    public final static String TDA_ASK = "ask";
+    public final static String TDA_BID_ASK_PRICE = "bid-ask-size";
+    public final static String TDA_YEAR_LOW = "year-low";
+    public final static String TDA_YEAR_HIGH = "year-high";
+    
+    //Tags for parsing the DayTrader configuration file
+    public final static String CFG_DAY_TRADER_CONFIG = "dayTraderConfig";
+    public final static String CFG_VERSION = "version";
+    public final static String CFG_DT_LOG_FILE_NAME = "dtLogFileName";
+    public final static String CFG_DT_REPORT_DIR_PATH = "dtReportDirPath";
+    public final static String CFG_MINUTES_BEFORE_CLOSE_TO_BUY = "minutesBeforeCloseToBuy";
+    public final static String CFG_RT_SCAN_INTERVAL_MINUTES = "rtScanIntervalMinutes";
+    public final static String CFG_USE_IB = "useIB";
+    public final static String CFG_USE_TD = "useTD";
+    public final static String CFG_IGNORE_MARKET_CLOSED = "ignoreMarketClosed";
+    public final static String CFG_USE_SIMULATE_DATE = "useSimulateDate";
+    public final static String CFG_TAKE_SNAPSHOT = "takeSnapshot";
+    public final static String CFG_GET_RT_DATA = "getRTData";
+    public final static String CFG_USE_SYSTEM_TIME = "useSystemTime";
     
       
     /**

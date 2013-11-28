@@ -80,8 +80,6 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
 
         try {
             connect();
-
-            takeMarketSnapshot();
         } catch (ConnectionException e) {
             // TODO Auto-generated catch block
             logger.logFault("Could not connect to TDAmeritrade API", e);      
@@ -202,7 +200,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
 
             quoteDoc.getDocumentElement().normalize();
 
-            NodeList quotes = quoteDoc.getElementsByTagName(XMLTags_T.QUOTE);
+            NodeList quotes = quoteDoc.getElementsByTagName(XMLTags_T.TDA_QUOTE);
             for( int i = 0; i < quotes.getLength(); i++) {
 
                 
@@ -213,11 +211,11 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
 
                     Element quoteData = (Element) quote;
                     
-                    Symbol_T symbol = new Symbol_T(quoteData.getElementsByTagName(XMLTags_T.SYMBOL).item(0).getTextContent());
+                    Symbol_T symbol = new Symbol_T(quoteData.getElementsByTagName(XMLTags_T.TDA_SYMBOL).item(0).getTextContent());
                     marketData.setSymbolId(symbol.getId());
                     
                     try {
-                        String dateString = quoteData.getElementsByTagName(XMLTags_T.LAST_TRADE_DATE).item(0).getTextContent();
+                        String dateString = quoteData.getElementsByTagName(XMLTags_T.TDA_LAST_TRADE_DATE).item(0).getTextContent();
                         DateFormat df = new SimpleDateFormat("yyyy-MM-dd kk:mm:ss");
                         Date date = null;
                         try {
@@ -233,23 +231,23 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
                         Log.println(quoteString);
                     }
 
-                    marketData.setOpen(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.OPEN).item(0).getTextContent()));
-                    marketData.setClose(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.CLOSE).item(0).getTextContent()));
-                    marketData.setOpen(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.OPEN).item(0).getTextContent()));
-                    marketData.setHigh(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.HIGH).item(0).getTextContent()));
-                    marketData.setLastPrice(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.LAST).item(0).getTextContent()));
-                    marketData.setVolume(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.VOLUME).item(0).getTextContent()));
-                    marketData.setChange(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.CHANGE).item(0).getTextContent()));
-                    String percentChange = quoteData.getElementsByTagName(XMLTags_T.CHANGE_PERCENT).item(0).getTextContent();
+                    marketData.setOpen(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_OPEN).item(0).getTextContent()));
+                    marketData.setClose(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_CLOSE).item(0).getTextContent()));
+                    marketData.setOpen(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_OPEN).item(0).getTextContent()));
+                    marketData.setHigh(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_HIGH).item(0).getTextContent()));
+                    marketData.setLastPrice(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_LAST).item(0).getTextContent()));
+                    marketData.setVolume(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_VOLUME).item(0).getTextContent()));
+                    marketData.setChange(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_CHANGE).item(0).getTextContent()));
+                    String percentChange = quoteData.getElementsByTagName(XMLTags_T.TDA_CHANGE_PERCENT).item(0).getTextContent();
                     // TD returns a string with a trailing % we dont want that
                     int percentIndex = percentChange.indexOf("%");
                     percentChange = percentChange.substring(0, percentIndex);
                     marketData.setPercentChange(Utilities_T.stringToDouble(percentChange));
 
-                    marketData.setBidPrice(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.BID).item(0).getTextContent()));
-                    marketData.setAskPrice(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.ASK).item(0).getTextContent()));
+                    marketData.setBidPrice(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_BID).item(0).getTextContent()));
+                    marketData.setAskPrice(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_ASK).item(0).getTextContent()));
 
-                    String bidAsk  = quoteData.getElementsByTagName(XMLTags_T.BID_ASK_PRICE).item(0).getTextContent();
+                    String bidAsk  = quoteData.getElementsByTagName(XMLTags_T.TDA_BID_ASK_PRICE).item(0).getTextContent();
                     // retured as bidXask, eg 200X400
                     int xIndex = bidAsk.indexOf("X");
                     String bidSize = bidAsk.substring(0, xIndex);
@@ -257,8 +255,8 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
                     marketData.setBidSize(Utilities_T.stringToDouble(bidSize));
                     marketData.setAskSize(Utilities_T.stringToDouble(askSize));
 
-                    marketData.setWeekLow52(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.YEAR_LOW).item(0).getTextContent()));
-                    marketData.setWeekHigh52(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.YEAR_HIGH).item(0).getTextContent()));
+                    marketData.setWeekLow52(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_YEAR_LOW).item(0).getTextContent()));
+                    marketData.setWeekHigh52(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_YEAR_HIGH).item(0).getTextContent()));
 
 
                     //update our snapshot map with the latest data
@@ -358,7 +356,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
 
         List <RTData_T> retData = new ArrayList<RTData_T>();
 
-        int qlStart = quoteData.indexOf(XMLTags_T.QUOTE_LIST);
+        int qlStart = quoteData.indexOf(XMLTags_T.TDA_QUOTE_LIST);
 
         if (qlStart == -1) {
             logger.logText("Failed to find start of quote list", Level.DEBUG);
@@ -375,7 +373,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
 
             RTData_T rtData = new RTData_T();
 
-            String dateString = XMLTags_T.simpleParse(quoteData, XMLTags_T.LAST_TRADE_DATE);
+            String dateString = XMLTags_T.simpleParse(quoteData, XMLTags_T.TDA_LAST_TRADE_DATE);
             DateFormat df = new SimpleDateFormat("yyyy-MM-dd kk:mm:ss");
             Date date = null;
             try {
@@ -386,15 +384,15 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
             }  
             rtData.setDate(date);
 
-            Symbol_T symbol = new Symbol_T(XMLTags_T.simpleParse(quoteData, XMLTags_T.SYMBOL));
+            Symbol_T symbol = new Symbol_T(XMLTags_T.simpleParse(quoteData, XMLTags_T.TDA_SYMBOL));
             // TODO: this table still uses symbol, not symb id
             //rtData.setSymbolId(symbol.getId());
             rtData.setSymbol(symbol.getSymbol());
 
-            rtData.setPrice(Utilities_T.stringToDouble(XMLTags_T.simpleParse(quoteData, XMLTags_T.LAST)));
-            rtData.setAskPrice(Utilities_T.stringToDouble(XMLTags_T.simpleParse(quoteData, XMLTags_T.ASK)));
-            rtData.setBidPrice(Utilities_T.stringToDouble(XMLTags_T.simpleParse(quoteData, XMLTags_T.BID)));
-            rtData.setVolume(Utilities_T.stringToDouble(XMLTags_T.simpleParse(quoteData, XMLTags_T.VOLUME)).longValue());
+            rtData.setPrice(Utilities_T.stringToDouble(XMLTags_T.simpleParse(quoteData, XMLTags_T.TDA_LAST)));
+            rtData.setAskPrice(Utilities_T.stringToDouble(XMLTags_T.simpleParse(quoteData, XMLTags_T.TDA_ASK)));
+            rtData.setBidPrice(Utilities_T.stringToDouble(XMLTags_T.simpleParse(quoteData, XMLTags_T.TDA_BID)));
+            rtData.setVolume(Utilities_T.stringToDouble(XMLTags_T.simpleParse(quoteData, XMLTags_T.TDA_VOLUME)).longValue());
 
             //persist our individual quote to the database
             // note this table use INSERT IGNORE so duplicates arent added

@@ -30,6 +30,8 @@ import org.hibernate.metamodel.MetadataSources;
 import org.hibernate.service.ServiceRegistry;
 import org.hibernate.service.ServiceRegistryBuilder;
 
+import com.ib.controller.OrderStatus;
+
 import trader.Holding_T;
 import trader.Trader_T;
 import util.Utilities_T;
@@ -450,9 +452,9 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
 
         Criteria criteria = session.createCriteria(Holding_T.class)
                 .add(Restrictions.disjunction()
-                		.add(Restrictions.eq("orderStatus", "Submitted"))
-                        .add(Restrictions.eq("orderStatus", "PreSubmitted"))
-                        .add(Restrictions.eq("orderStatus", "Inactive")));		// TODO use def
+                		.add(Restrictions.eq("orderStatus", OrderStatus.Submitted.toString()))
+                        .add(Restrictions.eq("orderStatus", OrderStatus.PreSubmitted.toString()))
+                        .add(Restrictions.eq("orderStatus", OrderStatus.Inactive.toString())));		// TODO use def
        
         @SuppressWarnings("unchecked")
         List<Holding_T> results = criteria.list();        

@@ -251,7 +251,7 @@ if (1==0) {
     {
     	String reportName = "dt_"+timeManager.getCurrentTradeDate().toString();
     	dtLogger_T report = new dtLogger_T();
-    	report.open("/home/steve/Reports/"+reportName+".rpt");
+    	report.open("/home/nathan/temp/Reports/"+reportName+".rpt");
 
     	
     	Double cumNet = 0.00;

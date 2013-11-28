@@ -9,11 +9,13 @@ import java.util.List;
 import java.util.Map;
 
 import managers.BrokerManager_T;
+import managers.ConfigurationManager_T;
 import managers.DatabaseManager_T;
 import managers.LoggerManager_T;
 import managers.MarketDataManager_T;
 import managers.TimeManager_T;
 
+import util.XMLTags_T;
 import util.dtLogger_T;
 
 
@@ -23,6 +25,7 @@ public class DayTrader_T {
     private static Map<Class<?>, Manager_IF> serviceManager = new HashMap<Class<?>, Manager_IF>();
     private static List<Thread> threads = new ArrayList<Thread>();
     
+    private static ConfigurationManager_T configurationManager = null;
     private static DatabaseManager_T databaseManager = null;
     private static MarketDataManager_T marketDataManager = null;
     private static BrokerManager_T brokerManager = null;
@@ -58,7 +61,7 @@ public class DayTrader_T {
     /*** end development defines ***/
     
     /* our one and only log file */
-    private static String dtLogFilename = "/home/steve/dayTrader_test.log";
+    private static String dtLogFilename = "";
     private static boolean echoLog = true;
     private static boolean logTimestamp = false;
     
@@ -71,12 +74,31 @@ public class DayTrader_T {
 
     public static void main(String[] alrgs) {
         
+        String configFile = "";
+        
+        for (String arg : alrgs) {
+            if (arg.startsWith("-cfg=")) {
+                configFile = arg.substring(5);
+            }
+        }
+        
+        configurationManager = new ConfigurationManager_T(configFile);
         databaseManager = new DatabaseManager_T();
         marketDataManager = new MarketDataManager_T();
         brokerManager = new BrokerManager_T();
         loggerManager = new LoggerManager_T();
         timeManager = new TimeManager_T();
         dtLog = new dtLogger_T();
+        
+        dtLogFilename = configurationManager.getConfigParam(XMLTags_T.CFG_DT_LOG_FILE_NAME);
+        d_useIB = Boolean.parseBoolean(configurationManager.getConfigParam(XMLTags_T.CFG_USE_IB));
+        d_useTD = Boolean.parseBoolean(configurationManager.getConfigParam(XMLTags_T.CFG_USE_TD));
+        d_ignoreMarketClosed = Boolean.parseBoolean(configurationManager.getConfigParam(XMLTags_T.CFG_IGNORE_MARKET_CLOSED));
+        d_useSimulateDate = configurationManager.getConfigParam(XMLTags_T.CFG_USE_SIMULATE_DATE);
+        d_takeSnapshot = Boolean.parseBoolean(configurationManager.getConfigParam(XMLTags_T.CFG_TAKE_SNAPSHOT));
+        d_getRTData = Boolean.parseBoolean(configurationManager.getConfigParam(XMLTags_T.CFG_GET_RT_DATA));
+        d_useSystemTime = Boolean.parseBoolean(configurationManager.getConfigParam(XMLTags_T.CFG_USE_SYSTEM_TIME));
+        
         
         initialize();
         run();
@@ -109,7 +131,6 @@ public class DayTrader_T {
 		    Manager_IF mgr = it.next();
 		    //Initialize each manager
 		    mgr.initialize();
-		    
 		}
 		
 	}

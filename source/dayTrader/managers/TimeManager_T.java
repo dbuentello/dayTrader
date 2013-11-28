@@ -4,33 +4,26 @@ import interfaces.Manager_IF;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 
-import javax.persistence.Transient;
-
-import marketdata.MarketData_T;
 import marketdata.RTData_T;
 import marketdata.Symbol_T;
 
-import org.apache.log4j.Level;
 import org.hibernate.Criteria;
 import org.hibernate.Session;
 import org.hibernate.criterion.Order;
 import org.hibernate.criterion.Restrictions;
 
-import util.Calendar_T;
-import util.Utilities_T;
-import dayTrader.DayTrader_T;
-
-import trader.Holding_T;
 import trader.TraderCalculator_T;
 import trader.Trader_T;
-
+import util.Calendar_T;
+import util.Utilities_T;
+import util.XMLTags_T;
 import util.dtLogger_T;
+import dayTrader.DayTrader_T;
 
 
 
@@ -47,13 +40,13 @@ public class TimeManager_T implements Manager_IF, Runnable {
     /** Time in minutes before the close of the market day that we want to capture our snapshot of the market
      * and execute our buy orders.
      */
-    private final int MINUTES_BEFORE_CLOSE_TO_BUY = 15;	//SALxx - is this enough time?
+    private int MINUTES_BEFORE_CLOSE_TO_BUY = 240;	//SALxx - is this enough time?
     /** The number of milliseconds in one minute. */
     private final int MS_IN_MINUTE = 1000 * 60;
     /** The number of minutes in one hour. */
     private final int MIN_IN_HOUR = 60;
     /** real time scan interval */
-    private final int RT_SCAN_INTERVAL = 5 * MS_IN_MINUTE;
+    private int RT_SCAN_INTERVAL = 5 * MS_IN_MINUTE;
     
     
     /** A reference to the java Calendar class used to format and convert Date objects. */
@@ -300,6 +293,10 @@ if (DayTrader_T.d_useIB) {
         trader      = new Trader_T();
         
         Log = DayTrader_T.dtLog;
+        
+        ConfigurationManager_T cfgMgr = (ConfigurationManager_T) DayTrader_T.getManager(ConfigurationManager_T.class);
+        MINUTES_BEFORE_CLOSE_TO_BUY = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_MINUTES_BEFORE_CLOSE_TO_BUY));
+        RT_SCAN_INTERVAL = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_RT_SCAN_INTERVAL_MINUTES)) * MS_IN_MINUTE;
 
         calendar_t = (Calendar_T) databaseManager.query(Calendar_T.class, time);
         

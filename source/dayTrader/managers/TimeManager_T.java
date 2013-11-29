@@ -40,7 +40,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
     /** Time in minutes before the close of the market day that we want to capture our snapshot of the market
      * and execute our buy orders.
      */
-    private int MINUTES_BEFORE_CLOSE_TO_BUY = 240;	//SALxx - is this enough time?
+    private int MINUTES_BEFORE_CLOSE_TO_BUY = 600;	//SALxx - is this enough time?
     /** The number of milliseconds in one minute. */
     private final int MS_IN_MINUTE = 1000 * 60;
     /** The number of minutes in one hour. */
@@ -91,7 +91,8 @@ public class TimeManager_T implements Manager_IF, Runnable {
         
         boolean running = true;
 
-        Log.println("\n*** Day Trader V.11.26.0 has started at "+TimeNow()+" ***\n");
+        // TODO - replace w/config paramter
+        Log.println("\n*** Day Trader V.11.29.0 has started at "+TimeNow()+" ***\n");
 
         if (!isMarketOpen())
         {
@@ -120,7 +121,8 @@ if (DayTrader_T.d_useIB) {
 //boolean b = trader.liquidateHoldings();
 //tCalculator.CreateReport();
 //running = false;
-//TEST
+//TEST        
+
 
         // whenever we start, get open orders, and unrecorded execute orders
 if (DayTrader_T.d_useIB) {
@@ -234,7 +236,7 @@ if (DayTrader_T.d_useIB) {
                     // Finally, update Holdings Table w/tomorrows candidates
                     databaseManager.addHoldings(losers);
                     
-                    // calculate buy positions (buy price and volume)
+                    // calculate buy positions (buy price and volume) and set initial fill/remaining
                     trader.updateBuyPositions(losers);
                     
                     // Now buy them - this will wait a bit for immediate fills
@@ -248,13 +250,15 @@ if (DayTrader_T.d_useIB) {
                     // TODO: If we wait around long enough, the unfilled ones should fill
                     // but if we're too close to the end of the day, they may not be filled until tomorrow,
                     // or we could cancel (remainder)
-                    
+
+if (DayTrader_T.d_useIB) {
                     // TODO: wait until 2 minutes before market close, or loop for a bit
                     Thread.sleep(30000);
                     
 					int nRemaining = trader.EODReconciliation();
 					if (nRemaining != 0)
 						Log.println("Yikes! There are still "+nRemaining+" unsold holdings.");
+}
 
                     // TODO: at some time if a BUY order hasn't been filled, just cancel it
 //                  if (time.after(cancel_time)) {
@@ -295,8 +299,8 @@ if (DayTrader_T.d_useIB) {
         Log = DayTrader_T.dtLog;
         
         ConfigurationManager_T cfgMgr = (ConfigurationManager_T) DayTrader_T.getManager(ConfigurationManager_T.class);
-        MINUTES_BEFORE_CLOSE_TO_BUY = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_MINUTES_BEFORE_CLOSE_TO_BUY));
-        RT_SCAN_INTERVAL = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_RT_SCAN_INTERVAL_MINUTES)) * MS_IN_MINUTE;
+        //MINUTES_BEFORE_CLOSE_TO_BUY = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_MINUTES_BEFORE_CLOSE_TO_BUY));
+        //RT_SCAN_INTERVAL = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_RT_SCAN_INTERVAL_MINUTES)) * MS_IN_MINUTE;
 
         calendar_t = (Calendar_T) databaseManager.query(Calendar_T.class, time);
         

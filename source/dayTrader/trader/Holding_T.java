@@ -444,7 +444,7 @@ public class Holding_T implements Persistable_IF {
     }
 
     /**
-     * Update the sell parameters (price and date) for this symbol for the most
+     * Update the sell parameters (desired price and date) for this symbol for the most
      * recent entry for this symbol in the Holdings table.  Its sell date will be null
      * before it is updated - that is the trigger
      * 
@@ -526,14 +526,17 @@ public class Holding_T implements Persistable_IF {
      
     /**
      * update the current holdings with data returned from IB
-     * This has logic to determine which date to set based on buy/sell
-     * and sets the actual buy price to the fillprice on a buy
-     * (avgFillPrice is the actual price on a sell)
+     * This has logic to determine which fields to populate based on buy/sell
+     *   sets the appropriate buy/sell date
+     *   sets filled on buy, remaining on sell
+     *   sets the actual buy price on a buy, avgFillPrice is the actual price on a sell
+     *   
+     *  NOTE the fields must be correctly set by the calling routine, this only populates them
      *
      * @return 1 if update, 0 if not
      * @throws HibernateException
      */
-    public int updateMarketPosition()  throws HibernateException {
+    public int updateOrderPosition()  throws HibernateException {
         
     	Session session =  DatabaseManager_T.getSessionFactory().openSession();
 
@@ -544,21 +547,20 @@ public class Holding_T implements Persistable_IF {
     					//"permId = :permId, " +
     					"clientId = :clientId, " +
     					"parentId = :parentId, " +
-    					"orderStatus = :status, " +
-            			"filled = :filled, " +			// NOTE: these are applicable for both buys and sells
-            			"remaining = :remaining, " +
-            			"avgFillPrice = :avgFillPrice, ";
-						// + "lastFillPrice = :lastFillPrice, ";
+    					"orderStatus = :status, ";
+
     	
-    	//if (this.getOrder().m_action.equalsIgnoreCase(Action.BUY.toString()))
-    	if (isOwned())
+    	if (isBuying() || isOwned())
     	{
         	hql += "buyDate = :buyDate, " + 
-        		   "actualBuyPrice = :actualBuyPrice ";
+        		   "actualBuyPrice = :actualBuyPrice, " +
+        		   "filled = :filled ";
     	}
     	else
     	{
-        	hql += "sellDate = :sellDate ";
+        	hql += "sellDate = :sellDate, " +
+        		   "remaining = :remaining, " +
+        		   "avgFillPrice = :avgFillPrice ";
     	}
     	hql += "WHERE id = :id";
 
@@ -576,21 +578,21 @@ public class Holding_T implements Persistable_IF {
         	query.setInteger("parentId",     this.getParentId());
         	query.setInteger("clientId",     this.getClientId());
         	query.setString ("status",       this.getOrderStatus());
-    		query.setInteger("filled",       this.getFilled());
-    		query.setInteger("remaining",    this.getRemaining());
-    		query.setDouble ("avgFillPrice", this.getAvgFillPrice());
+
     		
-        	//if (this.getOrder().m_action.equalsIgnoreCase(Action.BUY.toString()))
-            if (isOwned())
+            if (isBuying() || isOwned())
             {
         		query.setTimestamp("buyDate", this.getBuyDate());
-        		//query.setDouble("actualBuyPrice", this.getActualBuyPrice());
-        		query.setDouble("actualBuyPrice", this.getAvgFillPrice());
+        		query.setDouble("actualBuyPrice", this.getActualBuyPrice());
+        		query.setInteger("filled",       this.getFilled());
         	}
         	else
         	{
         		query.setTimestamp("sellDate", this.getSellDate());
+        		query.setInteger("remaining",    this.getRemaining());
+        		query.setDouble ("avgFillPrice", this.getAvgFillPrice());
         	}
+            
         	query.setParameter("id", this.id);
 
         	nrows = query.executeUpdate();
@@ -842,21 +844,51 @@ public class Holding_T implements Persistable_IF {
     }
 
     /**
-     * Return true is we currently own this position, otherwise return false
+     *  These are the distinct states that a holding passes thru, in this order
+     *  Buying
+     *  Owned
+     *  Selling
+     *  Sold
+     *  
+     *   any other state is unknown
+     *   TODO: add orderid as a required condition
+     */
+    
+    /**
+     * Return true if we are currently buying this position, otherwise return false
      * 
-     * @return the isOwned
+     * @return true if buying
+     */
+    @Transient
+    public boolean isBuying() {
+       
+        // we are in the process of buying if the buy date is populated, but not the sell date
+        // and all the shares have not been filled
+        return  ((buyDate != null) && (sellDate == null) && (filled != volume));
+    }    
+    /**
+     * Return true is we currently own this position (completely bought), otherwise return false
+     * 
+     * @return true if owned (bought)
      */
     @Transient
     public boolean isOwned() {
-        boolean owned = false;
+       
+        //we own a holding if the buy date is populated, but not the sell date
+        // (indicating we've bought the position, but haven't sold it yet)
+        // and all the shares have been filled
+        return  ((buyDate != null) && (sellDate == null) && (filled == volume));
+    }
+
+
+    /**
+     * Return true if we are in the process of selling this position, otherwise return false
+     * 
+     */
+    @Transient
+    public boolean isSelling() {
         
-        //we own a holding if the buy date is populated, but not the sell date indicating we've bought the position,
-        //but haven't sold it yet
-        if (buyDate != null && sellDate == null) {
-            owned = true;
-        }
-        
-        return owned;
+        return ((sellDate != null) && (remaining != 0));
     }
 
     /**
@@ -868,26 +900,6 @@ public class Holding_T implements Persistable_IF {
         
         return ((sellDate != null) && (remaining == 0));
     }
-
-    /**
-     * Return true if we are in the process of selling this position, otherwise return false
-     * 
-     */
-    @Transient
-    public boolean isSelling() {
-        
-        return ((sellDate != null) && (filled != volume));
-    }
   
-    /** 
-     * are we allowed to sell this holding?
-     * 
-     * @return true if we own it (bought but not sold) and the volume has been filled
-     */
-    public boolean canSell() {
-
-    	return (isOwned() && (volume == filled));
-
-    }
 
 }

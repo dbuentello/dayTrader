@@ -42,7 +42,7 @@ public class DayTrader_T {
     public static boolean d_useTD = true;
     
     // override is marketOpen - make it open
-    public static boolean d_ignoreMarketClosed = true;
+    public static boolean d_ignoreMarketClosed = false;
     
     // if not null, use this simulated time as current time
     public static String d_useSimulateDate = "";    

@@ -126,7 +126,7 @@ public class Trader_T {
         	Holding_T holding = it.next();
 
         	// first, determine if we can sell this holding - the buy had to be complete
-        	if (!holding.canSell()) {
+        	if (!holding.isOwned()) {
         		Log.println("[ATTENTION] Holding "+holding.getSymbolId()+" can not be sold "+
         				holding.getVolume()+"/"+holding.getFilled());
         		continue;
@@ -205,12 +205,10 @@ if (DayTrader_T.d_useIB) {
 			// indicate simulation, and other ids will be null
 			holding.setOrderId(-1);
 			holding.setOrderStatus("Filled");
-			holding.setFilled(holding.getVolume());
 	        holding.setRemaining(0);
 	        holding.setAvgFillPrice(holding.getSellPrice());
-	        holding.setLastFillPrice(holding.getSellPrice());
 	        
-	        if (holding.updateMarketPosition() == 0)
+	        if (holding.updateOrderPosition() == 0)
 	        	System.out.println("[WARNING] order status not updated in DB");
 	  
 }
@@ -341,7 +339,7 @@ if (DayTrader_T.d_useIB) {
 	 		if (sell)
 	 		{ 			
 	        	// first, determine if we can sell this holding - the buy had to be complete
-	        	if (!holding.canSell()) {
+	        	if (!holding.isOwned()) {
 	        		Log.println("[ATTENTION] Holding "+holding.getSymbolId()+" can not be sold "+
 	        				holding.getVolume()+"/"+holding.getFilled());
 	        		continue;
@@ -415,12 +413,11 @@ else
 				// indicate simulation, and other ids will be null
 				holding.setOrderId(-1);
 				holding.setOrderStatus("Filled");
-				holding.setFilled(holding.getVolume());
 		        holding.setRemaining(0);
 		        holding.setAvgFillPrice(holding.getSellPrice());
-		        holding.setLastFillPrice(holding.getSellPrice());
+
 		        
-		        if (holding.updateMarketPosition() == 0)
+		        if (holding.updateOrderPosition() == 0)
 		        	System.out.println("[WARNING] order status not updated in DB");
 		  
 }
@@ -520,9 +517,11 @@ else
     
     /**
      * update our Holdings db with buy position of the the stocks we want to buy today
- 	 * buy price, #of share, [total $ amt]
+ 	 * buy price, #of share, [from total $ amt]
 	 * calculate how much of each stock to buy
 	 * volume is declared as INT so only full shares are bought
+	 * initialized filled to 0 (DB default) and remaining to volume
+	 * (fill is counted up on buy, remaining is counted down on sell)
      */
     public synchronized void updateBuyPositions(List<Symbol_T> losers)
     {
@@ -540,6 +539,7 @@ else
             int buyVolume = (int)(buyTotal/buyPrice);
             double adjustedBuyTotal = buyVolume * buyPrice;
     	
+            // TODO: put this as a Holding_T method updateBuyPosition(price, vol)
             Session session = databaseManager.getSessionFactory().openSession();
 
             // updates must be within a transaction
@@ -549,11 +549,12 @@ else
             	tx = session.beginTransaction();
 
             	String hql = "UPDATE trader.Holding_T " +
-            			"SET buyPrice = :buyPrice, volume = :buyVolume " +
+            			"SET buyPrice = :buyPrice, volume = :buyVolume, " +
+            			"remaining = :buyVolume " + 
             			"WHERE symbolId = :sym AND buyDate >= :date";
             	Query query = session.createQuery(hql);
             	query.setDouble("buyPrice", buyPrice);
-            	query.setInteger("buyVolume", buyVolume);    
+            	query.setInteger("buyVolume", buyVolume);
             	query.setParameter("sym", symbol.getId());
             	query.setDate("date", timeManager.getCurrentTradeDate());
 
@@ -628,7 +629,7 @@ if (DayTrader_T.d_useIB) {
 			holding.setActualBuyPrice(holding.getBuyPrice());
 			holding.setFilled(holding.getVolume());
 			holding.setOrderStatus("Filled");
-			holding.updateMarketPosition();
+			holding.updateOrderPosition();
 	
 			Log.newline();
 }
@@ -871,12 +872,20 @@ if (DayTrader_T.d_useIB) {
     					Log.println("[DEBUG] number of shares match woohoo...updating DB");
             		
     					holding.setOrderStatus(OrderStatus.Filled.toString());
+    					// if its executed - its executed in its entirety (TOD0 - right?)
     					holding.setFilled(executedOrder.m_cumQty);
     					holding.setRemaining(0);
-//SALxx TODO: make sure buy price in DB is updated here....            		
-    					holding.setAvgFillPrice(executedOrder.m_avgPrice);  // if buy, actualBuyPrice will be updated when persisted
-            		
-    					holding.updateMarketPosition();	//persist
+    					
+    					if (holding.isBuying() || holding.isOwned()) {
+    						// holding.setBuyDate(executedOrder.m_time);
+    						holding.setActualBuyPrice(executedOrder.m_avgPrice);
+    					}
+    					else {
+    						// holding.setSellDate(executedOrder.m_time);
+    						holding.setAvgFillPrice(executedOrder.m_avgPrice);
+    					}
+
+    					holding.updateOrderPosition();	//persist
             		
     					nOpen--;						// one less to deal with
     				}

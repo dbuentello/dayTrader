@@ -15,12 +15,14 @@ import org.hibernate.criterion.Order;
 import org.hibernate.criterion.Restrictions;
 
 import dayTrader.DayTrader_T;
+import util.XMLTags_T;
 import util.dtLogger_T;
 
 import managers.DatabaseManager_T;
 import managers.LoggerManager_T;
 import managers.TimeManager_T;
 import marketdata.MarketData_T;
+import managers.ConfigurationManager_T;
 
 import trader.Holding_T;
 import trader.DailyNet_T;
@@ -249,9 +251,11 @@ if (1==0) {
      */
     public void CreateReport()
     {
+        ConfigurationManager_T cfgMgr = (ConfigurationManager_T) DayTrader_T.getManager(ConfigurationManager_T.class);
+        String reportDir = cfgMgr.getConfigParam(XMLTags_T.CFG_USE_SIMULATE_DATE);
     	String reportName = "dt_"+timeManager.getCurrentTradeDate().toString();
     	dtLogger_T report = new dtLogger_T();
-    	report.open("/home/nathan/temp/Reports/"+reportName+".rpt");
+    	report.open(reportDir +"/"+reportName+".rpt");
 
     	
     	Double cumNet = 0.00;

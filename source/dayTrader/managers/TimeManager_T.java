@@ -99,8 +99,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
         	return;
         }
 
-        // we'll need this before we can use any brokerMgr/trader functions
-        // and as it could take time to init, do it here
+        // we'll need this before we can use any brokerMgr/trader functions and as it could take time to init, do it here
         // TODO: maybe centralize this function, and at leat make it a trader
         // method so we dont need the broker in this class
 if (DayTrader_T.d_useIB) {
@@ -419,7 +418,7 @@ if (!DayTrader_T.d_useSystemTime) {
 
             brokerManager.reqCurrentTime();
             try {
-                Thread.sleep(5000);
+                Thread.sleep(1000);
             } catch (InterruptedException e) {
                 // TODO Auto-generated catch block
                 e.printStackTrace();

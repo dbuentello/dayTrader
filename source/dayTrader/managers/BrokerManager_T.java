@@ -368,6 +368,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
     public boolean updateAccount() {
     	
         account.setUpdated(false);
+        //reqAccountUpdates returns through the updateAccountTime(), updateAccountValue(), updatePortfolio()
         ibClientSocket.reqAccountUpdates(true, account.getAccountCode());
         
         // wait until response is received
@@ -410,9 +411,12 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 		ibClientSocket.reqAccountUpdates(false, account.getAccountCode());
 	}
 	
+	/**
+	 * Callback for the reqAccountUpdates() request
+	 */
 	@Override
 	public void updateAccountTime(String timeStamp) {
-		
+	    
 		// TODO  throws exception bad date!!!
 /***		
 	    SimpleDateFormat df = new SimpleDateFormat();
@@ -425,7 +429,9 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 ***/
 	}
 	
-	
+	/**
+	 * Callback for the reqAccountUpdates() request
+	 */
 	@Override
 	public void updateAccountValue(String key, String value, String currency,
 			String accountName) {
@@ -636,11 +642,8 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
         System.out.println("[orderStatus] " + orderId +" "+ status +" ("+ filled +" "+
               remaining +") at $"+ avgFillPrice +"/$"+lastFillPrice+" ["+ permId +" "+ parentId +" "+ clientId +"]");
 
-
-	
         //N...if we already have a reference to this holding, just update the fields
 	    //otherwise add the new holding to our map
-        
 	    Holding_T holding = holdings.get(orderId);
 	    if (holding == null) {
 	    	System.out.println("[ERROR] OrderStatus()  This is bad! no Holding for orderid "+orderId);
@@ -699,7 +702,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
         else
         	System.out.println("orderStatus() Unhandled status: " + holding.getOrderStatus());
         
-	    // update the DB with our holding (note - this has buy/sell logic)
+	    // update the DB with our holding
         if (holding.updateMarketPosition() == 0)
         	// note: only a warning, because nothing may have changed
         	// we get duplicate callbacks sometimes
@@ -743,12 +746,13 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
         
 	}
 
-	
+	/**
+	 * Callback for the reqAccountUpdates() request
+	 */
 	@Override
 	public void updatePortfolio(Contract contract, int position,
 			double marketPrice, double marketValue, double averageCost,
 			double unrealizedPNL, double realizedPNL, String accountName) {
-		
 	}
 	
 	
@@ -821,6 +825,9 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 		
 	}
 	
+	/**
+	 * Callback for the reqExecutions() request
+	 */
 	@Override
 	public void execDetails(int reqId, Contract contract, Execution execution) {
 		System.out.print  ("[execDetails] for OrderId "+execution.m_orderId+" (reqId: " +reqId+") ");
@@ -833,7 +840,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
         
         // call our orderStatus to update the DB
         // Note that parentId is 0 (we dont use now) and that remaining is set to 0
-    	orderStatus(execution.m_orderId, "Filled", execution.m_cumQty, 0,
+    	orderStatus(execution.m_orderId, OrderStatus.Filled.toString(), execution.m_cumQty, 0,
     			execution.m_avgPrice, execution.m_permId, 0, execution.m_avgPrice,
     			execution.m_clientId, "");
    

@@ -636,10 +636,6 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
         System.out.println("[orderStatus] " + orderId +" "+ status +" ("+ filled +" "+
               remaining +") at $"+ avgFillPrice +"/$"+lastFillPrice+" ["+ permId +" "+ parentId +" "+ clientId +"]");
 
-
-	
-        //N...if we already have a reference to this holding, just update the fields
-	    //otherwise add the new holding to our map
         
 	    Holding_T holding = holdings.get(orderId);
 	    if (holding == null) {
@@ -654,10 +650,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	    holding.setParentId(permId);		// this is the Id we can use in TWS
 	    
 	    holding.setOrderStatus(status);
-        holding.setFilled(filled);
-        holding.setRemaining(remaining);
-        holding.setAvgFillPrice(avgFillPrice);
-        holding.setLastFillPrice(lastFillPrice);
+	    
         
         //determine the necessary action based on the status of our order
         if (holding.getOrderStatus().equalsIgnoreCase(OrderStatus.PreSubmitted.toString())) {
@@ -665,32 +658,33 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
         }   
         else if (holding.getOrderStatus().equalsIgnoreCase(OrderStatus.Submitted.toString())) {
             
-        	// SALxx check this!!  WHY? - my logic sets buydate when order is created
-            //If a buy order has been at least partially filled, update the buy time
-            //if(holding.getOrder().m_action.equalsIgnoreCase(Action.BUY.toString()) && filled > 0) {
-            if(holding.isOwned() && filled > 0) {
+            // If were buying, set these parameters (filled is counted up in the DB
+        	// whereas fill from the orderStatus is just for this execution (it could be
+        	// partial)
+            if (holding.isSelling() || holding.isOwned()) {
         		holding.setBuyDate(timeManager.getTime());
+        		holding.setFilled(holding.getVolume() - remaining);
+        		holding.setActualBuyPrice(avgFillPrice);
             }
+            else {	
+        		holding.setSellDate(timeManager.getTime());
+        		holding.setRemaining(remaining);
+        		holding.setAvgFillPrice(avgFillPrice);
+        	}
         }
 		else if (holding.getOrderStatus().equalsIgnoreCase(OrderStatus.Filled.toString())) {
             
-            //if it was sell order with no shares remaining, the order is complete and we no longer own this position
-            //so update the holding sellDate. If the sellDate if populated, we will consider all shares of this holding 
-            //are sold so be careful about how we update the sellDate
-			//SALxx - TODO check this, too  FILLED should be a good enough trigger (and remaining should be 0)
-            
-            //if(holding.getOrder().m_action.equalsIgnoreCase(Action.SELL.toString())) {
-            if(!holding.isOwned()) {
-                holding.setSellDate(timeManager.getTime()); 
+			// right now we set the same whether we're in the process or complete
+            if (holding.isSelling() || holding.isOwned()) {
+        		holding.setBuyDate(timeManager.getTime());
+        		holding.setFilled(holding.getVolume() - remaining);
+        		holding.setActualBuyPrice(avgFillPrice);
             }
-            
-            //If a buy order has been filled, update the buy time and the actual buy price
-            // (AvgFillPrice in the DB will be the actual sell price)
-            //if(holding.getOrder().m_action.equalsIgnoreCase(Action.BUY.toString())) {
-            if(holding.isOwned()) {
-                holding.setBuyDate(timeManager.getTime());
-                //holding.setActualBuyPrice(avgFillPrice);  updateMarketPosition does this for us
-            }
+            else {	
+        		holding.setSellDate(timeManager.getTime());
+        		holding.setRemaining(remaining);
+        		holding.setAvgFillPrice(avgFillPrice);
+        	}
             
         }
         else if (holding.getOrderStatus().equalsIgnoreCase(OrderStatus.Cancelled.toString())) {
@@ -700,7 +694,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
         	System.out.println("orderStatus() Unhandled status: " + holding.getOrderStatus());
         
 	    // update the DB with our holding (note - this has buy/sell logic)
-        if (holding.updateMarketPosition() == 0)
+        if (holding.updateOrderPosition() == 0)
         	// note: only a warning, because nothing may have changed
         	// we get duplicate callbacks sometimes
         	System.out.println("[WARNING] order status not updated in DB");

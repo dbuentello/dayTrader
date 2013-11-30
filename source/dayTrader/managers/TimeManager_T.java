@@ -298,8 +298,8 @@ if (DayTrader_T.d_useIB) {
         Log = DayTrader_T.dtLog;
         
         ConfigurationManager_T cfgMgr = (ConfigurationManager_T) DayTrader_T.getManager(ConfigurationManager_T.class);
-        //MINUTES_BEFORE_CLOSE_TO_BUY = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_MINUTES_BEFORE_CLOSE_TO_BUY));
-        //RT_SCAN_INTERVAL = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_RT_SCAN_INTERVAL_MINUTES)) * MS_IN_MINUTE;
+        MINUTES_BEFORE_CLOSE_TO_BUY = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_MINUTES_BEFORE_CLOSE_TO_BUY));
+        RT_SCAN_INTERVAL = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_RT_SCAN_INTERVAL_MINUTES)) * MS_IN_MINUTE;
 
         calendar_t = (Calendar_T) databaseManager.query(Calendar_T.class, time);
         

@@ -252,7 +252,7 @@ if (1==0) {
     public void CreateReport()
     {
         ConfigurationManager_T cfgMgr = (ConfigurationManager_T) DayTrader_T.getManager(ConfigurationManager_T.class);
-        String reportDir = cfgMgr.getConfigParam(XMLTags_T.CFG_USE_SIMULATE_DATE);
+        String reportDir = cfgMgr.getConfigParam(XMLTags_T.CFG_DT_REPORT_DIR_PATH);
     	String reportName = "dt_"+timeManager.getCurrentTradeDate().toString();
     	dtLogger_T report = new dtLogger_T();
     	report.open(reportDir +"/"+reportName+".rpt");

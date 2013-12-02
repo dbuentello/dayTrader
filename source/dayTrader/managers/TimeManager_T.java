@@ -9,6 +9,8 @@ import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 
+import javax.persistence.Transient;
+
 import marketdata.RTData_T;
 import marketdata.Symbol_T;
 
@@ -40,14 +42,17 @@ public class TimeManager_T implements Manager_IF, Runnable {
     /** Time in minutes before the close of the market day that we want to capture our snapshot of the market
      * and execute our buy orders.
      */
-    private int MINUTES_BEFORE_CLOSE_TO_BUY = 600;	//SALxx - is this enough time?
+    private int MINUTES_BEFORE_CLOSE_TO_BUY = 30;
     /** The number of milliseconds in one minute. */
     private final int MS_IN_MINUTE = 1000 * 60;
     /** The number of minutes in one hour. */
     private final int MIN_IN_HOUR = 60;
     /** real time scan interval */
     private int RT_SCAN_INTERVAL = 5 * MS_IN_MINUTE;
+    /** how long we should wait MAX after liquidition and buying */
+    private int MINUTES_TO_WAIT_FOR_TRADE_COMPLETION = 5;
     
+
     
     /** A reference to the java Calendar class used to format and convert Date objects. */
     private static Calendar calendar;
@@ -92,20 +97,20 @@ public class TimeManager_T implements Manager_IF, Runnable {
         boolean running = true;
 
         // TODO - replace w/config paramter
-        Log.println("\n*** Day Trader V.11.29.0 has started at "+TimeNow()+" ***\n");
+        Log.println("\n*** Day Trader V.12.02.0 has started at "+TimeNow()+" ***\n");
 
-        if (!isMarketOpen())
-        {
+        if (!isMarketOpen()) {
         	Log.print("Market is not open.  Bye.");
         	return;
         }
 
         // we'll need this before we can use any brokerMgr/trader functions and as it could take time to init, do it here
-        // TODO: maybe centralize this function, and at leat make it a trader
-        // method so we dont need the broker in this class
-if (DayTrader_T.d_useIB) {
-		brokerManager.updateAccount();
-}      	
+        // and as it could take time to init, do it here
+		if (!trader.init()) {
+			Log.println("[FATAL ERROR] Cannot get account info or nextValidOrderId");
+			return;
+		}
+      	
         /*
          * This loop will update the application time every three seconds and when a trigger time is reached
          * execute the appropriate actions. Triggers times can be the market open, a specified buy time,
@@ -123,7 +128,7 @@ if (DayTrader_T.d_useIB) {
 //TEST        
 
 
-        // whenever we start, get open orders, and unrecorded execute orders
+        // whenever we start/restart, get open orders, and unrecorded execute orders
 if (DayTrader_T.d_useIB) {
 	
 		Log.println("Retrieving Outstanding orders...");
@@ -175,6 +180,7 @@ if (DayTrader_T.d_getRTData) {
                 	// Then calculate our net position for today
                 	
                     // Execute any remaining sell orders and then wait until they sell
+                	// Do not include any that are in progress from selling during the day
 
                     //we need to wait until they sell so we have money to buy new stocks
                     //but is this really feasible? Will the money be credited to our account immediately
@@ -184,7 +190,8 @@ if (DayTrader_T.d_getRTData) {
 					// first, get the most recent RT data
 					List <RTData_T> rtData = marketDataManager.getRealTimeQuotes();
 
-					boolean allSold = trader.liquidateHoldings();
+					int nLiquidated = trader.liquidateHoldings();
+
 
 					// get todays closing market info from TD and store in EndOfDayQuotes
 					// this will give us time for the liquidated holdings to be sold
@@ -196,12 +203,26 @@ if ( DayTrader_T.d_takeSnapshot) {
 
 
 					// TODO? hang around a while so we can check if the orders
-					// have been filled.  This will then do another query to
-					// see if any OrderStatus have occurred since we tried to liquidate
+					// have been filled. If we still have partially/unfilled sell orders,
+					// what do we do????
 if (DayTrader_T.d_useIB) {
-					int nRemaining = trader.EODReconciliation();
-					if (nRemaining != 0)
+					int nRemaining = 1;   // this is arbitrary
+					int retryCount = (MINUTES_TO_WAIT_FOR_TRADE_COMPLETION * MIN_IN_HOUR)/10;
+					// TODO: wait until 10 minutes? before market close
+
+					while (nRemaining != 0 && retryCount != 0) {
+						try { Thread.sleep(10000); }
+						catch (InterruptedException e) { e.printStackTrace(); }
+						retryCount--;
+		
+						nRemaining = trader.allSold();
+					}
+					if (nRemaining != 0) {
 						Log.println("Yikes! There are still "+nRemaining+" unsold holdings.");
+					
+						// what do we do????
+					}
+					
 }  // useIB
 
 
@@ -240,29 +261,33 @@ if (DayTrader_T.d_useIB) {
                     
                     // Now buy them - this will wait a bit for immediate fills
                     // TODO: but what do we do if they arent all filled now?
-                    boolean allBought = trader.buyHoldings();
+                    int nBought = trader.buyHoldings();
                     
-                    // if notAllFilled check again?
-                    //if (!allBought)
-                    //	Log.println("Yikes! not all holdings were bought.");
+                     
+					// hang around a while so we can check if the orders
+					// have been filled.If we wait around long enough, the unfilled
+                    // ones should fill  but if we're too close to the end of the day,
+                    // and we still have partially/unfilled buy orders,
+					// cancel the remaining and adjust buy volume
                     
-                    // TODO: If we wait around long enough, the unfilled ones should fill
-                    // but if we're too close to the end of the day, they may not be filled until tomorrow,
-                    // or we could cancel (remainder)
-
 if (DayTrader_T.d_useIB) {
-                    // TODO: wait until 2 minutes before market close, or loop for a bit
-                    Thread.sleep(30000);
-                    
-					int nRemaining = trader.EODReconciliation();
-					if (nRemaining != 0)
-						Log.println("Yikes! There are still "+nRemaining+" unsold holdings.");
-}
+					int nRemaining = 1;   // this is arbitrary
+					int retryCount = (MINUTES_TO_WAIT_FOR_TRADE_COMPLETION * MIN_IN_HOUR)/10;
+					// TODO: or wait until 2 minutes before market close
 
-                    // TODO: at some time if a BUY order hasn't been filled, just cancel it
-//                  if (time.after(cancel_time)) {
-//                      //TODO: perform order cancels
-//                  }
+					while (nRemaining != 0 && retryCount != 0) {
+			   	    	try { Thread.sleep(10000); }
+			   	        catch (InterruptedException e) { e.printStackTrace(); }
+						retryCount--;
+						
+						nRemaining = trader.allBought();
+					}
+					if (nRemaining != 0) {
+						Log.println("Yikes! There are still "+nRemaining+" unsold holdings.");
+					
+						// TODO: Cancel and adjust volume
+					}
+}
 
                     
                     // TODO: CreateEndOfDayReport on Sell/Buy DayTrader_YYYY-MM-DD.rpt
@@ -315,7 +340,6 @@ if (DayTrader_T.d_useIB) {
     @Override
     public void sleep() {
         // TODO Auto-generated method stub
-
     }
 
     @Override

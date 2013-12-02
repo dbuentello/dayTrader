@@ -102,8 +102,8 @@ public class TraderCalculator_T {
         while (it.hasNext()) {
         	Holding_T holding = it.next();
         	
-        	double buyPrice  = holding.getBuyPrice();
-        	double sellPrice = holding.getSellPrice();
+        	double buyPrice  = holding.getActualBuyPrice();
+        	double sellPrice = holding.getAvgFillPrice();	//getActualSellPrice();
         	long   volume    = holding.getVolume();
         	
         	if (sellPrice == 0.00)
@@ -287,8 +287,8 @@ if (1==0) {
         	
         	Holding_T holding = it.next();
         	
-        	double buyPrice  = holding.getBuyPrice();
-        	double sellPrice = holding.getSellPrice();
+        	double buyPrice  = holding.getActualBuyPrice();
+        	double sellPrice = holding.getAvgFillPrice();	//getSellPrice();
         	long   volume    = holding.getVolume();
         	
         	double buyTotal  = buyPrice * volume;
@@ -313,7 +313,8 @@ if (1==0) {
         	
         }  // next Holding
         
-        double netLessCommision = cumNet - (cumVol * 0.01);
+        cumNet = Utilities_T.round(cumNet);
+        double netLessCommision =  Utilities_T.round(cumNet - (cumVol * 0.01));
         report.println("\nTotal Net: $"+netLessCommision+" on "+cumVol+" shares ($"+cumNet+" less commission)");
     
         report.close();

@@ -345,7 +345,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         while (it.hasNext()) {
             Symbol_T symbol = it.next();
             
-            Holding_T holding = new Holding_T(0);	// supply an orderId placeholder
+            Holding_T holding = new Holding_T();
             holding.setSymbol(symbol);
             holding.setBuyDate(date);
             

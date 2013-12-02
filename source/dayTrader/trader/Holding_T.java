@@ -74,6 +74,13 @@ public class Holding_T implements Persistable_IF {
     /** The order ID of the parent order, used for bracket and auto trailing stop orders. */
     private int parentId;
     
+    /** buy/sell ids **/
+    // note: the current Order Id is also in the Order
+    private int orderId = 0;	// buy
+    private int permId = 0;
+    private int orderId2 = 0;	// sell
+    private int permId2= 0;
+    
     /** The timestamp that this holding was purchased */
     private Date buyDate = null;
     /** The timestamp that this holding was sold. Null if the holding has not yet been sold */
@@ -108,14 +115,13 @@ public class Holding_T implements Persistable_IF {
         this.contract = new Contract();        
     }
 
-    /**
-     * 
-     */
+/** NOT USED
     public Holding_T(int orderId) {
         this.order = new Order();
         this.order.m_orderId = orderId;
         this.contract = new Contract();
     }
+**/
     
     /**
      * @param order
@@ -130,6 +136,23 @@ public class Holding_T implements Persistable_IF {
     /**
      * Copy without contract or order
      */
+    public Holding_T(Holding_T another) {
+        this.order = new Order();
+        this.contract = new Contract();
+        
+        // copy 'important' fields - only retain the fields needed
+        // to create a buy or sell order
+        this.id = another.id;
+        this.setSymbol(another.getSymbol());
+        this.volume = another.volume;
+        this.buyDate = another.buyDate;
+        this.sellDate = another.sellDate;
+        this.buy_price = another.buy_price;
+        this.actualBuyPrice = another.actualBuyPrice;
+        this.sellPrice = another.sellPrice;
+    }
+    
+ /**** not used
     public Holding_T(int orderId, Holding_T another) {
         this.order = new Order();
         this.order.m_orderId = orderId;
@@ -145,10 +168,8 @@ public class Holding_T implements Persistable_IF {
         this.buy_price = another.buy_price;
         this.actualBuyPrice = another.actualBuyPrice;
         this.sellPrice = another.sellPrice;
-        
-
     }
-   
+ ***/  
     
     /**
      * The total dollar amount of this holding that have been sold and are now realized gains/losses.
@@ -198,17 +219,82 @@ public class Holding_T implements Persistable_IF {
     
     @Column ( name = "order_id" )
     public int getOrderId() {
-    	//if (order == null) return 0;	//SAL
-        return order.m_orderId;
+        return orderId;
     }
     
     public void setOrderId(int orderId) {
-    	//if (this.order != null) {			//SAL
-    		this.order.m_orderId = orderId;
-    	//}
+    	this.orderId = orderId;
+    	
+    	// also add to our Order
+    	this.order.m_orderId = orderId;
     }
     
+    /**
+     * The sell order ID
+     * 
+     * @return orderid
+     */
+    @Column( name = "order_id2" )
+    public int getOrderId2() {
+        return orderId2;
+    }
+
+    /**
+     * @param sell orderId
+     */
+    public void setOrderId2(int orderId) {
+    	
+        this.orderId2 = orderId;
+        
+    	// also add to our Order
+    	this.order.m_orderId = orderId;
+    }
+
+    /**
+     * get the current OrderId that is in our Order
+     * TODO: we may not need this - could use order.getOrderId() instead
+     * @return
+     */
+    @Transient
+    public int getCurrentOrderId() {
+    	return this.order.m_orderId;
+    }
     
+    /**
+     * The buy order permanent (TWS) ID
+     * 
+     * @return permanent order id
+     */
+    @Column( name = "perm_id" )
+    public int getPermId() {
+        return permId;
+    }
+
+    /**
+     * @param buy permorderId
+     */
+    public void setPermId(int orderId) {
+        this.permId = orderId;
+    }
+     
+    /**
+     * The sell order permanent (TWS) ID
+     * 
+     * @return permanent order id
+     */
+    @Column( name = "perm_id2" )
+    public int getPermId2() {
+        return permId2;
+    }
+
+    /**
+     * @param sell permorderId
+     */
+    public void setPermId2(int orderId) {
+        this.permId2 = orderId;
+    }
+
+   
     /**
      * Return the buy price that was specified for this holding.
      */
@@ -328,6 +414,7 @@ public class Holding_T implements Persistable_IF {
     	this.symbol.setId(symbolId);
     }
 
+/*** NOT USED
     public String toString() {
         String str = "OrderID: " + order.m_orderId;
         str = ", Symbol: " + contract.m_symbol;
@@ -337,7 +424,8 @@ public class Holding_T implements Persistable_IF {
         
         return str;
     }
-
+***/
+    
     @Override
     public long insertOrUpdate() throws HibernateException {
         
@@ -447,6 +535,7 @@ public class Holding_T implements Persistable_IF {
      * Update the sell parameters (desired price and date) for this symbol for the most
      * recent entry for this symbol in the Holdings table.  Its sell date will be null
      * before it is updated - that is the trigger
+     * Also set the status back to "Unknown"
      * 
      * @param symId
      * @param price
@@ -467,11 +556,12 @@ public class Holding_T implements Persistable_IF {
             tx = session.beginTransaction();
             
           	String hql = "UPDATE trader.Holding_T " +
-           			"SET sellPrice = :price, sellDate = :date " +
+           			"SET sellPrice = :price, sellDate = :date, orderStatus = :unknown " + 
            			"WHERE symbolId = :sym AND sellDate is null";
            	Query query = session.createQuery(hql);
            	query.setDouble("price", price);
            	query.setTimestamp("date", date);
+           	query.setParameter("unknown", OrderStatus.Unknown.toString());
            	query.setParameter("sym", symId);
 
         	nrows = query.executeUpdate();
@@ -542,25 +632,27 @@ public class Holding_T implements Persistable_IF {
 
     	int nrows = 0;
     	
-    	String hql = "UPDATE trader.Holding_T " +
-    					"SET orderId = :orderId, " +
-    					//"permId = :permId, " +
-    					"clientId = :clientId, " +
-    					"parentId = :parentId, " +
-    					"orderStatus = :status, ";
-
+    	String hql = "UPDATE trader.Holding_T ";
     	
     	if (isBuying() || isOwned())
     	{
-        	hql += "buyDate = :buyDate, " + 
-        		   "actualBuyPrice = :actualBuyPrice, " +
-        		   "filled = :filled ";
+        	hql += "SET buyDate = :buyDate, " + 
+        		       "actualBuyPrice = :actualBuyPrice, " +
+        		       "filled = :filled, " +
+        			   "orderId = :orderId, " +
+				       "permId = :permId, " +
+				       "orderStatus = :status ";
+
     	}
     	else
     	{
-        	hql += "sellDate = :sellDate, " +
-        		   "remaining = :remaining, " +
-        		   "avgFillPrice = :avgFillPrice ";
+        	hql += "SET sellDate = :sellDate, " +
+        		       "avgFillPrice = :avgFillPrice, " +
+        		       "remaining = :remaining, " +
+        			   "orderId2 = :orderId2, " +
+ 				       "permId2 = :permId2, " +
+ 				       "orderStatus = :status ";
+
     	}
     	hql += "WHERE id = :id";
 
@@ -572,26 +664,25 @@ public class Holding_T implements Persistable_IF {
         	tx = session.beginTransaction();
 
         	Query query = session.createQuery(hql);
-        	
-        	query.setInteger("orderId",      this.getOrderId());
-        	//query.setInteger("permId",     this.getPermId());
-        	query.setInteger("parentId",     this.getParentId());
-        	query.setInteger("clientId",     this.getClientId());
-        	query.setString ("status",       this.getOrderStatus());
-
     		
             if (isBuying() || isOwned())
             {
-        		query.setTimestamp("buyDate", this.getBuyDate());
-        		query.setDouble("actualBuyPrice", this.getActualBuyPrice());
-        		query.setInteger("filled",       this.getFilled());
+            	query.setTimestamp("buyDate",      this.getBuyDate());
+        		query.setDouble ("actualBuyPrice", this.getActualBuyPrice());
+        		query.setInteger("filled",         this.getFilled());
+            	query.setInteger("orderId",        this.getOrderId());
+            	query.setInteger("permId",         this.getPermId());
+            	query.setString ("status",         this.getOrderStatus());
         	}
         	else
         	{
-        		query.setTimestamp("sellDate", this.getSellDate());
-        		query.setInteger("remaining",    this.getRemaining());
-        		query.setDouble ("avgFillPrice", this.getAvgFillPrice());
-        	}
+        		query.setTimestamp("sellDate",     this.getSellDate());
+        		query.setDouble ("avgFillPrice",   this.getAvgFillPrice());
+        		query.setInteger("remaining",      this.getRemaining());
+            	query.setInteger("orderId2",       this.getOrderId2());
+            	query.setInteger("permId2",        this.getPermId2());
+            	query.setString ("status",         this.getOrderStatus());
+            }
             
         	query.setParameter("id", this.id);
 
@@ -696,18 +787,22 @@ public class Holding_T implements Persistable_IF {
      * 
      * @return the parentId
      */
+/*** NOT USED    
     @Column( name = "parent_id" )
     public int getParentId() {
         return parentId;
     }
-
+***/
+    
     /**
      * @param parentId the parentId to set
      */
+/*** NOT USED    
     public void setParentId(int parentId) {
         this.parentId = parentId;
     }
-
+**/
+    
     /**
      * The timestamp that this holding was purchased
      * 
@@ -830,19 +925,18 @@ public class Holding_T implements Persistable_IF {
     public void setLosses(double losses) {
         this.losses = losses;
     }
-    
+
+/*** NOT USED    
     @Column( name = "client_id" )
     public int getClientId() {
-    	//if (order == null) { return 0; }	//SAL
         return order.m_clientId;
     }
         
     public void setClientId(int clientId) {
-    	//if (this.order != null) {			//SAL
     		this.order.m_clientId = clientId;
-    	//}
     }
-
+***/
+    
     /**
      *  These are the distinct states that a holding passes thru, in this order
      *  Buying
@@ -883,7 +977,7 @@ public class Holding_T implements Persistable_IF {
 
     /**
      * Return true if we are in the process of selling this position, otherwise return false
-     * 
+     * we're selling if there is a sell date and there are still shares remaining
      */
     @Transient
     public boolean isSelling() {
@@ -893,7 +987,7 @@ public class Holding_T implements Persistable_IF {
 
     /**
      * Return true if we have sold this position, otherwise return false
-     * 
+     * Holding is sold if theres a sell date and no shares outstanding
      */
     @Transient
     public boolean isSold() {

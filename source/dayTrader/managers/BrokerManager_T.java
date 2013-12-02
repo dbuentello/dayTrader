@@ -599,19 +599,44 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 		nextValidIdComplete = true;
 	}
     
+	/**
+	 * Test to ensure there is a validOrderId
+	 * @return
+	 */
+	public boolean haveValidOrderId()
+	{
+		return (nextValidIdComplete);
+	}
+	
+	/*
+	 * This must be called each time a new order is created to guarantee
+	 * a unique Id for this session.  The starting validId is established during
+	 * the first connect (or when we loose a connection?).  Then we can
+	 * increment it ourselves.
+	 * 
+	 * DO NOT call this if you arent going to use this value.  To reset it, call
+	 * reqNextValidId()
+	 */
+	public int getNextOrderId()
+	{
+		return nextValidId++;
+	}
+	
+	
 	
 	/***** Orders ****/
     
     public boolean placeOrder(Holding_T order)
     {
-        ibClientSocket.placeOrder(order.getOrderId(), order.getContract(), order.getOrder());
+    	// use the current orderId - that relects what us in order.
+        ibClientSocket.placeOrder(order.getCurrentOrderId(), order.getContract(), order.getOrder());
         
-        System.out.println("Placed " + order.getOrder().m_action + " order "+ order.getOrderId()+" for "+ order.getSymbol().getSymbol());
+        System.out.println("Placed " + order.getOrder().m_action + " order "+ order.getCurrentOrderId()+" for "+ order.getSymbol().getSymbol());
 
         // TODO? wait for (first) acknowledgment
      	
         // keep our list of placed orders so they can be updated by IB orderStatus callback
-        holdings.put(order.getOrderId(), order);
+        holdings.put(order.getCurrentOrderId(), order);
         
         return true;
     }
@@ -624,7 +649,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
      */
     public void updateHoldings(Holding_T holding)
     {
-        holdings.put(holding.getOrderId(), holding);    	
+        holdings.put(holding.getCurrentOrderId(), holding);    	
     }
 	
 	/**
@@ -640,7 +665,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 			int clientId, String whyHeld) {
 		
         System.out.println("[orderStatus] " + orderId +" "+ status +" ("+ filled +" "+
-              remaining +") at $"+ avgFillPrice +"/$"+lastFillPrice+" ["+ permId +" "+ parentId +" "+ clientId +"]");
+              remaining +") at $"+ avgFillPrice +"/$"+lastFillPrice+" ["+ permId+"]");
 
 	    Holding_T holding = holdings.get(orderId);
 	    if (holding == null) {
@@ -648,49 +673,32 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	        return;
 	    }
 	    
-	    // update with new data
-	    holding.getOrder().m_permId = permId;
-	    holding.getOrder().m_clientId = clientId;
-        //holding.setParentId(parentId);    
-	    holding.setParentId(permId);		// this is the Id we can use in TWS
-	    
+	    // update with new data	    
 	    holding.setOrderStatus(status);
 	    
         
         //determine the necessary action based on the status of our order
-        if (holding.getOrderStatus().equalsIgnoreCase(OrderStatus.PreSubmitted.toString())) {
-        	// do nothing more
-        }   
-        else if (holding.getOrderStatus().equalsIgnoreCase(OrderStatus.Submitted.toString())) {
-            
+	    // any submitted and filled are treated alike
+        if (holding.getOrderStatus().equalsIgnoreCase(OrderStatus.PreSubmitted.toString())  ||
+        	holding.getOrderStatus().equalsIgnoreCase(OrderStatus.PendingSubmit.toString()) ||
+        	holding.getOrderStatus().equalsIgnoreCase(OrderStatus.Submitted.toString())     ||
+        	holding.getOrderStatus().equalsIgnoreCase(OrderStatus.Filled.toString()) ) {
+  
             // If were buying, set these parameters (filled is counted up in the DB
         	// whereas fill from the orderStatus is just for this execution (it could be
         	// partial)
-            if (holding.isSelling() || holding.isOwned()) {
+            if (holding.isBuying() || holding.isOwned()) {
         		holding.setBuyDate(timeManager.getTime());
         		holding.setFilled(holding.getVolume() - remaining);
         		holding.setActualBuyPrice(avgFillPrice);
+        	    holding.setPermId(permId);
             }
             else {	
         		holding.setSellDate(timeManager.getTime());
         		holding.setRemaining(remaining);
         		holding.setAvgFillPrice(avgFillPrice);
+        	    holding.setPermId2(permId);
         	}
-        }
-		else if (holding.getOrderStatus().equalsIgnoreCase(OrderStatus.Filled.toString())) {
-            
-			// right now we set the same whether we're in the process or complete
-            if (holding.isSelling() || holding.isOwned()) {
-        		holding.setBuyDate(timeManager.getTime());
-        		holding.setFilled(holding.getVolume() - remaining);
-        		holding.setActualBuyPrice(avgFillPrice);
-            }
-            else {	
-        		holding.setSellDate(timeManager.getTime());
-        		holding.setRemaining(remaining);
-        		holding.setAvgFillPrice(avgFillPrice);
-        	}
-            
         }
         else if (holding.getOrderStatus().equalsIgnoreCase(OrderStatus.Cancelled.toString())) {
             //TODO: Perform actions for cancelled orders
@@ -723,21 +731,6 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 		
 		System.out.println("[openOrderEnd]");
 
-/****		
-	    //Log our current holdings if the appropriate logging level is set
-        if (logger.logLevel().toInt() >= Level.INFO_INT) {
-            if (holdings.size() > 0) {
-                Iterator<Holding_T> it = holdings.values().iterator();
-                while (it.hasNext()) {
-                    Holding_T holding = (Holding_T) it.next();
-                    logger.logText(holding.toString(), Level.INFO);
-                }
-            } else {
-                logger.logText("There are no currently open orders", Level.INFO);
-            }
-        }
-***/
-		
         openOrderEndComplete = true;
         
 	}
@@ -752,19 +745,17 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	}
 	
 	
-    
-
     @Override
     public void accountSummary(int reqId, String account, String tag,
             String value, String currency) {
-        // TODO Auto-generated method stub
+
     	System.out.println("[Account Summary]");
         
     }
 
     @Override
     public void accountSummaryEnd(int reqId) {
-        // TODO Auto-generated method stub
+
     	System.out.println("[Account Summary End]");        
     }
  
@@ -823,22 +814,29 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	
 	/**
 	 * Callback for the reqExecutions() request
+	 * Note: this is called by IB when an order is executed - and it could be
+	 * a partial fill (but theres nothing that indicates that in this callback)
+	 * (m_shares is what was filled this time, m_cumQty is what has been filled so far)
 	 */
 	@Override
 	public void execDetails(int reqId, Contract contract, Execution execution) {
 		System.out.print  ("[execDetails] for OrderId "+execution.m_orderId+" (reqId: " +reqId+") ");
-		System.out.print  (contract.m_symbol+" exec price $"+execution.m_price +"/$"+ execution.m_avgPrice +
+		System.out.println(contract.m_symbol+" exec price $"+execution.m_price +"/$"+ execution.m_avgPrice +
 				" shares: "+execution.m_shares+"/"+execution.m_cumQty + " at "+execution.m_time);
-		System.out.println("...Now calling orderStatus...");
 	
-		// save these, becuz...?
+		// save these, becuz...? (for interruptions)
         executedOrders.add(execution);
         
         // call our orderStatus to update the DB
         // Note that parentId is 0 (we dont use now) and that remaining is set to 0
-    	orderStatus(execution.m_orderId, OrderStatus.Filled.toString(), execution.m_cumQty, 0,
-    			execution.m_avgPrice, execution.m_permId, 0, execution.m_avgPrice,
-    			execution.m_clientId, "");
+		//System.out.println("...Now calling orderStatus...");
+        
+        //SALxx - nah, we dont want to do this.  OrderStatus is called in addition to this, so
+        // we'll just rely on order status.  TODO: we will want to do something like this to 
+        // recover from interruptions
+    	//orderStatus(execution.m_orderId, OrderStatus.Filled.toString(), execution.m_cumQty, 0,
+    	//		execution.m_avgPrice, execution.m_permId, 0, execution.m_avgPrice,
+    	//		execution.m_clientId, "");
    
 	}
 	

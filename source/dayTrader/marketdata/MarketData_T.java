@@ -2,6 +2,7 @@ package marketdata;
 
 import interfaces.Persistable_IF;
 
+import java.util.ArrayList;
 import java.util.Date;
 
 import javax.persistence.CascadeType;

@@ -80,7 +80,6 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
 
         try {
             connect();
-
         } catch (ConnectionException e) {
             // TODO Auto-generated catch block
             logger.logFault("Could not connect to TDAmeritrade API", e);      
@@ -190,6 +189,8 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
      */
     private void parseQuote(String quoteString) {
 
+        ArrayList<MarketData_T> snapshot = new ArrayList<MarketData_T>();
+        
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         DocumentBuilder dBuilder = null;
         try {
@@ -272,7 +273,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
                     else if (marketData.getOpen().doubleValue() == 0.00)
                         Log.println("WARNING: NULL open for " + marketData.getSymbol().getId() + "! Not updating EODQuote table");
                     else
-                        marketData.insertOrUpdate();
+                        snapshot.add(marketData);
                 
                 }
 
@@ -292,7 +293,8 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
             e.printStackTrace();
         }
 
-
+        databaseManager.bulkMarketDataInsert(snapshot);
+        
 
     }
 
@@ -353,66 +355,73 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
      * @param quoteData returned from TD
      * @return a list of RTData for each holding.  on error, the list will be empty
      */
-    private List<RTData_T> parseRTQuote(String quoteData) {
+    private List<RTData_T> parseRTQuote(String quoteString) {
 
         List <RTData_T> retData = new ArrayList<RTData_T>();
+        
+        DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+        DocumentBuilder dBuilder = null;
+        try {
 
-        int qlStart = quoteData.indexOf(XMLTags_T.TDA_QUOTE_LIST);
+            InputStream quoteIS = new ByteArrayInputStream(quoteString.getBytes());
 
-        if (qlStart == -1) {
-            logger.logText("Failed to find start of quote list", Level.DEBUG);
-            // throw
-            return retData;
-        }
+            dBuilder = dbFactory.newDocumentBuilder();
+            Document quoteDoc = dBuilder.parse(quoteIS);
 
+            quoteDoc.getDocumentElement().normalize();
 
-        int qStart = quoteData.indexOf("<quote>");
-        while (qStart != -1) {
+            NodeList quotes = quoteDoc.getElementsByTagName(XMLTags_T.TDA_QUOTE);
+            for( int i = 0; i < quotes.getLength(); i++) {
 
-            // strip off beginning
-            quoteData = quoteData.substring(qStart);
+                
+                Node quote = quotes.item(i);
 
-            RTData_T rtData = new RTData_T();
+                if (quote.getNodeType() == Node.ELEMENT_NODE) {
+                    MarketData_T marketData = new MarketData_T();
 
-            String dateString = XMLTags_T.simpleParse(quoteData, XMLTags_T.TDA_LAST_TRADE_DATE);
-            DateFormat df = new SimpleDateFormat("yyyy-MM-dd kk:mm:ss");
-            Date date = null;
-            try {
-                date = df.parse(dateString);
-            } catch (ParseException e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
-            }  
-            rtData.setDate(date);
+                    Element quoteData = (Element) quote;
 
-            Symbol_T symbol = new Symbol_T(XMLTags_T.simpleParse(quoteData, XMLTags_T.TDA_SYMBOL));
-            // TODO: this table still uses symbol, not symb id
-            //rtData.setSymbolId(symbol.getId());
-            rtData.setSymbol(symbol.getSymbol());
+                    RTData_T rtData = new RTData_T();
 
-            rtData.setPrice(Utilities_T.stringToDouble(XMLTags_T.simpleParse(quoteData, XMLTags_T.TDA_LAST)));
-            rtData.setAskPrice(Utilities_T.stringToDouble(XMLTags_T.simpleParse(quoteData, XMLTags_T.TDA_ASK)));
-            rtData.setBidPrice(Utilities_T.stringToDouble(XMLTags_T.simpleParse(quoteData, XMLTags_T.TDA_BID)));
-            rtData.setVolume(Utilities_T.stringToDouble(XMLTags_T.simpleParse(quoteData, XMLTags_T.TDA_VOLUME)).longValue());
+                    String dateString = quoteData.getElementsByTagName(XMLTags_T.TDA_LAST_TRADE_DATE).item(0).getTextContent();
+                    DateFormat df = new SimpleDateFormat("yyyy-MM-dd kk:mm:ss");
+                    Date date = null;
+                    try {
+                        date = df.parse(dateString);
+                    } catch (ParseException e) {
+                        // TODO Auto-generated catch block
+                        e.printStackTrace();
+                    }  
+                    rtData.setDate(date);
 
-            //persist our individual quote to the database
-            // note this table use INSERT IGNORE so duplicates arent added
-            rtData.insertOrUpdate();
+                    Symbol_T symbol = new Symbol_T(quoteData.getElementsByTagName(XMLTags_T.TDA_SYMBOL).item(0).getTextContent());
+                    // TODO: this table still uses symbol, not symb id
+                    //rtData.setSymbolId(symbol.getId());
+                    rtData.setSymbol(symbol.getSymbol());
 
-            retData.add(rtData);
-
-            // get ready to parse next quote
-            int qend = quoteData.indexOf("</quote>");
-            if (qend == -1)
-            {
-                logger.logText("Cant find end of quote", Level.WARN);
-                break;
+                    rtData.setPrice(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_LAST).item(0).getTextContent()));
+                    rtData.setAskPrice(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_ASK).item(0).getTextContent()));
+                    rtData.setBidPrice(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_BID).item(0).getTextContent()));
+                    rtData.setVolume(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_VOLUME).item(0).getTextContent()).longValue());
+        
+                    //persist our individual quote to the database
+                    // note this table use INSERT IGNORE so duplicates arent added
+                    rtData.insertOrUpdate();
+        
+                    retData.add(rtData);
+                } // next quote
             }
-
-            // strip off beginning
-            quoteData = quoteData.substring(qend);
-            qStart = quoteData.indexOf("<quote>");
-        } // next quote
+        } catch (ParserConfigurationException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+            return null;
+        } catch (SAXException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
 
         return retData;
     }

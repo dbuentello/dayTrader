@@ -108,6 +108,7 @@ public class DayTrader_T {
 
 	public static void initialize() {
 	    
+	    serviceManager.put(configurationManager.getClass(), configurationManager);
 		serviceManager.put(databaseManager.getClass(), databaseManager);
 		
 		//--SAL--

@@ -596,4 +596,29 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         return quoteData.get(0);
         	
     }
+    
+    
+    public void bulkMarketDataInsert(ArrayList<MarketData_T> data) {
+        
+        Session session = DatabaseManager_T.getSessionFactory().openSession();
+        Transaction tx = session.beginTransaction();
+        
+        for (int i = 0; i < data.size(); i++) {
+            try {
+                session.save(data.get(i));
+                if ( i % 50 == 0 ) { //50, same as the JDBC batch size
+                    //flush a batch of inserts and release memory:
+                    session.flush();
+                    session.clear();
+                }
+            } catch (HibernateException e) {
+                //TODO: for now just print to stdout, we'll change this to a log file later
+                e.printStackTrace();
+            }
+        }
+        tx.commit();
+        session.close();
+        
+        return;
+    }
 }

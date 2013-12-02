@@ -43,6 +43,8 @@ libxml2
 libxml2-dev
 libexpat1-dev
 openjdk-7-jdk - for the IBGateway
+vnc4server - to run gui-less IBGateway
+gsettings-desktop-schemas - need if gnome isn't installed
 
 Install the following perl modules using cpan:
 Command (recommended to do as root but not required):

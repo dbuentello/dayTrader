@@ -22,6 +22,7 @@ import marketdata.RTData_T;
 import marketdata.Symbol_T;
 import accounts.Account_T;
 
+import com.ib.controller.OrderStatus;
 import com.ib.controller.OrderType;
 import com.ib.controller.Types.Action;
 import com.ib.controller.Types.SecType;
@@ -154,7 +155,7 @@ public class Trader_T {
         	
 if (DayTrader_T.d_useIB) {
 			// update the holding with the order and contract
-			holding = createMarketOrder(holding, "SELL");
+			holding = createMarketOrder(holding, Action.SELL);
 
 			Log.println("OrderId: "+holding.getOrderId());
 			
@@ -362,7 +363,7 @@ if (DayTrader_T.d_useIB) {
 	        	
 if (DayTrader_T.d_useIB) {
 				// update the holding with the order and contract
-				holding = createMarketOrder(holding, "SELL");
+				holding = createMarketOrder(holding, Action.SELL);
 
 				Log.println("OrderId: "+holding.getOrderId());
 				
@@ -591,7 +592,7 @@ else
             
 if (DayTrader_T.d_useIB) {
    			// update the holding with the order and contract
-   			holding = createMarketOrder(holding, "BUY");
+   			holding = createMarketOrder(holding, Action.BUY);
     		
    			Log.println("OrderId: "+holding.getOrderId());
    			
@@ -688,7 +689,7 @@ if (DayTrader_T.d_useIB) {
      * 
      * @return Holding - the holding with updated order/contract data
      */
-    public Holding_T createMarketOrder(Holding_T holding, String buyOrSell ) {
+    public Holding_T createMarketOrder(Holding_T holding, Action buyOrSell ) {
         
     	Account_T acct = brokerManager.getAccount();
     	// TODO: check for valid acct - updateAccount should be the first thing done
@@ -731,7 +732,7 @@ if (DayTrader_T.d_useIB) {
         //  do we really need this... remaining = 0 should be the trigger
         // setting the date also means the trade is in progress
         Date time = new Date(System.currentTimeMillis());
-        if (buyOrSell.equalsIgnoreCase(Action.BUY.toString()))
+        if (buyOrSell == Action.BUY)
         	order.setBuyDate(time);
         else
         	order.setSellDate(time);
@@ -743,7 +744,7 @@ if (DayTrader_T.d_useIB) {
 
             
         // the order type and action
-        order.getOrder().m_action = buyOrSell;
+        order.getOrder().m_action = buyOrSell.toString();
         
         //submit these orders as market-to-limit orders
         //order.getOrder().m_orderType = OrderType.MTL.toString();
@@ -835,7 +836,6 @@ if (DayTrader_T.d_useIB) {
     	// we'll return this number
     	int nOpen = holdings.size();
     	
-     	
 		// see if any orders in the submitted state have been filled (executed)
     	
     	// request the executed orders from IB
@@ -871,8 +871,8 @@ if (DayTrader_T.d_useIB) {
     					
     					Log.println("[DEBUG] number of shares match woohoo...updating DB");
             		
+    					holding.setOrderStatus(OrderStatus.Filled.toString());
     					// if its executed - its executed in its entirety (TOD0 - right?)
-    					holding.setOrderStatus("Filled");
     					holding.setFilled(executedOrder.m_cumQty);
     					holding.setRemaining(0);
     					
@@ -1024,7 +1024,7 @@ if (1==0) {
     }
 
 
-    public void TestBuyOrSell(String buyOrSell)
+    public void TestBuyOrSell(Action buyOrSell)
     {
     	System.out.println("***TEST BuyOrSell***");
     	

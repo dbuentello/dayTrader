@@ -50,7 +50,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
     /** real time scan interval */
     private int RT_SCAN_INTERVAL = 5 * MS_IN_MINUTE;
     /** how long we should wait MAX after liquidition and buying */
-    private int MINUTES_TO_WAIT_FOR_TRADE_COMPLETION = 5;
+    private int MINUTES_TO_WAIT_FOR_TRADE_COMPLETION = 2;
     
 
     
@@ -226,16 +226,16 @@ if (DayTrader_T.d_useIB) {
 }  // useIB
 
 
-                    // TODO: now we can calculate net for the end of the day
-                	// NOTE: current calculateNet() needs to be called before todays
-                	//       biggest losers are persisted - we could change that
-					//   I think its OK to call it later - its based on buy date
-                  	
+                    // now we can calculate net for the end of the day
+                 	
                 	// how much did we gain or lose today?  Persist in DB and log
                 	// NOTE: we wont know until all the orders are executed, but they
-					// all should be by now.  It could make it difficult to buy without
-					// selling all, but we could rework the logic to do so.
+					// all should be by now.
+					// also calculate the estimate of unsold holdings, and
+					// the actual net of any deferred holdings that were realized today
             		tCalculator.calculateNet();
+            		tCalculator.calculateUnrealizedNet();
+            		tCalculator.calculateDeferredNet();
 
             		
                     // Now we can determine todays holdings candidates (biggest losers for today)
@@ -285,7 +285,8 @@ if (DayTrader_T.d_useIB) {
 					if (nRemaining != 0) {
 						Log.println("Yikes! There are still "+nRemaining+" unsold holdings.");
 					
-						// TODO: Cancel and adjust volume
+						// Cancel remainder of the open buys and adjust volume
+						trader.cancelBuyOrders();
 					}
 }
 

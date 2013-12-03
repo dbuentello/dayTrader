@@ -1,5 +1,7 @@
 package trader;
 
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -70,8 +72,8 @@ public class TraderCalculator_T {
     /**
      * for the most recent updates to Holdings, the net profit/loss field
 	 * will be empty.  Update the sell total, and calculate the net. Add this to our daily net table
-	 * 
-	 * ??must be done before todays losers are determined, and the Holdings Table updated for the new losers
+	 * Only completely sold holdings are calculated - deferred holdings will
+	 * show up later
      */
     public void calculateNet()
     {
@@ -80,39 +82,38 @@ public class TraderCalculator_T {
     	Double cumNet = 0.00;
     	long   cumVol = 0;
     	
-    	//SELECT id, buy_volume, buy_total, sell_price FROM $tableName WHERE DATE(buy_date) = \"$buy_date\" AND net IS NULL
+    	//SELECT id, buy_volume, buy_total, sell_price FROM Holdings WHERE DATE(buy_date) = \"$buy_date\" AND net IS NULL
         Session session = databaseManager.getSessionFactory().openSession();
         
+        // checking the net field makes sure we dont calculate it twice
         Criteria criteria = session.createCriteria(Holding_T.class)
-//SALxx        	.add(Restrictions.ge("buyDate", buyDate))
             .add(Restrictions.between("buyDate", buyDate, Utilities_T.tomorrow(buyDate)))
         	.add(Restrictions.isNull("net"));
         
         @SuppressWarnings("unchecked")
         List<Holding_T> holdingData = criteria.list();
         
-        //session.close();
         
-        if (holdingData.size() != Trader_T.MAX_BUY_POSITIONS)
-        {
-        	Log.println("WARNING! something is fishy in Holdings... "+holdingData.size()+" rows retrieved.  Should be "+Trader_T.MAX_BUY_POSITIONS);
+        if (holdingData.size() != Trader_T.MAX_BUY_POSITIONS) {
+        	Log.println("[ATTENTION] CalculateNet() There are " + (Trader_T.MAX_BUY_POSITIONS-holdingData.size()) +" unrealized holdings... see report.");
         }
             
         Iterator<Holding_T> it = holdingData.iterator();
         while (it.hasNext()) {
         	Holding_T holding = it.next();
         	
+
         	double buyPrice  = holding.getActualBuyPrice();
         	double sellPrice = holding.getAvgFillPrice();	//getActualSellPrice();
         	long   volume    = holding.getVolume();
         	
+        	// TODO:  this should now never happen!
         	if (sellPrice == 0.00)
         	{
         		Log.println("[ERROR] CalculateNet() no sell price for "+holding.getSymbolId());
         	}
         	else
-        	{
-           	    
+        	{   
         		//LOG
                 String netGL = "EVEN";
                 if (sellPrice > buyPrice) { netGL = "GAIN"; }
@@ -121,6 +122,7 @@ public class TraderCalculator_T {
                 double delta = sellPrice - buyPrice;
                 delta = Utilities_T.round(delta);
 
+                // TODO: there better not be any remaining!
                 Log.println("*** SOLD " +holding.getSymbolId()+ " at a " +netGL+" of $"+delta+" ("+sellPrice+"/"+buyPrice+" "+
                 				holding.getRemaining()+ " remaining) at "+holding.getSellDate().toString()+" ***"); 
 
@@ -149,27 +151,16 @@ public class TraderCalculator_T {
         // get latest capital record from DB
         
         double startCapital;
-        
-        // TODO:
-if (1==0) {
-        DailyNet_T dailyNet = getLatestDailyNet();
-        dailyNet.setNet(cumNet);
-        dailyNet.setVolume(cumVol);
-        dailyNet.update();			// nope
-        dailyNet.updateNet(); 		//yup
-        
-        startCapital = dailyNet.getPrice();		// TODO put double here
-} else {
 	
+        // TODO: use he following getLatestDailyNet() method
+        
         //"SELECT id, price from DailyNet ORDER BY date DESC LIMIT 1";
-
         criteria = session.createCriteria(DailyNet_T.class)
         	.addOrder(Order.desc("date"))
         	.setMaxResults(1);
 
         @SuppressWarnings("unchecked")
         List<DailyNet_T> dailyNet = criteria.list();
-        
             
         if (dailyNet.size() != 1)
         {
@@ -177,6 +168,7 @@ if (1==0) {
          	// throw exception
          	return;			//SALxx TODO
         }
+        // end TODO
         
         long id = dailyNet.get(0).getId();
         startCapital = dailyNet.get(0).getPrice();
@@ -189,7 +181,7 @@ if (1==0) {
         dn.update();					// nope
         								// yup
         dn.updateNet(cumNet, cumVol, dn.getId());
-}        
+       
 
         // tell us about it
         Date today = timeManager.getCurrentTradeDate();
@@ -225,7 +217,6 @@ if (1==0) {
     private DailyNet_T getLatestDailyNet()
     {
     	//"SELECT id, price from DailyNet ORDER BY date DESC LIMIT 1";
-
        	Session session = DatabaseManager_T.getSessionFactory().openSession();
        	
        	Criteria criteria = session.createCriteria(DailyNet_T.class)
@@ -247,13 +238,140 @@ if (1==0) {
     }
 
     /**
+     * Calculate estimated Net on unrealized holdings for today
+     * Must be called after calculate net, as the realized net is filled in there
+     */
+    public void calculateUnrealizedNet()
+    {
+    	Date buyDate = timeManager.getPreviousTradeDate();
+    	
+    	Double cumNet = 0.00;
+    	long   cumVol = 0;
+    	
+    	//SELECT id, buy_volume, buy_total, sell_price FROM Holdings WHERE DATE(buy_date) = \"$buy_date\" AND net IS NULL
+        Session session = databaseManager.getSessionFactory().openSession();
+        
+        // any holding with a null net field has not yet been realized
+        Criteria criteria = session.createCriteria(Holding_T.class)
+            .add(Restrictions.between("buyDate", buyDate, Utilities_T.tomorrow(buyDate)))
+        	.add(Restrictions.isNull("net"));
+        
+        @SuppressWarnings("unchecked")
+        List<Holding_T> holdingData = criteria.list();
+        
+        session.close();
+        
+        Log.println("[ATTENTION] CalculateUnrealizedNet() There are " + -holdingData.size() +" unrealized holdings...");
+            
+        Iterator<Holding_T> it = holdingData.iterator();
+        while (it.hasNext()) {
+        	Holding_T holding = it.next();
+
+        	double buyPrice  = holding.getActualBuyPrice();
+        	double sellPrice = holding.getAvgFillPrice();	// this is an estimate
+        	if (sellPrice == 0.00) sellPrice = holding.getSellPrice();
+        	long   volume    = holding.getVolume();
+        	
+         	//LOG
+            String netGL = "EVEN";
+            if (sellPrice > buyPrice) { netGL = "GAIN"; }
+            if (sellPrice < buyPrice) { netGL = "LOSS"; }
+
+            double delta = sellPrice - buyPrice;
+            delta = Utilities_T.round(delta);
+
+            Log.println("*** UNREALIZED " +holding.getSymbolId()+ " at a " +netGL+" of $"+delta+" ("+sellPrice+"/"+buyPrice+" "+
+               				holding.getRemaining()+ " remaining) at "+timeManager.TimeNow().toString()+" ***"); 
+
+        	double buyTotal  = buyPrice * volume;
+        	double sellTotal = sellPrice * volume;
+        	double net = sellTotal - buyTotal;
+        	net = Utilities_T.round(net);
+        		
+        	cumNet += net;
+        	cumVol += holding.getRemaining();
+
+        }  // next Holding
+        
+        if (holdingData.size()>0) {
+        	Log.println("*** Total Unrealized net of "+cumNet+" on "+holdingData.size()+" holdings ("+cumVol+" shares)");
+        }
+        // TODO: update Daily Net w/Unrealized Net and remaining total Volume
+    }
+    
+
+    /**
+     * Calculate Net on deferred holdings that have been realized today
+     * Must be called after calculate net, as the realized net is filled in there
+     */
+    public void calculateDeferredNet()
+    {
+    	Date buyDate = timeManager.getPreviousTradeDate();
+    	
+    	Double cumNet = 0.00;
+    	long   cumVol = 0;
+    	
+        Session session = databaseManager.getSessionFactory().openSession();
+        
+        // any holding with a null net field has not yet been realized
+    	Date today = timeManager.getCurrentTradeDate();
+        Criteria criteria = session.createCriteria(Holding_T.class)
+                .add(Restrictions.lt("buyDate", buyDate))
+                .add(Restrictions.between("sellDate", today, Utilities_T.tomorrow(today)));
+
+        @SuppressWarnings("unchecked")
+        List<Holding_T> holdingData = criteria.list();
+        
+        session.close();
+        
+        Log.println("[ATTENTION] CalculateDeferredNet() There are " + -holdingData.size() +" realized deferred holdings...");
+            
+        Iterator<Holding_T> it = holdingData.iterator();
+        while (it.hasNext()) {
+        	Holding_T holding = it.next();
+
+        	double buyPrice  = holding.getActualBuyPrice();
+        	double sellPrice = holding.getAvgFillPrice();
+        	long   volume    = holding.getVolume();
+        	
+        	//LOG
+            String netGL = "EVEN";
+            if (sellPrice > buyPrice) { netGL = "GAIN"; }
+            if (sellPrice < buyPrice) { netGL = "LOSS"; }
+
+            double delta = sellPrice - buyPrice;
+            delta = Utilities_T.round(delta);
+
+            Log.println("*** DEFERRED " +holding.getSymbolId()+ " at a " +netGL+" of $"+delta+" ("+sellPrice+"/"+buyPrice+") "+
+               				" at "+holding.getSellDate().toString()+" ***"); 
+
+        	double buyTotal  = buyPrice * volume;
+        	double sellTotal = sellPrice * volume;
+        	double net = sellTotal - buyTotal;
+        	net = Utilities_T.round(net);
+        		
+        	cumNet += net;
+        	cumVol += holding.getRemaining();
+
+        }  // next Holding
+        
+        if (holdingData.size()>0) {
+        	Log.println("*** Total Deferred net of "+cumNet+" on "+holdingData.size()+" holdings ("+cumVol+" shares)");
+        }
+        
+        // TODO: update Daily Net w/Deferred Net and total Volume
+    }
+        
+    
+    /**
      * Create End of Day Holdings Report
      */
     public void CreateReport()
     {
         ConfigurationManager_T cfgMgr = (ConfigurationManager_T) DayTrader_T.getManager(ConfigurationManager_T.class);
         String reportDir = cfgMgr.getConfigParam(XMLTags_T.CFG_DT_REPORT_DIR_PATH);
-    	String reportName = "dt_"+timeManager.getCurrentTradeDate().toString();
+        DateFormat df = new SimpleDateFormat("yyyy-MM-dd"); 
+    	String reportName = "dt_"+df.format(timeManager.getCurrentTradeDate());
     	dtLogger_T report = new dtLogger_T();
     	report.open(reportDir +"/"+reportName+".rpt");
 
@@ -272,11 +390,10 @@ if (1==0) {
         @SuppressWarnings("unchecked")
         List<Holding_T> holdingData = criteria.list();
         
-        session.close();
         
         if (holdingData.size() != Trader_T.MAX_BUY_POSITIONS)
         {
-        	Log.println("WARNING! something is fishy in Holdings... "+holdingData.size()+" rows retrieved.  Should be "+Trader_T.MAX_BUY_POSITIONS);
+        	Log.println("[WARNING] CreateReports() something is fishy in Holdings... "+holdingData.size()+" rows retrieved.  Should be "+Trader_T.MAX_BUY_POSITIONS);
         }
         
         //                                  actual    desired
@@ -286,9 +403,12 @@ if (1==0) {
         while (it.hasNext()) {
         	
         	Holding_T holding = it.next();
-        	
+        	       	
         	double buyPrice  = holding.getActualBuyPrice();
-        	double sellPrice = holding.getAvgFillPrice();	//getSellPrice();
+        	double sellPrice = holding.getAvgFillPrice();	//getActualSellPrice();
+        	if (holding.getNet() == null) {					// this order hasnt filled yet
+        	       sellPrice = holding.getSellPrice();
+        	}
         	long   volume    = holding.getVolume();
         	
         	double buyTotal  = buyPrice * volume;
@@ -296,27 +416,84 @@ if (1==0) {
         	double net = sellTotal - buyTotal;
         	net = Utilities_T.round(net);
  	
-        	// TODO: get EOD info
+        	// get EOD info  (it has extra info)
         	MarketData_T buyData  = databaseManager.getMarketData(holding.getSymbolId(), buyDate);
         	Date sellDate = timeManager.getCurrentTradeDate();
         	MarketData_T sellData = databaseManager.getMarketData(holding.getSymbolId(), sellDate);
         	
         	report.print(holding.getSymbol().getSymbol()+ "["+holding.getSymbolId()+"]");
-        	report.print("\t"+holding.getBuyDate()+"\t$"+buyPrice+"\t$"+holding.getActualBuyPrice()+"\t"+holding.getVolume()+"\t");
-        	report.println("\t$"+buyData.getLastPrice()+"\t$"+buyData.getAskPrice()+"/$"+buyData.getBidPrice()+"\t"+buyData.getVolume().longValue());
+        	report.print("\t"+holding.getBuyDate()+"\t$"+holding.getBuyPrice()+"\t$"+holding.getActualBuyPrice()+"\t"+holding.getVolume()+"\t");
+        	report.println("\t$"+buyData.getLastPrice()+"\t$"+buyData.getAskPrice()+"/$"+buyData.getBidPrice()+"\t"+buyData.getVolume().longValue()+"\t"+holding.getOrderId());
         	report.print("\t\t"+holding.getSellDate()+"\t$" +sellPrice+"\t$"+holding.getAvgFillPrice()+"\t"+holding.getVolume()+"\t"+holding.getRemaining());
-        	report.println("\t$"+sellData.getLastPrice()+"\t$"+sellData.getAskPrice()+"/$"+sellData.getBidPrice()+"\t"+sellData.getVolume().longValue());
-        	report.println("\t\t\t\t[net: $"+net+"]");
-        	
-        	cumNet += net;
-        	cumVol += volume;
+        	report.println("\t$"+sellData.getLastPrice()+"\t$"+sellData.getAskPrice()+"/$"+sellData.getBidPrice()+"\t"+sellData.getVolume().longValue()+"\t"+holding.getOrderId2());
+         	
+        	if (holding.getNet() != null) {	// this order hasnt filled yet, dont count it
+        		cumNet += net;
+        		cumVol += volume;
+               	report.println("\t\t\t\t[net: $"+net+"]");
+        	} else {
+               	report.println("\t\t\t[deferred net: $"+net+"]");
+        	}
         	
         }  // next Holding
         
         cumNet = Utilities_T.round(cumNet);
-        double netLessCommision =  Utilities_T.round(cumNet - (cumVol * 0.01));
+        //double netLessCommision =  Utilities_T.round(cumNet - (cumVol * 0.01));
+        double netLessCommision =  Utilities_T.round(cumNet - 50.00);
         report.println("\nTotal Net: $"+netLessCommision+" on "+cumVol+" shares ($"+cumNet+" less commission)");
-    
+
+        
+        // deferred holdings that have been realized today
+    	Date today = timeManager.getCurrentTradeDate();
+        criteria = session.createCriteria(Holding_T.class)
+                .add(Restrictions.lt("buyDate", buyDate))
+                .add(Restrictions.between("sellDate", today, Utilities_T.tomorrow(today)));
+         
+        @SuppressWarnings("unchecked")
+        List<Holding_T> deferredData = criteria.list();
+        
+        report.newline(); report.newline();
+        report.println("There are "+deferredData.size()+" realized deferred holdings:");
+        it = deferredData.iterator();
+        while (it.hasNext()) {
+        	Holding_T holding = it.next();
+        	
+        	report.print(holding.getSymbol().getSymbol()+ "["+holding.getSymbolId()+"]");
+        	report.print("\t"+holding.getBuyDate()+"\t$"+holding.getBuyPrice()+"\t$"+holding.getActualBuyPrice()+"\t"+holding.getVolume()+"\t");
+        	report.println("\t\t\t\t\t"+holding.getOrderId());
+       		report.print("\t\t"+holding.getSellDate()+"\t$" +holding.getSellPrice()+"\t$"+holding.getAvgFillPrice()+"\t"+holding.getVolume()+"\t"+holding.getRemaining());
+        	report.println("\t\t\t\t\t"+holding.getOrderId2());	
+        }
+
+        
+        
+        // outstanding positions (unrealized)
+        criteria = session.createCriteria(Holding_T.class)
+                .add(Restrictions.le("buyDate", buyDate))
+                .add(Restrictions.isNull("net"));
+         
+        @SuppressWarnings("unchecked")
+        List<Holding_T> outstandingData = criteria.list();
+        
+        session.close();
+        
+        report.newline(); report.newline();
+        report.println("There are "+outstandingData.size()+" outstanding holdings:");
+        it = outstandingData.iterator();
+        while (it.hasNext()) {
+        	Holding_T holding = it.next();
+        	
+        	report.print(holding.getSymbol().getSymbol()+ "["+holding.getSymbolId()+"]");
+        	report.print("\t"+holding.getBuyDate()+"\t$"+holding.getBuyPrice()+"\t$"+holding.getActualBuyPrice()+"\t"+holding.getVolume()+"\t");
+        	report.println("\t\t\t\t\t"+holding.getOrderId());
+        	if (holding.getSellDate() != null)
+        		report.print("\t\t"+holding.getSellDate()+"\t$" +holding.getSellPrice()+"\t$"+holding.getAvgFillPrice()+"\t"+holding.getVolume()+"\t"+holding.getRemaining());
+        	else
+        		report.print("\t\t\t\t\t$" +holding.getSellPrice()+"\t$"+holding.getAvgFillPrice()+"\t"+holding.getVolume()+"\t"+holding.getRemaining());
+        	report.println("\t\t\t\t\t"+holding.getOrderId2());	
+        }
+
+        
         report.close();
     }
     

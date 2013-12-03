@@ -118,13 +118,15 @@ if (DayTrader_T.d_useIB) {
     	else
     		date = timeManager.TimeNow();
     	
+    	Date buyDate = timeManager.getPreviousTradeDate();
+    	
     	// retrieve unsold holdings
     	int nOrdersPlaced = 0;
     	
-    	//"SELECT symbolId, buy_price FROM $tableName where sell_date is NULL";
         Session session = databaseManager.getSessionFactory().openSession();
-        
+
         Criteria criteria = session.createCriteria(Holding_T.class)
+        	.add(Restrictions.between("buyDate", buyDate, Utilities_T.tomorrow(buyDate)))
             .add(Restrictions.isNull("sellDate"));
 
         @SuppressWarnings("unchecked")
@@ -462,6 +464,12 @@ else
     {
     	// how much $$ do we have to work with?
     	// use equal dollar amount for each holding (rounded to full shares)
+        
+        //calculate the amount in dollars that we're allowed to buy
+        // TODO: we should do this before we get here and have it stored in the DB
+        //double buyAmount = (acct.getBalance() - MIN_ACCOUNT_BALANCE) / MAX_BUY_POSITIONS;  
+
+ 
     	double totalCapital = tCalculator.getCapital();
     	double buyTotal = totalCapital/Trader_T.MAX_BUY_POSITIONS;
 
@@ -603,7 +611,6 @@ if (DayTrader_T.d_useIB) {
     public Holding_T createMarketOrder(Holding_T holding, Action buyOrSell ) {
         
     	Account_T acct = brokerManager.getAccount();
-    	// TODO: check for valid acct - updateAccount should be the first thing done
     	
         //get the next available orderID
         int orderId = brokerManager.getNextOrderId();
@@ -614,7 +621,8 @@ if (DayTrader_T.d_useIB) {
  
     	Holding_T order = new Holding_T(holding);	
 
-        //order.setClientId(acct.getClientId());
+    	// complete the order info
+    	order.getOrder().m_clientId = acct.getClientId();
         
         // the actual time of this transaction
         // the date will be modified as the order completes
@@ -631,19 +639,14 @@ if (DayTrader_T.d_useIB) {
         	order.setOrderId2(orderId);
         }
 
-        
-        //calculate the amount in dollars that we're allowed to buy
-        // TODO: we should do this before we get here and have it stored in the DB
-        //double buyAmount = (acct.getBalance() - MIN_ACCOUNT_BALANCE) / MAX_BUY_POSITIONS;  
-
-            
+           
         // the order type and action
         order.getOrder().m_action = buyOrSell.toString();
         
         //submit these orders as market-to-limit orders
         //order.getOrder().m_orderType = OrderType.MTL.toString();
         
-        //SALxx - lets try market first
+        // lets try market first
         order.getOrder().m_orderType = OrderType.MKT.toString();
         
         // we use whats in our Holdings, which was the most recent ask price from TD
@@ -660,7 +663,8 @@ if (DayTrader_T.d_useIB) {
         order.getOrder().m_allOrNone = false;
         order.getOrder().m_blockOrder = false;
         order.getOrder().m_outsideRth = false;
-           
+         
+        // now complete the contract info
         // the contractId must be 0 (constructor default)
         // order.setContractId(0);
         order.getContract().m_symbol = order.getSymbol().getSymbol();
@@ -731,8 +735,8 @@ if (DayTrader_T.d_useIB) {
        	// TODO probably dont have to do this if there's nothing in the submitted state
     	// (particularly since the hit loop wont be executed)
 
-    	int reqId = 1;		// an arbitraryId, wait 2 seconds
-		List<Execution> executedOrders = brokerManager.reqExecutions(reqId, 2000);
+    	int reqId = 1;		// an arbitraryId, wait 5 seconds
+		List<Execution> executedOrders = brokerManager.reqExecutions(reqId, 5000);
 
     	Iterator<Holding_T> hit = holdings.iterator();
     	while (hit.hasNext())
@@ -747,7 +751,7 @@ if (DayTrader_T.d_useIB) {
     		
     			// could be a buy or sell order
     			if (executedOrder.m_orderId == holding.getOrderId() ||
-    				executedOrder.m_orderId == holding.getOrderId2()	)
+    				executedOrder.m_orderId == holding.getOrderId2())
     			{
     				// check the cumulative number of shares executed
     				// if its correct, update the DB as "Filled" (buy/sell?)
@@ -765,12 +769,15 @@ if (DayTrader_T.d_useIB) {
     					holding.setFilled(executedOrder.m_cumQty);
     					holding.setRemaining(0);
     					
+    					// TODO: add these dates from execute
     					if (holding.isBuying() || holding.isOwned()) {
     						// holding.setBuyDate(executedOrder.m_time);
+    						holding.setBuyDate(timeManager.TimeNow());
     						holding.setActualBuyPrice(executedOrder.m_avgPrice);
     					}
     					else {
     						// holding.setSellDate(executedOrder.m_time);
+    						holding.setSellDate(timeManager.TimeNow());
     						holding.setAvgFillPrice(executedOrder.m_avgPrice);
     					}
 
@@ -907,7 +914,52 @@ if (DayTrader_T.d_useIB) {
         return holdingData.size();
     }
 
+    /**
+     * Cancel any Buy Orders that didnt completely fill
+     * @return the number of orders canceled
+     */
+    public int cancelBuyOrders() {
+    	 
+    	Date date = timeManager.getCurrentTradeDate();
 
+    	
+    	// check the DB to be sure all of todays orders are filled
+        Session session = databaseManager.getSessionFactory().openSession();
+        
+        Criteria criteria = session.createCriteria(Holding_T.class)
+            .add(Restrictions.ne("orderStatus", "Filled"))
+            .add(Restrictions.between("buyDate", date, Utilities_T.tomorrow(date)));
+
+        @SuppressWarnings("unchecked")
+        List<Holding_T> holdingData = criteria.list();
+        
+        session.close();
+  
+        
+        if (holdingData.size() == 0) return 0;
+
+                
+        Log.println("[DEBUG] Cancelling "+holdingData.size()+" unfilled BUY Holdings:");
+            
+        Iterator<Holding_T> it = holdingData.iterator();
+        while (it.hasNext()) {
+        	Holding_T holding = it.next();
+    	    Log.println("[DEBUG] "+ holding.getSymbol().getSymbol() + "("+holding.getSymbolId()+"): "+holding.getOrderStatus()+
+    	    			" filled: "+holding.getFilled()+" out of "+holding.getVolume()+
+    	    			" orderId: "+holding.getOrderId());
+    	    
+    	    // do it - and check for response
+    	    //brokerManager.cancelOrder(holding.getOrderId());
+    	    
+    	    // update the volume
+    	    holding.setVolume(holding.getFilled());
+    	    //holding.updateVolume();
+    	    
+    	    // TODO: persist
+        }
+    	
+        return holdingData.size();
+    }
 
     
     

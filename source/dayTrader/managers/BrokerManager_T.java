@@ -186,29 +186,6 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 		//empty the current holdings map before getting the open orders from IB
 		holdings.clear();
 		
-		//TODO: Will reqOpenOrders() give us the positions we current own? If not we'll need to get the info
-		//from the database.
-		
-		
-		// SALxx I put this in trader:getOutstandinOrders...
-		// and put in line before we run() time manager
-		// this could take a while, so the other inits may not yet be complete!!!!
-
-		/***
-		// Open holdings in the DB are those with a buy_date and volume != filled (selldate is null) or
-		// sell_date will a volume != filled
-		// put this info into our holdings map first, openOrder will confirm and update as necessary
-		
-		// request all our current holdings from IB. reqOpenOrder() returns through the openOrder()
-		// and orderStatus() methods. Once all orders have been received, the openOrderEnd() method is invoked.
-        ibClientSocket.reqOpenOrders();
-        
-        // get any submitted orders to see if they have been filled
-        ExecutionFilter filter = new ExecutionFilter();
-        int reqId = 25;				//Test
-        ibClientSocket.reqExecutions(reqId, filter);
-		***/
-
 	}
 	
 	@Override
@@ -642,6 +619,14 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
     }
     
     /**
+     * Cancel an order - the result is returned asynchronously as an OrderStatus
+     * @param orderId
+     */
+    public void cancelOrder(int orderId) {
+    	ibClientSocket.cancelOrder(orderId);
+    }
+    
+    /**
      * This is used to initialize the holdings map with unfilled holdings
      * New holdings will be place in the map by placeOrder
      * 
@@ -719,9 +704,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 			OrderState orderState) {
 		
 		System.out.println("[openOrder] id="+orderId+": "+orderState.m_status);
-		
-	    //SALxx-- N: holdings.put(orderId, new Holding_T(order, contract, orderState));
-		
+			
 		// save these for when asked
         openOrders.add(order);
 	}
@@ -742,6 +725,10 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	public void updatePortfolio(Contract contract, int position,
 			double marketPrice, double marketValue, double averageCost,
 			double unrealizedPNL, double realizedPNL, String accountName) {
+		
+		System.out.print("[Portfolio] for "+contract.m_symbol+" position="+position+
+				" mkt$ "+marketPrice+" mktV="+marketValue+" aveCost $"+averageCost +
+				"PNL=$"+realizedPNL+"/$"+unrealizedPNL);
 	}
 	
 	
@@ -794,7 +781,8 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	
 	@Override
 	public void commissionReport(CommissionReport commissionReport) {
-		
+		System.out.println("[CommissionReport] on OrderId:"+commissionReport.m_execId+
+				"$"+commissionReport.m_commission+ " PNL $"+commissionReport.m_realizedPNL);
 	}
 	
 	@Override

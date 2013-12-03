@@ -68,13 +68,15 @@ public class Utilities_T {
     }
  
     /**
-     * return next date as cdate 
+     * return next date as cdate (less 1 minute).  Passing in "2013-07-20 00:00:00"
+     * will return "2013-07-20 23:59:00" - helpful to simulate SQL DATE
+     * by using hql .between(today,tomorrow)
      */
     public static Date tomorrow(Date today) {
     	
     	Calendar c = Calendar.getInstance();
     	c.setTime(today);
-    	c.add(Calendar.DATE, 1);
+    	c.add(Calendar.DATE, 1); c.add(Calendar.MINUTE, -1);
     	Date nextDay = c.getTime();
     	
     	return nextDay;

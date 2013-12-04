@@ -50,6 +50,10 @@ public class XMLTags_T {
     public final static String CFG_TAKE_SNAPSHOT = "takeSnapshot";
     public final static String CFG_GET_RT_DATA = "getRTData";
     public final static String CFG_USE_SYSTEM_TIME = "useSystemTime";
+    public final static String CFG_ACCOUNT_CODE = "accountCode";
+    public final static String CFG_DATABASE_NAME = "databaseName";
+    public final static String CFG_DATABASE_USER = "databaseUser";
+    public final static String CFG_DATABASE_PASSWORD = "databasePassword";
     
       
     /**

@@ -83,6 +83,8 @@ public class DayTrader_T {
         }
         
         configurationManager = new ConfigurationManager_T(configFile);
+        serviceManager.put(configurationManager.getClass(), configurationManager);
+        
         databaseManager = new DatabaseManager_T();
         marketDataManager = new MarketDataManager_T();
         brokerManager = new BrokerManager_T();
@@ -108,7 +110,6 @@ public class DayTrader_T {
 
 	public static void initialize() {
 	    
-	    serviceManager.put(configurationManager.getClass(), configurationManager);
 		serviceManager.put(databaseManager.getClass(), databaseManager);
 		
 		//--SAL--

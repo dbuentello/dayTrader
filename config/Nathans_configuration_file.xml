@@ -2,6 +2,15 @@
 
 	<version>V.11.26.0</version>
 
+	<!-- Production account -->
+	<!-- <accountCode>U1235379</accountCode> -->
+	<!-- Paper trader account -->
+  <accountCode>DU171047</accountCode>
+
+  <databaseName>dayTrader_test</databaseName>
+	<databaseUser>root</databaseUser>
+	<databasePassword>r00t</databasePassword>
+
 	<!-- Logging config params -->
 	<dtLogFileName>/home/nathan/temp/dayTrader_test.log</dtLogFileName>
 	<dtReportDirPath>/home/nathan/temp/Reports</dtReportDirPath>

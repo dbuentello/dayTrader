@@ -24,6 +24,8 @@ import org.hibernate.Query;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.Transaction;
+import org.hibernate.cfg.AnnotationConfiguration;
+import org.hibernate.cfg.Configuration;
 import org.hibernate.criterion.Order;
 import org.hibernate.criterion.Restrictions;
 import org.hibernate.metamodel.MetadataSources;
@@ -35,6 +37,7 @@ import com.ib.controller.OrderStatus;
 import trader.Holding_T;
 import trader.Trader_T;
 import util.Utilities_T;
+import util.XMLTags_T;
 import dayTrader.DayTrader_T;
 
 /** 
@@ -58,10 +61,17 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
      * 
      */
     public DatabaseManager_T() {
-        serviceRegistryBuilder.configure();
-        ServiceRegistry serviceRegistry = serviceRegistryBuilder.buildServiceRegistry();
-        MetadataSources metaData = new MetadataSources(serviceRegistry);
         
+        ConfigurationManager_T cfgMgr = (ConfigurationManager_T) DayTrader_T.getManager(ConfigurationManager_T.class);
+        
+        serviceRegistryBuilder.applySetting("hibernate.connection.url", "jdbc:mysql://localhost:3306/" + cfgMgr.getConfigParam(XMLTags_T.CFG_DATABASE_NAME))
+            .applySetting("hibernate.connection.username", cfgMgr.getConfigParam(XMLTags_T.CFG_DATABASE_USER))
+            .applySetting("hibernate.connection.password", cfgMgr.getConfigParam(XMLTags_T.CFG_DATABASE_PASSWORD));
+        
+        ServiceRegistry serviceRegistry = serviceRegistryBuilder.buildServiceRegistry();
+        serviceRegistryBuilder.configure();
+        
+        MetadataSources metaData = new MetadataSources(serviceRegistry);
         metaData.addAnnotatedClass(marketdata.Symbol_T.class);
         sessionFactory = metaData.buildMetadata().buildSessionFactory();
         

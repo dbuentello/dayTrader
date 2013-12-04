@@ -3,12 +3,8 @@ package managers;
 import interfaces.Connector_IF;
 import interfaces.Manager_IF;
 
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 import marketdata.MarketData_T;
@@ -17,7 +13,7 @@ import marketdata.Symbol_T;
 import org.apache.log4j.Level;
 
 import trader.Holding_T;
-import trader.Trader_T;
+import util.XMLTags_T;
 import accounts.Account_T;
 
 import com.ib.client.CommissionReport;
@@ -32,7 +28,6 @@ import com.ib.client.OrderState;
 import com.ib.client.TickType;
 import com.ib.client.UnderComp;
 import com.ib.controller.OrderStatus;
-import com.ib.controller.Types.Action;
 
 import dayTrader.DayTrader_T;
 import exceptions.ConnectionException;
@@ -85,9 +80,8 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
      */
     public BrokerManager_T() {
         
-        // ACTUAL TRADER ACCOUNT CODE = "U1235379";
-        // PAPER TRADER ACCOUNT CODE = "DU171047";
-        account = new Account_T(1, "DU171047");
+        String accountCode = ((ConfigurationManager_T) DayTrader_T.getManager(ConfigurationManager_T.class)).getConfigParam(XMLTags_T.CFG_ACCOUNT_CODE);
+        account = new Account_T(1, accountCode);
         ibClientSocket = new EClientSocket(this);
         
     }

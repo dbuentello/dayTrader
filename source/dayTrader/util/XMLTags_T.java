@@ -42,6 +42,7 @@ public class XMLTags_T {
     public final static String CFG_DT_LOG_FILE_NAME = "dtLogFileName";
     public final static String CFG_DT_REPORT_DIR_PATH = "dtReportDirPath";
     public final static String CFG_MINUTES_BEFORE_CLOSE_TO_BUY = "minutesBeforeCloseToBuy";
+    public final static String CFG_MINUTES_TO_WAIT_FOR_EXECUTION = "minutesToWaitForExecution";
     public final static String CFG_RT_SCAN_INTERVAL_MINUTES = "rtScanIntervalMinutes";
     public final static String CFG_USE_IB = "useIB";
     public final static String CFG_USE_TD = "useTD";
@@ -59,7 +60,7 @@ public class XMLTags_T {
     public final static String CFG_MAX_BUY_POSITIONS = "maxBuyPositions";
     public final static String CFG_MAX_BUY_AMOUNT = "maxBuyAmount";
     public final static String CFG_MIN_ACCOUNT_BALANCE = "minAccountBalance";
-      
+    
     /**
      * 
      * @param xml

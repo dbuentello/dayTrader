@@ -14,6 +14,7 @@ import org.apache.log4j.Level;
 
 import trader.Holding_T;
 import util.XMLTags_T;
+import util.dtLogger_T;
 import accounts.Account_T;
 
 import com.ib.client.CommissionReport;
@@ -43,8 +44,8 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
     private DatabaseManager_T databaseManager;
     /** A reference to the TimeManager class to update the time returned from the broker. */
     private TimeManager_T timeManager;
-    /** A reference to the LoggerManager class. */
-    private LoggerManager_T logger;
+
+    private dtLogger_T Log;  // shorthand   
    
     /** HashMap of orderIds to Holdings so we can easily retrieve holding information based on orderId. */
     private Map<Integer, Holding_T> holdings = new HashMap<Integer, Holding_T>();
@@ -70,7 +71,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
     
     /** update complete indicators */
     private boolean nextValidIdComplete = false;
-    public boolean marketDataUpdated = false;
+    private boolean marketDataUpdated = false;
     private boolean openOrderEndComplete = false;
     private boolean reqOrderEndComplete = false;
     
@@ -109,10 +110,12 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	
 	@Override
 	public void error(int id, int errorCode, String errorMsg) {
-		if (errorCode >= 2100 && errorCode <= 2120)
-			System.out.println("Warning="+errorCode+" "+errorMsg);
+		if (errorCode == 202)
+			Log.println("[INFO] code="+errorCode+" "+errorMsg);
+		else if (errorCode >= 2100 && errorCode <= 2120)
+			Log.println("[WARNING] code="+errorCode+" "+errorMsg);
 		else	
-			System.out.println("Error code="+errorCode+" "+errorMsg);		
+			Log.println("[ERROR] code="+errorCode+" "+errorMsg);		
 	}
 	
 	/***** connection ****/
@@ -121,7 +124,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	public void connect() throws ConnectionException {
 	
 	    if (isConnected()) {
-	        System.out.println("Already connected to the IB interface.");
+	        Log.println("[INFO] Already connected to the IB interface.");
 	    } else {
 	    
 	        ibClientSocket.eConnect(GATEWAY_HOST, GATEWAY_PORT, account.getClientId());
@@ -164,16 +167,16 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	    
 	    databaseManager = (DatabaseManager_T) DayTrader_T.getManager(DatabaseManager_T.class);
 	    timeManager = (TimeManager_T) DayTrader_T.getManager(TimeManager_T.class);
-	    logger = (LoggerManager_T) DayTrader_T.getManager(LoggerManager_T.class);
-		
+	    Log = DayTrader_T.dtLog;
+	    
 	    try {
 	        connect();
 	    } catch (ConnectionException e) {
 	        // TODO Handle the exception
 	        e.printStackTrace();
-	        							//SALxx - fix this!
-	        logger.logText("FATAL - cont connect to IB", Level.ERROR);
-	        return;						//SALxx - we cant do much w/o a connection
+	        							//TODO - fix this!
+	        Log.println("[FATAL] Cant connect to IB");
+	        return;						//TODO - we cant do much w/o a connection
 	    }
 	    
 	    
@@ -197,7 +200,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	@Override
 	public void wakeup() {
 
-		System.out.println("BrokerMgr wakeup...");
+		System.out.println("BrokerMgr wakeup...");  // dont change this to Log!  it hasnt been initialized yet
 		
 	    //upon waking up, re-initialize the BrokerManager
 	    initialize();
@@ -357,15 +360,13 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
         }
 
         
-        if (waitCntr == MAX_WAIT)
-        {
-        	System.out.println("ERROR: reqAccountUpdates timeout!");
+        if (waitCntr == MAX_WAIT) {
+        	Log.println("[ERROR]: reqAccountUpdates timeout!");
         }
-        
-        // debugging
-        System.out.print("Cash Balance is $"+account.getBalance());
-        System.out.println(" (WaitCntr="+waitCntr+")");        	
-
+        else {
+        	// debugging
+        	Log.println("[DEBUG] Cash Balance is $"+account.getBalance());    	
+        }
 
         return account.isUpdated();
     }
@@ -373,7 +374,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	@Override
 	public void accountDownloadEnd(String accountName) {
 		
-		System.out.println("[accountDownloadEnd]");
+		Log.println("{accountDownloadEnd}");
 		
 		// we've got everything
 	    account.setUpdated(true);
@@ -412,14 +413,9 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	        account.setBalance(Integer.valueOf(value));
 	        account.setUpdated(true);					//SALxx - this was missing
 	        											// TODO; set flag on AccountDownloadEnd
-	        System.out.println("[AccountValue callback] CashBalance= "+value);
+	        Log.println("{AccountValue callback} CashBalance= "+value);
 	    }
-/*SALxx	    
-	    else {
-	        logger.logText("Received key: " + key + " in updateAccountValue() for account: "
-	                + accountName + " and don't know how to parse.", Level.INFO);
-	    }
-**/		
+
 	}
     
 	/******* market data and snapshots *******/
@@ -482,7 +478,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	@Override
 	public void tickPrice(int tickerId, int field, double price, int canAutoExecute) {
 		
-		System.out.println("SALxx- tickPrice type= "+field+" $"+price);
+		System.out.println("[tickPrice] type= "+field+" $"+price);
 	    if (TickType.getField(field) == TickType.getField(TickType.ASK)) {
 	        marketData.setAskPrice(price);
 	    }
@@ -508,7 +504,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	@Override
 	public void tickGeneric(int tickerId, int tickType, double value) {
 		
-		System.out.println("SALxx- tickGeneric Id= "+tickerId+"="+value);
+		System.out.println("[tickGeneric] Id= "+tickerId+"="+value);
 		//marketDataUpdated = true;	
 	}
 	
@@ -527,7 +523,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	@Override
 	public void tickSnapshotEnd(int reqId) {
 	    
-		System.out.println("SALxx - tickSnapshotEnd Id= "+reqId);
+		System.out.println("[tickSnapshotEnd] Id= "+reqId);
 		marketDataUpdated = true;
 	}
 
@@ -563,7 +559,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
     
 	@Override
 	public void nextValidId(int orderId) {
-		System.out.println("[NextValidId] recieved next Valid Id: "+orderId);
+		Log.println("{NextValidId} recieved next Valid Id: "+orderId);
 
 		nextValidId = orderId;
 		
@@ -602,9 +598,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
     	// use the current orderId - that relects what us in order.
         ibClientSocket.placeOrder(order.getCurrentOrderId(), order.getContract(), order.getOrder());
         
-        System.out.println("Placed " + order.getOrder().m_action + " order "+ order.getCurrentOrderId()+" for "+ order.getSymbol().getSymbol());
-
-        // TODO? wait for (first) acknowledgment
+        //Log.println("[DEBUG] Placed " + order.getOrder().m_action + " order "+ order.getCurrentOrderId()+" for "+ order.getSymbol().getSymbol());
      	
         // keep our list of placed orders so they can be updated by IB orderStatus callback
         holdings.put(order.getCurrentOrderId(), order);
@@ -643,12 +637,12 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 			double avgFillPrice, int permId, int parentId, double lastFillPrice,
 			int clientId, String whyHeld) {
 		
-        System.out.println("[orderStatus] " + orderId +" "+ status +" ("+ filled +" "+
+        Log.println("{orderStatus} " + orderId +" "+ status +" ("+ filled +" "+
               remaining +") at $"+ avgFillPrice +"/$"+lastFillPrice+" ["+ permId+"]");
 
 	    Holding_T holding = holdings.get(orderId);
 	    if (holding == null) {
-	    	System.out.println("[ERROR] OrderStatus()  This is bad! no Holding for orderid "+orderId);
+	    	Log.println("[ERROR] OrderStatus()  This is bad! no Holding for orderid "+orderId);
 	        return;
 	    }
 	    
@@ -680,16 +674,22 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
         	}
         }
         else if (holding.getOrderStatus().equalsIgnoreCase(OrderStatus.Cancelled.toString())) {
-            //TODO: Perform actions for cancelled orders
+        	holding.setBuyDate(timeManager.getTime());
+    		holding.setFilled(holding.getVolume() - remaining);
+    		holding.setActualBuyPrice(avgFillPrice);
+    	    holding.setPermId(permId);
+    	    
+    	    // for a cancel, reset the volume - it now matches what was filled
+    	    holding.modifyVolume(holding.getVolume() - remaining);
         }
         else
-        	System.out.println("orderStatus() Unhandled status: " + holding.getOrderStatus());
+        	Log.println("[DEBUG] orderStatus() Unhandled status: " + holding.getOrderStatus());
         
 	    	// update the DB with our holding (note - this has buy/sell logic)
         if (holding.updateOrderPosition() == 0)
         	// note: only a warning, because nothing may have changed
         	// we get duplicate callbacks sometimes
-        	System.out.println("[WARNING] order status not updated in DB");
+        	Log.println("[WARNING] order status not updated in DB");
 
 	}
 	
@@ -697,7 +697,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	public void openOrder(int orderId, Contract contract, Order order,
 			OrderState orderState) {
 		
-		System.out.println("[openOrder] id="+orderId+": "+orderState.m_status);
+		Log.println("{openOrder} id="+orderId+": "+orderState.m_status);
 			
 		// save these for when asked
         openOrders.add(order);
@@ -706,7 +706,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	@Override
 	public void openOrderEnd() {
 		
-		System.out.println("[openOrderEnd]");
+		Log.println("{openOrderEnd}");
 
         openOrderEndComplete = true;
         
@@ -720,9 +720,9 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 			double marketPrice, double marketValue, double averageCost,
 			double unrealizedPNL, double realizedPNL, String accountName) {
 		
-		System.out.println("[Portfolio] for "+contract.m_symbol+" position="+position+
-				" mkt$ "+marketPrice+" mktV="+marketValue+" aveCost $"+averageCost +
-				"PNL=$"+realizedPNL+"/$"+unrealizedPNL);
+		Log.println("{Portfolio} for "+contract.m_symbol+" position="+position+
+				" mkt= $"+marketPrice+" mktV="+marketValue+" aveCost= $"+averageCost +
+				" PNL= $"+realizedPNL+"/$"+unrealizedPNL);
 	}
 	
 	
@@ -730,14 +730,14 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
     public void accountSummary(int reqId, String account, String tag,
             String value, String currency) {
 
-    	System.out.println("[Account Summary]");
+    	Log.println("{Account Summary}");
         
     }
 
     @Override
     public void accountSummaryEnd(int reqId) {
 
-    	System.out.println("[Account Summary End]");        
+    	Log.println("{Account Summary End}");        
     }
  
     @Override
@@ -775,7 +775,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	
 	@Override
 	public void commissionReport(CommissionReport commissionReport) {
-		System.out.println("[CommissionReport] ExecId:"+commissionReport.m_execId+
+		Log.println("{CommissionReport} ExecId:"+commissionReport.m_execId+
 				" $"+commissionReport.m_commission+ " PNL $"+commissionReport.m_realizedPNL);
 	}
 	
@@ -802,29 +802,18 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	 */
 	@Override
 	public void execDetails(int reqId, Contract contract, Execution execution) {
-		System.out.print  ("[execDetails] for OrderId "+execution.m_orderId+" (execId: " +execution.m_execId+") ");
-		System.out.println(contract.m_symbol+" exec price $"+execution.m_price +"/$"+ execution.m_avgPrice +
-				" shares: "+execution.m_shares+"/"+execution.m_cumQty + " at "+execution.m_time);
+		Log.println("{execDetails} for OrderId "+execution.m_orderId+" (execId: " +execution.m_execId+") "+
+					contract.m_symbol+" exec price $"+execution.m_price +"/$"+ execution.m_avgPrice +
+					" shares: "+execution.m_shares+"/"+execution.m_cumQty + " at "+execution.m_time);
 	
 		// save these, becuz...? (for interruptions)
         executedOrders.add(execution);
-        
-        // call our orderStatus to update the DB
-        // Note that parentId is 0 (we dont use now) and that remaining is set to 0
-		//System.out.println("...Now calling orderStatus...");
-        
-        //SALxx - nah, we dont want to do this.  OrderStatus is called in addition to this, so
-        // we'll just rely on order status.  TODO: we will want to do something like this to 
-        // recover from interruptions
-    	//orderStatus(execution.m_orderId, OrderStatus.Filled.toString(), execution.m_cumQty, 0,
-    	//		execution.m_avgPrice, execution.m_permId, 0, execution.m_avgPrice,
-    	//		execution.m_clientId, "");
    
 	}
 	
 	@Override
 	public void execDetailsEnd(int reqId) {
-		System.out.println("[execDetailsEnd]");
+		Log.println("{execDetailsEnd}");
 		reqOrderEndComplete = true;	
 	}
 	

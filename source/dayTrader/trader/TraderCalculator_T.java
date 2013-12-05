@@ -95,54 +95,54 @@ public class TraderCalculator_T {
         
         
         if (holdingData.size() != Trader_T.MAX_BUY_POSITIONS) {
-        	Log.println("[ATTENTION] CalculateNet() There are " + (Trader_T.MAX_BUY_POSITIONS-holdingData.size()) +" unrealized holdings... see report.");
+        	Log.println("[ATTENTION] CalculateNet() There are only " + holdingData.size() +" There should be "+Trader_T.MAX_BUY_POSITIONS);
         }
             
         Iterator<Holding_T> it = holdingData.iterator();
         while (it.hasNext()) {
         	Holding_T holding = it.next();
         	
+        	// only include completely sold holdings (others will be calculated later as unrealized)
+        	if (!holding.isSold())
+        		continue;
 
         	double buyPrice  = holding.getActualBuyPrice();
         	double sellPrice = holding.getAvgFillPrice();	//getActualSellPrice();
         	long   volume    = holding.getVolume();
         	
-        	// TODO:  this should now never happen!
-        	if (sellPrice == 0.00)
-        	{
+        	// TODO:  this should never happen
+        	if (sellPrice == 0.00) {
         		Log.println("[ERROR] CalculateNet() no sell price for "+holding.getSymbolId());
+        		continue;
         	}
-        	else
-        	{   
-        		//LOG
-                String netGL = "EVEN";
-                if (sellPrice > buyPrice) { netGL = "GAIN"; }
-                if (sellPrice < buyPrice) { netGL = "LOSS"; }
+        	
+        	//LOG
+            String netGL = "EVEN";
+            if (sellPrice > buyPrice) { netGL = "GAIN"; }
+            if (sellPrice < buyPrice) { netGL = "LOSS"; }
 
-                double delta = sellPrice - buyPrice;
-                delta = Utilities_T.round(delta);
+            double delta = sellPrice - buyPrice;
+            delta = Utilities_T.round(delta);
 
-                // TODO: there better not be any remaining!
-                Log.println("*** SOLD " +holding.getSymbolId()+ " at a " +netGL+" of $"+delta+" ("+sellPrice+"/"+buyPrice+" "+
-                				holding.getRemaining()+ " remaining) at "+holding.getSellDate().toString()+" ***"); 
+            // TODO: there better not be any remaining! - remove remaining when we're sure
+            Log.println("*** SOLD " +holding.getSymbolId()+ " at a " +netGL+" of $"+delta+" ("+sellPrice+"/"+buyPrice+" "+
+               				holding.getRemaining()+ " remaining) at "+holding.getSellDate().toString()+" ***"); 
 
                 
-        		double buyTotal  = buyPrice * volume;
-        		double sellTotal = sellPrice * volume;
-        		double net = sellTotal - buyTotal;
-        		net = Utilities_T.round(net);
+        	double buyTotal  = buyPrice * volume;
+        	double sellTotal = sellPrice * volume;
+        	double net = sellTotal - buyTotal;
+        	net = Utilities_T.round(net);
         		
-        		// update the Holdings net for this stock in the Holdings Table
-        		
-                holding.setNet(net);
-        		//holding.update();						// SAL why doesnt this worK?  no errors
+        	// update the Holdings net for this stock in the Holdings Table
+            holding.setNet(net);
+        	//holding.update();							// SAL why doesnt this worK?  no errors
         												// but this does?
-        		holding.updateNet(holding.getId(), net);
+        	holding.updateNet(holding.getId(), net);
 	
         		
-        		cumNet += net;
-        		cumVol += volume;
-        	}
+        	cumNet += net;
+        	cumVol += volume;
         	
         }  // next Holding
 
@@ -261,7 +261,7 @@ public class TraderCalculator_T {
         
         session.close();
         
-        Log.println("[ATTENTION] CalculateUnrealizedNet() There are " + -holdingData.size() +" unrealized holdings...");
+        Log.println("[ATTENTION] CalculateUnrealizedNet() There are " + holdingData.size() +" unrealized holdings...");
             
         Iterator<Holding_T> it = holdingData.iterator();
         while (it.hasNext()) {
@@ -294,7 +294,7 @@ public class TraderCalculator_T {
         }  // next Holding
         
         if (holdingData.size()>0) {
-        	Log.println("*** Total Unrealized net of "+cumNet+" on "+holdingData.size()+" holdings ("+cumVol+" shares)");
+        	Log.println("*** Total Unrealized net of $"+cumNet+" on "+holdingData.size()+" holdings ("+cumVol+" shares)");
         }
         // TODO: update Daily Net w/Unrealized Net and remaining total Volume
     }
@@ -324,7 +324,7 @@ public class TraderCalculator_T {
         
         session.close();
         
-        Log.println("[ATTENTION] CalculateDeferredNet() There are " + -holdingData.size() +" realized deferred holdings...");
+        Log.println("[ATTENTION] CalculateDeferredNet() There are " + holdingData.size() +" realized deferred holdings...");
             
         Iterator<Holding_T> it = holdingData.iterator();
         while (it.hasNext()) {
@@ -356,7 +356,7 @@ public class TraderCalculator_T {
         }  // next Holding
         
         if (holdingData.size()>0) {
-        	Log.println("*** Total Deferred net of "+cumNet+" on "+holdingData.size()+" holdings ("+cumVol+" shares)");
+        	Log.println("*** Total Deferred net of $"+cumNet+" on "+holdingData.size()+" holdings ("+cumVol+" shares)");
         }
         
         // TODO: update Daily Net w/Deferred Net and total Volume
@@ -407,7 +407,7 @@ public class TraderCalculator_T {
         	double buyPrice  = holding.getActualBuyPrice();
         	double sellPrice = holding.getAvgFillPrice();	//getActualSellPrice();
         	if (holding.getNet() == null) {					// this order hasnt filled yet
-        	       sellPrice = holding.getSellPrice();
+        		sellPrice = holding.getSellPrice();
         	}
         	long   volume    = holding.getVolume();
         	
@@ -478,7 +478,7 @@ public class TraderCalculator_T {
         session.close();
         
         report.newline(); report.newline();
-        report.println("There are "+outstandingData.size()+" outstanding holdings:");
+        report.println("There are "+outstandingData.size()+" previous outstanding holdings:");
         it = outstandingData.iterator();
         while (it.hasNext()) {
         	Holding_T holding = it.next();

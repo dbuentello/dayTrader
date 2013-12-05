@@ -46,10 +46,12 @@ public class Trader_T {
     public static double MIN_TRADE_VOLUME = 10000;  //SALxx was int - needs to agree w/ DB definition
     /** Minimum price for a security for us to buy it. */
     public static double MIN_BUY_PRICE = 0.50;
-//TEST--   
     /** The maximum number of positions we want to buy. */
-    public static int MAX_BUY_POSITIONS = 5;				//SALxx TEST
+    public static int MAX_BUY_POSITIONS = 5;
         
+    /** our starting cash balance according to IB */
+    private double startingBalance;
+ 
     /** References to other classes we need */
     private BrokerManager_T     brokerManager;
     private DatabaseManager_T   databaseManager;
@@ -89,6 +91,8 @@ public class Trader_T {
 if (DayTrader_T.d_useIB) {
     	brokerManager.updateAccount();
     	
+    	startingBalance = brokerManager.getAccount().getBalance();
+    	
     	// make sure we have a valid NextOrderId
     	// if we still cant get it, we return false
     	if (!brokerManager.haveValidOrderId()) {
@@ -99,6 +103,16 @@ if (DayTrader_T.d_useIB) {
 		return true;
 
     }
+    
+    
+    /**
+     * 
+     * @return the starting balance accoring to IB
+     */
+    public double getStartingBalance() {
+    	return startingBalance;
+    }
+    
  
     /**
  	 *
@@ -154,8 +168,8 @@ if (DayTrader_T.d_useIB) {
 
         	// first, determine if we can sell this holding - the buy had to be complete
         	if (!holding.isOwned()) {
-        		Log.println("[ATTENTION] Holding "+holding.getSymbolId()+" can not be sold "+
-        				holding.getVolume()+"/"+holding.getFilled());
+        		Log.println("[ATTENTION] Holding "+holding.getSymbolId()+" OrderId:"+holding.getOrderId()+
+        				" can not be sold "+holding.getVolume()+"/"+holding.getFilled());
         		continue;
         	}
         	
@@ -170,7 +184,7 @@ if (DayTrader_T.d_useIB) {
         
             // this does....
             if (holding.updateSellPosition(holding.getSymbolId(), desiredPrice, date) != 1)
-	        	System.out.println("[ERROR] sell order date not updated in DB");
+	        	Log.println("[ERROR] sell order date not updated in DB");
 
 
         	// this is where the sell is executed
@@ -178,13 +192,13 @@ if (DayTrader_T.d_useIB) {
             // if we dont get immediate confirmation that all share sells were executed, we'll
             // need alternate logic
             
-            Log.println("Placing SELL order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") ");
+            Log.print("Placing SELL order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") ");
         	
 if (DayTrader_T.d_useIB) {
 			// update the holding with the order and contract
 			holding = createMarketOrder(holding, Action.SELL);
 
-			Log.println("OrderId: "+holding.getOrderId2());
+			Log.println(" OrderId: "+holding.getOrderId2());
 			
 			if (holding.getOrderId2() == 0)
 			{
@@ -200,7 +214,7 @@ if (DayTrader_T.d_useIB) {
 } else {
 			// fake it... set the status to filled, etc order id will be -1 to 
 			// indicate simulation, and other ids will be null
-			holding.setOrderId(-1);
+			holding.setOrderId2(-1);
 			holding.setOrderStatus("Filled");
 	        holding.setRemaining(0);
 	        holding.setAvgFillPrice(holding.getSellPrice());
@@ -243,6 +257,12 @@ if (DayTrader_T.d_useIB) {
         	
  			// retrieve this holding
  			Holding_T holding = databaseManager.getCurrentHolding(sym.getId(), timeManager.getPreviousTradeDate());
+
+        	// first, determine if we can sell this holding - the buy had to be complete
+        	if (!holding.isOwned()) {
+        		//Log.println("[INFO] Holding "+holding.getSymbolId()+" can not be sold "+ holding.getVolume()+"/"+holding.getFilled());
+        		continue;
+        	}
 
         	// check if its already sold or sell has been initiated
         	if (holding.isSelling() || holding.isSold())
@@ -320,14 +340,7 @@ if (DayTrader_T.d_useIB) {
 	 		}
 
 	 		if (sell)
-	 		{ 			
-	        	// first, determine if we can sell this holding - the buy had to be complete
-	        	if (!holding.isOwned()) {
-	        		Log.println("[ATTENTION] Holding "+holding.getSymbolId()+" can not be sold "+
-	        				holding.getVolume()+"/"+holding.getFilled());
-	        		continue;
-	        	}
-	        	
+	 		{	        	
 	        	// update these two fields... the date is a trigger field, desired price is for stats
 	            holding.setSellDate(date);
 	            holding.setSellPrice(price);		// desired price - may be different when the trade is executed
@@ -342,13 +355,13 @@ if (DayTrader_T.d_useIB) {
 	            // if we dont get immediate confirmation that all share sells were executed, we'll
 	            // need alternate logic
 	            
-	            Log.println("Placing SELL order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") ");
+	            Log.print("Placing SELL order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") ");
 	        	
 if (DayTrader_T.d_useIB) {
 				// update the holding with the order and contract
 				holding = createMarketOrder(holding, Action.SELL);
 
-				Log.println("OrderId: "+holding.getOrderId2());
+				Log.println(" OrderId: "+holding.getOrderId2());
 				
 				if (holding.getOrderId2() == 0)
 				{
@@ -525,7 +538,11 @@ else
      * Buy todays holdings
      * 
      * @return the number of holdings we placed orders for ((better be MAX_HOLDINGS)
-     *         (we dont know if they actually were bought tho - we'll need to check the order status
+     *         (we dont know if they actually were bought tho - we'll need to check the order status)
+     *         Its possible that there could be a problem with the order (or contract) that
+     *         will cause an error callback, but no useful information will be returned and
+     *         there wont be an order status.  The only indication is that the DB
+     *         will not have an orderId, and the status will be "unknown", so we check for that in allBought()
      */
     public int buyHoldings() {
     	
@@ -835,11 +852,12 @@ if (DayTrader_T.d_useIB) {
      * After we place our buy orders, make sure all orders are filled
      * we do that by waiting a bit, and hopefully in the interrim
      * OrderStatuses have come in and the DB has been updated with Filled
+     * This will also catch a holding execute error on the sell - the status
+     * will be unknown and the order Id will be 0 
      * 
-     * 
-     * @return number of unfilled holdings
+     * @return the list of unfilled holdings
      */
-    public int allBought() {
+    public List<Holding_T> allBought() {
  
     	Date date = timeManager.getCurrentTradeDate();
 
@@ -855,36 +873,21 @@ if (DayTrader_T.d_useIB) {
         @SuppressWarnings("unchecked")
         List<Holding_T> holdingData = criteria.list();
         
-        session.close();
-  
-        
-        if (holdingData.size() == 0)
-        {
-        	Log.println("[DEBUG] Great! There are no unfilled BUY holdings remaining.");
-        	return 0;
-        }
-                
-        Log.println("[DEBUG] There are still "+holdingData.size()+" unfilled BUY Holdings remaining:");
-            
-        Iterator<Holding_T> it = holdingData.iterator();
-        while (it.hasNext()) {
-        	Holding_T holding = it.next();
-    	    Log.println("[DEBUG]   "+ holding.getSymbol().getSymbol() + "("+holding.getSymbolId()+"): "+holding.getOrderStatus()+
-    	    			" filled: "+holding.getFilled()+" out of "+holding.getVolume());
-        }
-    	
-        return holdingData.size();
+        session.close(); 
+  	
+        return holdingData;
     }
 
+    
     /**
      * After we placed our sell orders, make sure all orders are filled
      * we do that by waiting a bit, and hopefully in the interrim
      * OrderStatuses have come in and the DB has been updated with Filled
      * 
      * 
-     * @return number of unfilled holdings
+     * @return list of unfilled holdings
      */
-    public int allSold() {
+    public List<Holding_T> allSold() {
     	
     	Date date = timeManager.getPreviousTradeDate();
     	
@@ -901,26 +904,35 @@ if (DayTrader_T.d_useIB) {
         
         session.close();
 
-        if (holdingData.size() == 0)
-        {
-        	Log.println("[DEBUG] Great! There are no SELL holdings remaining.");
-        	return 0;
-        }
-                
-        Log.println("[DEBUG] There are still "+holdingData.size()+" SELL Holdings remaining:");
-            
-        Iterator<Holding_T> it = holdingData.iterator();
-        while (it.hasNext()) {
-        	Holding_T holding = it.next();
-    	    Log.println("[DEBUG]   "+ holding.getSymbol().getSymbol() + "("+holding.getSymbolId()+"): "+holding.getOrderStatus()+
-    	    			" remaining: "+holding.getRemaining() +" out of "+holding.getVolume());
-        }
-    	
-        return holdingData.size();
+        return holdingData;
     }
 
     /**
+     * Log the remaining buy or sell holdings
+     */
+    public void logRemaining(String buyOrSell, List<Holding_T> remaining)
+    {
+        if (remaining.size() == 0) {
+        	Log.println("[ATTENTION] Great! There are no "+buyOrSell+" holdings remaining.");
+        }
+        else {        
+        	Log.println("[ATTENTION] There are still "+remaining.size()+" "+buyOrSell+" Holdings remaining:");
+            
+        	Iterator<Holding_T> it = remaining.iterator();
+        	while (it.hasNext()) {
+        		Holding_T holding = it.next();
+        		Log.println("[ATTENTION]   "+ holding.getSymbol().getSymbol() + "("+holding.getSymbolId()+"): "+holding.getOrderStatus()+
+        					" remaining: "+holding.getRemaining() +" out of "+holding.getVolume());
+        	}
+        }
+    }
+    
+    
+    /**
      * Cancel any Buy Orders that didnt completely fill
+     * wait for a bit for the cancel to reach orderStatus - that
+     * will set the status in the DB and update the new volume
+     * 
      * @return the number of orders canceled
      */
     public int cancelBuyOrders() {
@@ -944,25 +956,27 @@ if (DayTrader_T.d_useIB) {
         if (holdingData.size() == 0) return 0;
 
                 
-        Log.println("[DEBUG] Cancelling "+holdingData.size()+" unfilled BUY Holdings:");
+        Log.println("[INFO] Cancelling "+holdingData.size()+" unfilled BUY Holdings:");
             
         Iterator<Holding_T> it = holdingData.iterator();
         while (it.hasNext()) {
         	Holding_T holding = it.next();
-    	    Log.println("[DEBUG]   "+ holding.getSymbol().getSymbol() + "("+holding.getSymbolId()+"): "+holding.getOrderStatus()+
-    	    			" filled: "+holding.getFilled()+" out of "+holding.getVolume()+
+        	
+       	    // do it - and check for response from orderStatus cb
+    	    if (holding.getOrderId()!= 0)
+    	        brokerManager.cancelOrder(holding.getOrderId());
+ 
+    	    // actual volume will be set in the orderStatus cb when cancelled
+    	    Log.println("[INFO]   "+ holding.getSymbol().getSymbol() + "("+holding.getSymbolId()+"): "+holding.getOrderStatus()+
+    	    			" Current volume is "+holding.getVolume() + " will be change to approximately "+holding.getFilled()+
     	    			" orderId: "+holding.getOrderId());
     	    
-    	    // do it - and check for response
-    	    //brokerManager.cancelOrder(holding.getOrderId());
-    	    
-    	    // update the volume
-    	    holding.setVolume(holding.getFilled());
-    	    //holding.updateVolume();
-    	    
-    	    // TODO: persist
         }
-    	
+        
+        // wait 10 seconds to give us time to catch the cancel orderStatus
+    	try { Thread.sleep(10000); }
+        catch (InterruptedException e) { e.printStackTrace(); }
+
         return holdingData.size();
     }
 
@@ -971,7 +985,7 @@ if (DayTrader_T.d_useIB) {
 //TEST===========================
     public void TestCode() {
     	
-if (1==0) {
+if (false) {
 
 		brokerManager.updateAccount();
     	Account_T acct = brokerManager.getAccount();
@@ -987,7 +1001,7 @@ if (1==0) {
         else System.out.println("error getting IB snapshot");
 }
 
-if (1==0) {
+if (false) {
 		//TestBuyOrSell("BUY");
     	//getSubmittedOrders();    // from our DB
     	getOutstandingOrders();  // from IB
@@ -999,7 +1013,7 @@ if (1==0) {
         catch (InterruptedException e) { e.printStackTrace(); }
 }
 
-if (1==0) {
+if (false) {
 	// these return the same list
 	// reqId is only needed to matchup request and return - it can be arbitrary (or always 1)
 	int reqId = 0;

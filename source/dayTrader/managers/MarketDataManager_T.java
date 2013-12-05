@@ -227,9 +227,9 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
                             e.printStackTrace();
                         }  
                         marketData.setLastTradeTimestamp(date);
+
                     } catch (Exception e) {
-                        Log.println("WARNING: NULL last-trade-date for " + symbol.getId() + " - " + symbol.getSymbol() 
-                                + "! using NULL for date");
+                        //--Log.println("[INFO] NULL last-trade-date for " + symbol.getId() + " - " + symbol.getSymbol() + "! using NULL for date");
                         //Log.println("DEBUG]"+quoteString);
                     }
 
@@ -262,19 +262,19 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
 
 
                     //update our snapshot map with the latest data
-                    //SAL - why??
-                    lastSnapshot.put(marketData.getSymbolId(), marketData);
+                    //SAL - not used
+                    //--lastSnapshot.put(marketData.getSymbolId(), marketData);
 
                     //persist our individual quote to the database 
                     // but not for stocks with 0 price or open!!
                     //SALxx- do we really need to get the doublevalue?
-                    if (marketData.getLastPrice().doubleValue() == 0.00)
-                        Log.println("WARNING: NULL price for " + marketData.getSymbol().getId() + "! Not updating EODQuote table");
-                    else if (marketData.getOpen().doubleValue() == 0.00)
-                        Log.println("WARNING: NULL open for " + marketData.getSymbol().getId() + "! Not updating EODQuote table");
-                    else
+                    if (marketData.getLastPrice().doubleValue() == 0.00) {
+                        //--Log.println("[INFO] NULL price for " + marketData.getSymbol().getId() + "! Not updating EODQuote table");
+                    } else if (marketData.getOpen().doubleValue() == 0.00) {
+                        //--Log.println("[INFO] NULL open for " + marketData.getSymbol().getId() + "! Not updating EODQuote table");
+                    } else {
                         snapshot.add(marketData);
-                
+                    }
                 }
 
             }

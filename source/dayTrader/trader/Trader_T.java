@@ -337,7 +337,7 @@ if (DayTrader_T.d_useIB) {
 	            // if we dont get immediate confirmation that all share sells were executed, we'll
 	            // need alternate logic
 	            
-	            Log.print("Placing SELL order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") ");
+	            Log.println("Placing SELL order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") ");
 	        	
 if (DayTrader_T.d_useIB) {
 				// update the holding with the order and contract
@@ -756,7 +756,7 @@ if (DayTrader_T.d_useIB) {
     				// check the cumulative number of shares executed
     				// if its correct, update the DB as "Filled" (buy/sell?)
 
-    				Log.println("[DEBUG] filled executed order for OrderId "+executedOrder.m_orderId+" (reqId:"+reqId+") "+
+    				Log.println("[DEBUG] filled executed order for OrderId "+executedOrder.m_orderId+" (execId:"+executedOrder.m_execId+") "+
     						" exec price $"+executedOrder.m_price +"/$"+ executedOrder.m_avgPrice +
     						" shares: "+executedOrder.m_shares+"/"+executedOrder.m_cumQty + " at "+executedOrder.m_time);
         
@@ -859,12 +859,12 @@ if (DayTrader_T.d_useIB) {
         	return 0;
         }
                 
-        Log.println("[DEBUG] Uh oh! There are "+holdingData.size()+" unfilled BUY Holdings remaining:");
+        Log.println("[DEBUG] There are still "+holdingData.size()+" unfilled BUY Holdings remaining:");
             
         Iterator<Holding_T> it = holdingData.iterator();
         while (it.hasNext()) {
         	Holding_T holding = it.next();
-    	    Log.println("[DEBUG] "+ holding.getSymbol().getSymbol() + "("+holding.getSymbolId()+"): "+holding.getOrderStatus()+
+    	    Log.println("[DEBUG]   "+ holding.getSymbol().getSymbol() + "("+holding.getSymbolId()+"): "+holding.getOrderStatus()+
     	    			" filled: "+holding.getFilled()+" out of "+holding.getVolume());
         }
     	
@@ -902,12 +902,12 @@ if (DayTrader_T.d_useIB) {
         	return 0;
         }
                 
-        Log.println("[DEBUG] Uh oh! There are "+holdingData.size()+" SELL Holdings remaining:");
+        Log.println("[DEBUG] There are still "+holdingData.size()+" SELL Holdings remaining:");
             
         Iterator<Holding_T> it = holdingData.iterator();
         while (it.hasNext()) {
         	Holding_T holding = it.next();
-    	    Log.println("[DEBUG] "+ holding.getSymbol().getSymbol() + "("+holding.getSymbolId()+"): "+holding.getOrderStatus()+
+    	    Log.println("[DEBUG]   "+ holding.getSymbol().getSymbol() + "("+holding.getSymbolId()+"): "+holding.getOrderStatus()+
     	    			" remaining: "+holding.getRemaining() +" out of "+holding.getVolume());
         }
     	
@@ -944,7 +944,7 @@ if (DayTrader_T.d_useIB) {
         Iterator<Holding_T> it = holdingData.iterator();
         while (it.hasNext()) {
         	Holding_T holding = it.next();
-    	    Log.println("[DEBUG] "+ holding.getSymbol().getSymbol() + "("+holding.getSymbolId()+"): "+holding.getOrderStatus()+
+    	    Log.println("[DEBUG]   "+ holding.getSymbol().getSymbol() + "("+holding.getSymbolId()+"): "+holding.getOrderStatus()+
     	    			" filled: "+holding.getFilled()+" out of "+holding.getVolume()+
     	    			" orderId: "+holding.getOrderId());
     	    

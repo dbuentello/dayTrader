@@ -581,7 +581,7 @@ public class Holding_T implements Persistable_IF {
     }
 
     // also because update doesnt work!!!
-    public int updateNet(long id, Double net)  throws HibernateException {
+    public int updateNet(Double net)  throws HibernateException {
         
     	Session session =  DatabaseManager_T.getSessionFactory().openSession();
 
@@ -598,7 +598,7 @@ public class Holding_T implements Persistable_IF {
         			"WHERE id = :id";
         	Query query = session.createQuery(hql);
         	query.setDouble("net", net);
-        	query.setParameter("id", id);
+        	query.setParameter("id", this.id);
 
         	nrows = query.executeUpdate();
              
@@ -613,7 +613,47 @@ public class Holding_T implements Persistable_IF {
         
         return nrows;
     }
-     
+ 
+    /**
+     * Update the volume on canceled orders
+     * 
+     * @return the number of rows updated (it better be 1!)
+     * @throws HibernateException
+     */   
+    public int modifyVolume(long volume)  throws HibernateException {
+        
+    	Session session = DatabaseManager_T.getSessionFactory().openSession();
+
+    	int nrows = 0;
+    	
+        // updates must be within a transaction
+        Transaction tx = null;
+    
+        try {
+        	tx = session.beginTransaction();
+
+        	String hql = "UPDATE trader.Holding_T " +
+        			"SET volume = :volume " +
+        			"WHERE id = :id";
+        	Query query = session.createQuery(hql);
+        	query.setLong("volume", volume);
+        	query.setParameter("id", this.id);
+
+        	nrows = query.executeUpdate();
+             
+        	tx.commit();
+        } catch (HibernateException e) {
+        	//TODO: for now just print to stdout, we'll change this to a log file later
+        	e.printStackTrace();
+        	if (tx != null) tx.rollback();
+        } finally {
+        	session.close();
+        } 
+        
+        return nrows;
+    }
+
+    
     /**
      * update the current holdings with data returned from IB
      * This has logic to determine which fields to populate based on buy/sell
@@ -945,7 +985,6 @@ public class Holding_T implements Persistable_IF {
      *  Sold
      *  
      *   any other state is unknown
-     *   TODO: add orderid as a required condition
      */
     
     /**
@@ -958,7 +997,7 @@ public class Holding_T implements Persistable_IF {
        
         // we are in the process of buying if the buy date is populated, but not the sell date
         // and all the shares have not been filled
-        return  ((buyDate != null) && (sellDate == null) && (filled != volume));
+        return  ((orderId != 0) && (buyDate != null) && (sellDate == null) && (filled != volume));
     }    
     /**
      * Return true is we currently own this position (completely bought), otherwise return false
@@ -971,7 +1010,11 @@ public class Holding_T implements Persistable_IF {
         //we own a holding if the buy date is populated, but not the sell date
         // (indicating we've bought the position, but haven't sold it yet)
         // and all the shares have been filled
-        return  ((buyDate != null) && (sellDate == null) && (filled == volume));
+    	
+    	// unless there is 0 volume - special case if it was cancelled before it was filled
+    	if (volume==0) return false;
+    	
+        return  ((orderId != 0) && (buyDate != null) && (sellDate == null) && (filled == volume));
     }
 
 
@@ -982,7 +1025,7 @@ public class Holding_T implements Persistable_IF {
     @Transient
     public boolean isSelling() {
         
-        return ((sellDate != null) && (remaining != 0));
+        return ((orderId2 != 0) && (sellDate != null) && (remaining != 0));
     }
 
     /**
@@ -992,7 +1035,7 @@ public class Holding_T implements Persistable_IF {
     @Transient
     public boolean isSold() {
         
-        return ((sellDate != null) && (remaining == 0));
+        return ((orderId2 != 0) && (sellDate != null) && (remaining == 0));
     }
   
 

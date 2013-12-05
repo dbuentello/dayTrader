@@ -19,6 +19,7 @@ import org.hibernate.Session;
 import org.hibernate.criterion.Order;
 import org.hibernate.criterion.Restrictions;
 
+import trader.Holding_T;
 import trader.TraderCalculator_T;
 import trader.Trader_T;
 import util.Calendar_T;
@@ -50,7 +51,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
     /** real time scan interval */
     private int RT_SCAN_INTERVAL = 5 * MS_IN_MINUTE;
     /** how long we should wait MAX after liquidition and buying */
-    private int MINUTES_TO_WAIT_FOR_TRADE_COMPLETION = 2;
+    private int MINUTES_TO_WAIT_FOR_EXECUTION = 5;
     
 
     
@@ -207,21 +208,20 @@ if ( DayTrader_T.d_takeSnapshot) {
 					// what do we do????
 if (DayTrader_T.d_useIB) {
 					int nRemaining = 1;   // this is arbitrary
-					int retryCount = (MINUTES_TO_WAIT_FOR_TRADE_COMPLETION * MIN_IN_HOUR)/10;
+					int retryCount = (MINUTES_TO_WAIT_FOR_EXECUTION * MIN_IN_HOUR)/10;
 					// TODO: wait until 10 minutes? before market close
-
+					
+					List<Holding_T> remaining=null;
 					while (nRemaining != 0 && retryCount != 0) {
 						try { Thread.sleep(10000); }
 						catch (InterruptedException e) { e.printStackTrace(); }
 						retryCount--;
 		
-						nRemaining = trader.allSold();
+						remaining = trader.allSold();
+						nRemaining = remaining.size();
 					}
-					if (nRemaining != 0) {
-						Log.println("Yikes! There are still "+nRemaining+" unsold holdings.");
-					
-						// what do we do????
-					}
+					trader.logRemaining("SELL", remaining);
+
 					
 }  // useIB
 
@@ -243,13 +243,7 @@ if (DayTrader_T.d_useIB) {
                     List<Symbol_T> losers = databaseManager.determineBiggestLosers();
                     
                     // save in log file
-                    Iterator<Symbol_T> it = losers.iterator();
-                    Log.print("Biggest Losers are: ");
-                    while (it.hasNext()) {
-                        Symbol_T symbol = it.next();
-                        Log.print(symbol.getSymbol()+ " ");
-                    }
-                    Log.newline();
+                    logCandidates(losers);
 
                     
                     // TODO: combine these two methods?
@@ -262,36 +256,39 @@ if (DayTrader_T.d_useIB) {
                     // Now buy them - this will wait a bit for immediate fills
                     // TODO: but what do we do if they arent all filled now?
                     int nBought = trader.buyHoldings();
-                    
                      
 					// hang around a while so we can check if the orders
 					// have been filled.If we wait around long enough, the unfilled
                     // ones should fill  but if we're too close to the end of the day,
                     // and we still have partially/unfilled buy orders,
-					// cancel the remaining and adjust buy volume
+					// cancel the remaining and adjust buy volume/remaining
                     
 if (DayTrader_T.d_useIB) {
 					int nRemaining = 1;   // this is arbitrary
-					int retryCount = (MINUTES_TO_WAIT_FOR_TRADE_COMPLETION * MIN_IN_HOUR)/10;
+					int retryCount = (MINUTES_TO_WAIT_FOR_EXECUTION * MIN_IN_HOUR)/10;
 					// TODO: or wait until 2 minutes before market close
-
+					
+					List<Holding_T> remaining= null;
+					
 					while (nRemaining != 0 && retryCount != 0) {
 			   	    	try { Thread.sleep(10000); }
 			   	        catch (InterruptedException e) { e.printStackTrace(); }
 						retryCount--;
 						
-						nRemaining = trader.allBought();
+						remaining = trader.allBought();
+						nRemaining = remaining.size();
 					}
-					if (nRemaining != 0) {
-						Log.println("Yikes! There are still "+nRemaining+" unsold holdings.");
+					trader.logRemaining("BUY", remaining);
 					
+					if (nRemaining > 0 ) {
+
 						// Cancel remainder of the open buys and adjust volume
 						trader.cancelBuyOrders();
 					}
 }
 
                     
-                    // TODO: CreateEndOfDayReport on Sell/Buy DayTrader_YYYY-MM-DD.rpt
+                    // DayTrader_YYYY-MM-DD.rpt
                     tCalculator.CreateReport();
                     
                     //set buy_time to tomorrow so we don't execute this block again
@@ -325,6 +322,7 @@ if (DayTrader_T.d_useIB) {
         
         ConfigurationManager_T cfgMgr = (ConfigurationManager_T) DayTrader_T.getManager(ConfigurationManager_T.class);
         MINUTES_BEFORE_CLOSE_TO_BUY = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_MINUTES_BEFORE_CLOSE_TO_BUY));
+        MINUTES_TO_WAIT_FOR_EXECUTION = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_MINUTES_TO_WAIT_FOR_EXECUTION));
         RT_SCAN_INTERVAL = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_RT_SCAN_INTERVAL_MINUTES)) * MS_IN_MINUTE;
 
         calendar_t = (Calendar_T) databaseManager.query(Calendar_T.class, time);
@@ -626,6 +624,19 @@ else  //SALxx - get system time
         return d;		// error
     }
 
-    
+    /**
+     * Log Helper
+     */
+    private void logCandidates(List<Symbol_T> losers) {
+    	Iterator<Symbol_T> it = losers.iterator();
+    	Log.print("Biggest Losers are: ");
+    	while (it.hasNext()) {
+    		Symbol_T symbol = it.next();
+    		Log.print(symbol.getSymbol()+ " ");
+    	}
+    	Log.newline();
+    }
+
+
 }
 

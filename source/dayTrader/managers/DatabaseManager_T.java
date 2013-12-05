@@ -580,7 +580,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
     /**
      * Get the market data for this symbol from EODQuote database for this date
      * 
-     * @return MarketData_T
+     * @return MarketData_T, or null on error
      */ 
     public MarketData_T getMarketData(long symbolId, Date date)
     {	
@@ -596,11 +596,8 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         
         session.close();
 
-        // BIG TODO - catch this error!
         if (quoteData.size() != 1) {
-        	//Log.println("[ERROR] Bad EOD Ask price for "+symbol.getSymbol());
-        	MarketData_T badData = new MarketData_T();
-        	return badData;
+        	return null;
         }
         
         return quoteData.get(0);

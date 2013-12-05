@@ -13,6 +13,7 @@ import org.hibernate.Transaction;
 import org.hibernate.criterion.Restrictions;
 
 import managers.BrokerManager_T;
+import managers.ConfigurationManager_T;
 import managers.DatabaseManager_T;
 import managers.MarketDataManager_T;
 import managers.TimeManager_T;
@@ -34,6 +35,7 @@ import dayTrader.DayTrader_T;
 import trader.TraderCalculator_T;
 
 import util.Utilities_T;
+import util.XMLTags_T;
 import util.dtLogger_T;
 
 
@@ -41,15 +43,13 @@ public class Trader_T {
   /* {src_lang=Java}*/
 
     /** Minimum number of shares a security has to trade for us to buy. */
-    public static final double MIN_TRADE_VOLUME = 10000;  //SALxx was int - needs to agree w/ DB definition
+    public static double MIN_TRADE_VOLUME = 10000;  //SALxx was int - needs to agree w/ DB definition
     /** Minimum price for a security for us to buy it. */
-    public static final double MIN_BUY_PRICE = 0.50;
+    public static double MIN_BUY_PRICE = 0.50;
 //TEST--   
     /** The maximum number of positions we want to buy. */
-    public static final int MAX_BUY_POSITIONS = 5;				//SALxx TEST
-    /** The minimum account balance we want to have. */
-    public static final int MIN_ACCOUNT_BALANCE = 25000;
-    
+    public static int MAX_BUY_POSITIONS = 5;				//SALxx TEST
+        
     /** References to other classes we need */
     private BrokerManager_T     brokerManager;
     private DatabaseManager_T   databaseManager;
@@ -62,6 +62,11 @@ public class Trader_T {
     
     
     public Trader_T() {
+        
+        ConfigurationManager_T cfgMgr = (ConfigurationManager_T) DayTrader_T.getManager(ConfigurationManager_T.class);
+        MIN_TRADE_VOLUME = Double.parseDouble(cfgMgr.getConfigParam(XMLTags_T.CFG_MIN_TRADE_VOLUME));
+        MIN_BUY_PRICE = Double.parseDouble(cfgMgr.getConfigParam(XMLTags_T.CFG_MIN_BUY_PRICE));
+        MAX_BUY_POSITIONS = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_MAX_BUY_POSITIONS));
         
         brokerManager     = (BrokerManager_T) DayTrader_T.getManager(BrokerManager_T.class);
 	    databaseManager   = (DatabaseManager_T) DayTrader_T.getManager(DatabaseManager_T.class);

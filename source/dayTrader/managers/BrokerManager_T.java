@@ -720,7 +720,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 			double marketPrice, double marketValue, double averageCost,
 			double unrealizedPNL, double realizedPNL, String accountName) {
 		
-		System.out.print("[Portfolio] for "+contract.m_symbol+" position="+position+
+		System.out.println("[Portfolio] for "+contract.m_symbol+" position="+position+
 				" mkt$ "+marketPrice+" mktV="+marketValue+" aveCost $"+averageCost +
 				"PNL=$"+realizedPNL+"/$"+unrealizedPNL);
 	}
@@ -775,8 +775,8 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	
 	@Override
 	public void commissionReport(CommissionReport commissionReport) {
-		System.out.println("[CommissionReport] on OrderId:"+commissionReport.m_execId+
-				"$"+commissionReport.m_commission+ " PNL $"+commissionReport.m_realizedPNL);
+		System.out.println("[CommissionReport] ExecId:"+commissionReport.m_execId+
+				" $"+commissionReport.m_commission+ " PNL $"+commissionReport.m_realizedPNL);
 	}
 	
 	@Override
@@ -802,7 +802,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	 */
 	@Override
 	public void execDetails(int reqId, Contract contract, Execution execution) {
-		System.out.print  ("[execDetails] for OrderId "+execution.m_orderId+" (reqId: " +reqId+") ");
+		System.out.print  ("[execDetails] for OrderId "+execution.m_orderId+" (execId: " +execution.m_execId+") ");
 		System.out.println(contract.m_symbol+" exec price $"+execution.m_price +"/$"+ execution.m_avgPrice +
 				" shares: "+execution.m_shares+"/"+execution.m_cumQty + " at "+execution.m_time);
 	

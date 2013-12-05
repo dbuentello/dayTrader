@@ -230,7 +230,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
                     } catch (Exception e) {
                         Log.println("WARNING: NULL last-trade-date for " + symbol.getId() + " - " + symbol.getSymbol() 
                                 + "! using NULL for date");
-                        Log.println(quoteString);
+                        //Log.println("DEBUG]"+quoteString);
                     }
 
                     marketData.setOpen(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_OPEN).item(0).getTextContent()));

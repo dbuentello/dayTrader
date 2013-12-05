@@ -20,6 +20,7 @@ import dayTrader.DayTrader_T;
 import util.XMLTags_T;
 import util.dtLogger_T;
 
+import managers.BrokerManager_T;
 import managers.DatabaseManager_T;
 import managers.LoggerManager_T;
 import managers.TimeManager_T;
@@ -35,6 +36,11 @@ import util.Utilities_T;
 public class TraderCalculator_T {
   /* {src_lang=Java}*/
 
+    /** The cumulative maximum we want to buy. */ 
+    private double MAX_BUY_AMOUNT = 10000.0;
+    /** The minimum account balance we want to have. */
+    public static int MIN_ACCOUNT_BALANCE = 25000;
+    
     /** References to the Managers we need */
     private DatabaseManager_T databaseManager;
     private TimeManager_T timeManager;
@@ -45,6 +51,12 @@ public class TraderCalculator_T {
      * 
      */
     public TraderCalculator_T() {
+        
+        ConfigurationManager_T cfgMgr = (ConfigurationManager_T) DayTrader_T.getManager(ConfigurationManager_T.class);
+        MAX_BUY_AMOUNT = Double.parseDouble(cfgMgr.getConfigParam(XMLTags_T.CFG_MAX_BUY_AMOUNT));
+        MIN_ACCOUNT_BALANCE = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_MIN_ACCOUNT_BALANCE));
+        
+        
 	    databaseManager   = (DatabaseManager_T) DayTrader_T.getManager(DatabaseManager_T.class);
 	    timeManager       = (TimeManager_T) DayTrader_T.getManager(TimeManager_T.class);
 	    //logger = (LoggerManager_T) DayTrader_T.getManager(LoggerManager_T.class);
@@ -60,12 +72,16 @@ public class TraderCalculator_T {
      */
     public double getCapital()
     {
+        BrokerManager_T brokerManager = (BrokerManager_T) DayTrader_T.getManager(BrokerManager_T.class);
+        double accountBalance = brokerManager.getAccount().getBalance();
+        
+        double availCap = accountBalance - MIN_ACCOUNT_BALANCE;
     	// TODO!!!
     	//DailyNet_T dailyNet = getLatestDailyNet();
     	//if (dailyNet.getPrice() == null)
     	//    return 0.0;						// TODO
     	
-        return 10000.00;   
+        return availCap <= MAX_BUY_AMOUNT ? availCap : MAX_BUY_AMOUNT;
   
     }
     

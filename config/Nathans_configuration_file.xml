@@ -7,6 +7,13 @@
 	<!-- Paper trader account -->
   <accountCode>DU171047</accountCode>
 
+	<!-- Trading configuration parameters -->
+	<minTradeVolume>10000</minTradeVolume>
+	<minBuyPrice>.50</minBuyPrice>
+	<maxBuyPositions>5</maxBuyPositions>
+	<maxBuyAmount>10000</maxBuyAmount>
+	<minAccountBalance>25000</minAccountBalance>
+
   <databaseName>dayTrader_test</databaseName>
 	<databaseUser>root</databaseUser>
 	<databasePassword>r00t</databasePassword>

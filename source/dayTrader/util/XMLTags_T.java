@@ -54,7 +54,11 @@ public class XMLTags_T {
     public final static String CFG_DATABASE_NAME = "databaseName";
     public final static String CFG_DATABASE_USER = "databaseUser";
     public final static String CFG_DATABASE_PASSWORD = "databasePassword";
-    
+    public final static String CFG_MIN_TRADE_VOLUME = "minTradeVolume";
+    public final static String CFG_MIN_BUY_PRICE = "minBuyPrice";
+    public final static String CFG_MAX_BUY_POSITIONS = "maxBuyPositions";
+    public final static String CFG_MAX_BUY_AMOUNT = "maxBuyAmount";
+    public final static String CFG_MIN_ACCOUNT_BALANCE = "minAccountBalance";
       
     /**
      * 

@@ -114,11 +114,11 @@ public class DayTrader_T {
 		
 		//--SAL--
 		if (d_useTD) { serviceManager.put(marketDataManager.getClass(), marketDataManager); }
-		//--SAL--
 		if (d_useIB) { serviceManager.put(brokerManager.getClass(), brokerManager); }
-
+		//--SAL--
 		serviceManager.put(timeManager.getClass(), timeManager);
-		serviceManager.put(loggerManager.getClass(), loggerManager);		
+		serviceManager.put(loggerManager.getClass(), loggerManager);
+		
 		dtLog.open(dtLogFilename); dtLog.setEcho(echoLog); dtLog.setTimeStamp(logTimestamp);
 		
 		//threads.add(new Thread(databaseManager));

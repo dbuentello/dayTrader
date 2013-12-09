@@ -111,7 +111,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
 			Log.println("[FATAL ERROR] Cannot get account info or nextValidOrderId");
 			return;
 		}
-      	
+
         /*
          * This loop will update the application time every three seconds and when a trigger time is reached
          * execute the appropriate actions. Triggers times can be the market open, a specified buy time,
@@ -169,7 +169,7 @@ if (DayTrader_T.d_getRTData) {
             	}
 }
                 /*
-                 * At the end of the market day, perform the following 
+                 * At the dtConfig_test.xml~end of the market day, perform the following 
                  * 1. get a market snapshot
                  * 2. sell any outstanding positions we're still holding 
                  * 3. identify the positions we want to buy

@@ -7,6 +7,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
+import java.util.Date;
+import java.text.SimpleDateFormat;
+
 import marketdata.MarketData_T;
 import marketdata.Symbol_T;
 
@@ -50,8 +53,11 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
     /** HashMap of orderIds to Holdings so we can easily retrieve holding information based on orderId. */
     private Map<Integer, Holding_T> holdings = new HashMap<Integer, Holding_T>();
     
-    /** saved retrieved executed orders */
-    private ArrayList<Execution> executedOrders = new ArrayList<Execution>();
+    /** saved retrieved executed orders - only save the most recent */
+    private Map<Integer, Execution> executedOrders = new HashMap<Integer, Execution>();
+    
+    /** HashMap of Symbols, Portfolio standings */
+    private Map<String, Integer> portfolio = new HashMap<String, Integer>();
 
     /** saved retrieved open orders */
     private ArrayList<Order> openOrders = new ArrayList<Order>();
@@ -110,6 +116,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	
 	@Override
 	public void error(int id, int errorCode, String errorMsg) {
+		// 200 means IB cant find the contract so no dice (orderId in DB will be 0)
 		if (errorCode == 202)
 			Log.println("[INFO] code="+errorCode+" "+errorMsg);
 		else if (errorCode >= 2100 && errorCode <= 2120)
@@ -252,11 +259,17 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	 * @param waitms
 	 * @return
 	 */
-	public ArrayList<Execution> reqExecutions(int reqId, int waitms) {
+	public Map<Integer, Execution> reqExecutions(int reqId, int waitms) {
 		reqOrderEndComplete = false;
 		executedOrders.clear();
 	   	
 		ExecutionFilter filter = new ExecutionFilter();   // null filter
+//SALxx--Test	
+		//Date date = timeManager.getPreviousTradeDate();
+		
+		//filter.m_clientId = 1;
+		//filter.m_time = new SimpleDateFormat("yyyyMMdd-HH:mm:ss").format(date);
+//SALxx--Test				
 		ibClientSocket.reqExecutions(reqId, filter);
 
 		// wait for a response
@@ -279,6 +292,33 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 		return executedOrders;
 	}
     
+	/**
+	 * Callback for the reqExecutions() request
+	 * Note: this is called by IB when an order is executed - and it could be
+	 * a partial fill (but theres nothing that indicates that in this callback)
+	 * (m_shares is what was filled this time, m_cumQty is what has been filled so far)
+	 */
+	@Override
+	public void execDetails(int reqId, Contract contract, Execution execution) {
+		Log.println("{execDetails} for OrderId "+execution.m_orderId+" (execId: " +execution.m_execId+") "+
+					contract.m_symbol+" "+execution.m_side+" execPrice $"+execution.m_price +"/$"+ execution.m_avgPrice +
+					" shares: "+execution.m_shares+"/"+execution.m_cumQty + " at "+execution.m_time);
+	
+		// save the most recent (or first)
+		Execution e = executedOrders.get(execution.m_orderId);
+		if ((e != null) && (execution.m_cumQty > e.m_cumQty))
+			executedOrders.put(execution.m_orderId, execution);
+		else if (e == null)
+			executedOrders.put(execution.m_orderId, execution);  
+	}
+	
+	@Override
+	public void execDetailsEnd(int reqId) {
+		Log.println("{execDetailsEnd}");
+		reqOrderEndComplete = true;	
+	}
+
+	
     /** time handling **/
 	
 	public void currentTime(long time) {
@@ -351,7 +391,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
         while (!account.isUpdated() && waitCntr < MAX_WAIT) {
             
             try {
-                Thread.sleep(250);
+                Thread.sleep(500);
                 waitCntr++;
             } catch (InterruptedException e) {
                 // TODO Auto-generated catch block
@@ -598,7 +638,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
     	// use the current orderId - that relects what us in order.
         ibClientSocket.placeOrder(order.getCurrentOrderId(), order.getContract(), order.getOrder());
         
-        //Log.println("[DEBUG] Placed " + order.getOrder().m_action + " order "+ order.getCurrentOrderId()+" for "+ order.getSymbol().getSymbol());
+        //Log.println("[DEBUG] PlaceOrder() " + order.getOrder().m_action + " order "+ order.getCurrentOrderId()+" for "+ order.getSymbol().getSymbol());
      	
         // keep our list of placed orders so they can be updated by IB orderStatus callback
         holdings.put(order.getCurrentOrderId(), order);
@@ -723,6 +763,18 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 		Log.println("{Portfolio} for "+contract.m_symbol+" position="+position+
 				" mkt= $"+marketPrice+" mktV="+marketValue+" aveCost= $"+averageCost +
 				" PNL= $"+realizedPNL+"/$"+unrealizedPNL);
+		
+		// save it
+        portfolio.put(contract.m_symbol, position); 
+	}
+	
+	/**
+	 * 
+	 * @return our portfolio, by symbols
+	 */
+	public Map<String, Integer> getPortfolio()
+	{
+		return portfolio;		
 	}
 	
 	
@@ -743,13 +795,14 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
     @Override
     public void position(String account, Contract contract, int pos,
             double avgCost) {
-        // TODO Auto-generated method stub
+
+    	Log.println("{position} "+contract.m_symbol+": "+pos+" shares @ $"+avgCost);
         
     }
 
     @Override
     public void positionEnd() {
-        // TODO Auto-generated method stub
+        Log.println("{positionEnd}");
         
     }
     
@@ -775,8 +828,8 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	
 	@Override
 	public void commissionReport(CommissionReport commissionReport) {
-		Log.println("{CommissionReport} ExecId:"+commissionReport.m_execId+
-				" $"+commissionReport.m_commission+ " PNL $"+commissionReport.m_realizedPNL);
+		//Log.println("{CommissionReport} ExecId:"+commissionReport.m_execId+
+		//		" $"+commissionReport.m_commission+ " PNL $"+commissionReport.m_realizedPNL);
 	}
 	
 	@Override
@@ -794,28 +847,6 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 		
 	}
 	
-	/**
-	 * Callback for the reqExecutions() request
-	 * Note: this is called by IB when an order is executed - and it could be
-	 * a partial fill (but theres nothing that indicates that in this callback)
-	 * (m_shares is what was filled this time, m_cumQty is what has been filled so far)
-	 */
-	@Override
-	public void execDetails(int reqId, Contract contract, Execution execution) {
-		Log.println("{execDetails} for OrderId "+execution.m_orderId+" (execId: " +execution.m_execId+") "+
-					contract.m_symbol+" exec price $"+execution.m_price +"/$"+ execution.m_avgPrice +
-					" shares: "+execution.m_shares+"/"+execution.m_cumQty + " at "+execution.m_time);
-	
-		// save these, becuz...? (for interruptions)
-        executedOrders.add(execution);
-   
-	}
-	
-	@Override
-	public void execDetailsEnd(int reqId) {
-		Log.println("{execDetailsEnd}");
-		reqOrderEndComplete = true;	
-	}
 	
 	@Override
 	public void updateMktDepth(int tickerId, int position, int operation, int side,

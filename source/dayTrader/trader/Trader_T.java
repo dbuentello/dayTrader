@@ -1,6 +1,8 @@
 package trader;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
@@ -89,7 +91,8 @@ public class Trader_T {
     public boolean init() {
     	
 if (DayTrader_T.d_useIB) {
-    	brokerManager.updateAccount();
+    	if  (!brokerManager.updateAccount())
+    			return false;
     	
     	startingBalance = brokerManager.getAccount().getBalance();
     	
@@ -192,16 +195,15 @@ if (DayTrader_T.d_useIB) {
             // if we dont get immediate confirmation that all share sells were executed, we'll
             // need alternate logic
             
-            Log.print("Placing SELL order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") ");
-        	
+       	
 if (DayTrader_T.d_useIB) {
 			// update the holding with the order and contract
 			holding = createMarketOrder(holding, Action.SELL);
 
-			Log.println(" OrderId: "+holding.getOrderId2());
+            Log.println("Placing SELL order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") " +
+            				" OrderId: "+holding.getOrderId2());
 			
-			if (holding.getOrderId2() == 0)
-			{
+			if (holding.getOrderId2() == 0)	{
 				Log.println("[BAD ERROR] Sell order not placed - null OrderId");
    			    continue;
 			}
@@ -218,7 +220,9 @@ if (DayTrader_T.d_useIB) {
 			holding.setOrderStatus("Filled");
 	        holding.setRemaining(0);
 	        holding.setAvgFillPrice(holding.getSellPrice());
-	        
+
+            Log.println("Placing SELL order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") ");
+
 	        if (holding.updateOrderPosition() == 0) {
 	        	System.out.println("[WARNING] order status not updated in DB");
 	        	continue;
@@ -355,13 +359,13 @@ if (DayTrader_T.d_useIB) {
 	            // if we dont get immediate confirmation that all share sells were executed, we'll
 	            // need alternate logic
 	            
-	            Log.print("Placing SELL order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") ");
 	        	
 if (DayTrader_T.d_useIB) {
 				// update the holding with the order and contract
 				holding = createMarketOrder(holding, Action.SELL);
 
-				Log.println(" OrderId: "+holding.getOrderId2());
+	            Log.println("Placing SELL order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") "+
+	            	" OrderId: "+holding.getOrderId2());
 				
 				if (holding.getOrderId2() == 0)
 				{
@@ -386,7 +390,8 @@ else
 		        holding.setRemaining(0);
 		        holding.setAvgFillPrice(holding.getSellPrice());
 
-		        
+	            Log.print("Placing SELL order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") ");
+
 		        if (holding.updateOrderPosition() == 0)
 		        	System.out.println("[WARNING] order status not updated in DB");
 		  
@@ -552,16 +557,16 @@ else
         while (it.hasNext()) {
             Holding_T holding = it.next();
 
-            Log.print("[DEBUG] Placing BUY order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") ");
             
 if (DayTrader_T.d_useIB) {
    			// update the holding with the order and contract
    			holding = createMarketOrder(holding, Action.BUY);
-    		
-   			Log.println("OrderId: "+holding.getOrderId());
-   			
+    		   			
    			// place a sell order
-   	        brokerManager.placeOrder(holding);   	    	
+   	        brokerManager.placeOrder(holding);
+   	        
+            Log.println("[DEBUG] Placing BUY order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") "+
+        			"OrderId: "+holding.getOrderId());
  	        
 } else {
 			// simulate the fields IB would fill in..
@@ -571,7 +576,8 @@ if (DayTrader_T.d_useIB) {
 			holding.setOrderStatus("Filled");
 			holding.updateOrderPosition();
 	
-			Log.newline();
+            Log.println("[DEBUG] Placing BUY order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") ");
+
 }
             
         }  // next holding
@@ -724,6 +730,9 @@ if (DayTrader_T.d_useIB) {
     
   
     /**
+     * This is called on startup in case we terminated abnormally.  We need to get
+     * any status/execution/portfolio information we may have missed.
+     * 
      * get all outstanding orders as defined as not filled in the DB
      * 
      * @return the number of remaining outstanding orders
@@ -744,7 +753,7 @@ if (DayTrader_T.d_useIB) {
     	List<Holding_T> holdings = databaseManager.getSubmittedOrders();
     	
     	Log.println("[DEBUG] There are "+holdings.size() + " outstanding in DB");
-    	if (holdings.size() != 0) { Log.println("...checking execution status..."); } else { Log.newline(); }
+    	if (holdings.size() != 0) { Log.println("[DEBUG] ...checking execution status..."); }
     	
     	// we'll return this number
     	int nOpen = holdings.size();
@@ -753,70 +762,133 @@ if (DayTrader_T.d_useIB) {
     	
     	// request the executed orders from IB
     	// will contain all the executed orders for TODAY
-		// can return multiples for partial fills
-       	// TODO probably dont have to do this if there's nothing in the submitted state
-    	// (particularly since the hit loop wont be executed)
+       	// TODO dont have to do this if there's nothing in the submitted state
+    	// (particularly since the hit loop wont be executed) unless we want to double check
 
     	int reqId = 1;		// an arbitraryId, wait 5 seconds
-		List<Execution> executedOrders = brokerManager.reqExecutions(reqId, 5000);
+		Map<Integer, Execution> executedOrders = brokerManager.reqExecutions(reqId, 5000);
 
+		// our portfolio as returned from IB
+    	Map <String, Integer> portfolio = brokerManager.getPortfolio();
+    	
     	Iterator<Holding_T> hit = holdings.iterator();
     	while (hit.hasNext())
     	{
     		Holding_T holding = hit.next();
     	
-    		// match em with the executed orders
-    		Iterator <Execution> e = executedOrders.iterator();
-    		while (e.hasNext())
-    		{
-    			Execution executedOrder = e.next();    	
-    		
-    			// could be a buy or sell order
-    			if (executedOrder.m_orderId == holding.getOrderId() ||
-    				executedOrder.m_orderId == holding.getOrderId2())
-    			{
-    				// check the cumulative number of shares executed
-    				// if its correct, update the DB as "Filled" (buy/sell?)
+    		// first, match up with portfolio
+        	
+        	if (!portfolio.containsKey(holding.getSymbol().getSymbol()))
+        		Log.println("[ERROR] Holding "+holding.getId()+ ": "+holding.getSymbol().getSymbol()+
+        				" ("+holding.getSymbolId()+") is not in IB Portfolio");
+        	else {
+        		Log.println("[DEBUG]Matching portfolio with DB holding...");
+        		
+        		Integer p= portfolio.get(holding.getSymbol().getSymbol());
+        		if (p==0) {        // 0 is closed
+        			Log.println("[DEBUG] portfolio says holding is closed..updating DB");
 
-    				Log.println("[DEBUG] filled executed order for OrderId "+executedOrder.m_orderId+" (execId:"+executedOrder.m_execId+") "+
-    						" exec price $"+executedOrder.m_price +"/$"+ executedOrder.m_avgPrice +
-    						" shares: "+executedOrder.m_shares+"/"+executedOrder.m_cumQty + " at "+executedOrder.m_time);
-        
-    				if (holding.getVolume() == executedOrder.m_cumQty) {
+    				if (!holding.isOwned() && !holding.isSelling()) {
+    					Log.println("[ERROR] portfolio says holding is closed, but DB says we dont own or not selling! NOT Updateing DB");
+    				} else {
+    					Log.println("[DEBUG] Setting DB to Sold");
     					
-    					Log.println("[DEBUG] number of shares match woohoo...updating DB");
+        				holding.setOrderStatus(OrderStatus.Filled.toString());
+        				holding.setRemaining(0);
+    					holding.setSellDate(timeManager.TimeNow());
+        				// TODO: get price from portfolio.marketPrice
+    					holding.setAvgFillPrice(holding.getSellPrice());
+
+            			if (holding.isSold()) {
+            				Log.println("[DEBUG] Agree - both say sold");
+            				continue;
+            			}
+            			
+            			holding.updateOrderPosition();	//persist
             		
-    					holding.setOrderStatus(OrderStatus.Filled.toString());
-    					// if its executed - its executed in its entirety (TOD0 - right?)
-    					holding.setFilled(executedOrder.m_cumQty);
-    					holding.setRemaining(0);
+    					nOpen--;						// one less to deal with
+    				}
+        		}
+        		else if (p==holding.getVolume()) {		//IB says we own it
+    				if (!holding.isOwned()) {
+    					Log.println("[ERROR] portfolio says holding is owned, but DB says we dont own! NOT updating DB");
+    				} else {
+    					Log.println("[DEBUG] Setting DB to Owned");
     					
-    					// TODO: add these dates from execute
-    					if (holding.isBuying() || holding.isOwned()) {
-    						// holding.setBuyDate(executedOrder.m_time);
-    						holding.setBuyDate(timeManager.TimeNow());
-    						holding.setActualBuyPrice(executedOrder.m_avgPrice);
-    					}
-    					else {
-    						// holding.setSellDate(executedOrder.m_time);
-    						holding.setSellDate(timeManager.TimeNow());
-    						holding.setAvgFillPrice(executedOrder.m_avgPrice);
-    					}
+        				holding.setOrderStatus(OrderStatus.Filled.toString());
+        				holding.setFilled(holding.getVolume());
+    					holding.setSellDate(timeManager.TimeNow());
+        				// TODO: get price from portfolio.avgCost
+    					holding.setActualBuyPrice(holding.getSellPrice());
 
     					holding.updateOrderPosition();	//persist
             		
     					nOpen--;						// one less to deal with
     				}
-    				else {
-    					// since its still not filled, it needs to be sent to the broker
-    					// so it can be updated as necessary when OrderStatus is called
-    					// (initiated below)
-    					// its OK to add the same holding multiple times as the brokerMgr keeps
-    					// this as a hashmap (only one entry per orderId)
-    					brokerManager.updateHoldings(holding);          			
+        		}
+        		else
+        			Log.println("[DEBUG] Poitions dont agree: "+holding.getVolume()+"/"+holding.getFilled()+
+        					"/"+holding.getRemaining()+" IB:"+p);
+
+        	} // matched portfolio
+
+    		
+    		// then, match em with the executed orders
+    		int orderId;
+    		if (holding.isBuying() || holding.isOwned())
+    			orderId = holding.getOrderId();
+    		else
+    			orderId = holding.getOrderId2();
+    		
+    		Execution e = executedOrders.get(orderId);
+    		
+    		if (e!=null)
+    		{
+    			// check the cumulative number of shares executed
+    			// if its correct, update the DB as "Filled" (buy/sell?)
+
+    			Log.println("[DEBUG] filled executed order for OrderId "+e.m_orderId+" (execId:"+e.m_execId+") "+
+    					" "+e.m_side+" execPrice $"+e.m_price +"/$"+ e.m_avgPrice +
+    					" shares: "+e.m_shares+"/"+e.m_cumQty + " at "+e.m_time);
+        
+    			if (holding.getVolume() == e.m_cumQty) {
+    					
+    				Log.println("[DEBUG] number of shares match woohoo...updating DB");
+            		
+    				holding.setOrderStatus(OrderStatus.Filled.toString());
+    				// if its executed - its executed in its entirety (TOD0 - right?)
+    				holding.setFilled(e.m_cumQty);
+    				holding.setRemaining(0);
+    					
+    				// TODO: add these dates from execute
+    				if (holding.isBuying() || holding.isOwned()) {
+    					// holding.setBuyDate(e.m_time);
+    					holding.setBuyDate(timeManager.TimeNow());
+    					holding.setActualBuyPrice(e.m_avgPrice);
     				}
-    			} // it was our holding's orderId
-            }  // next executed order       
+    				else {
+    					// holding.setSellDate(e.m_time);
+    					holding.setSellDate(timeManager.TimeNow());
+    					holding.setAvgFillPrice(e.m_avgPrice);
+    				}
+
+    				holding.updateOrderPosition();	//persist
+            		
+    				nOpen--;						// one less to deal with
+    			}
+    			else {
+    				// since its still not filled, it needs to be sent to the broker
+    				// so it can be updated as necessary when OrderStatus is called
+    				// (initiated below)
+    				// its OK to add the same holding multiple times as the brokerMgr keeps
+    				// this as a hashmap (only one entry per orderId)
+    				
+        			Log.println("[DEBUG] Adding to bm holdings map...");
+        			
+    				brokerManager.updateHoldings(holding);          			
+    			}
+    		} // the execution order matched our holding's orderId
+      
         } //next holding
     	    	
     	// request all our open orders from IB.. it should agree with our DB
@@ -1013,14 +1085,24 @@ if (false) {
         catch (InterruptedException e) { e.printStackTrace(); }
 }
 
-if (false) {
-	// these return the same list
+if (true) {
 	// reqId is only needed to matchup request and return - it can be arbitrary (or always 1)
-	int reqId = 0;
-	List<Execution> executedOrders = brokerManager.reqExecutions(reqId, 2000);
-	
-	reqId = 33;
-    executedOrders = brokerManager.reqExecutions(reqId, 2000);
+	int reqId = 1;
+	Map<Integer, Execution> executedOrders = brokerManager.reqExecutions(reqId, 2000);
+
+	for (Map.Entry<Integer, Execution> entry : executedOrders.entrySet()) {
+	    Integer key = entry.getKey();
+	    Execution value = entry.getValue();
+	    System.out.println("orderId="+key+": "+value.m_cumQty+" "+value.m_side);
+	}
+
+	// Test Portfolio
+	Map<String, Integer> portfolio = brokerManager.getPortfolio();
+	for (Map.Entry<String, Integer> entry : portfolio.entrySet()) {
+	    String key = entry.getKey();
+	    Integer value = entry.getValue();
+	    System.out.println("Symbol="+key+": "+value);
+	}
 	
 }
 

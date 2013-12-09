@@ -24,6 +24,7 @@ import marketdata.MarketData_T;
 import marketdata.RTData_T;
 import marketdata.Symbol_T;
 import accounts.Account_T;
+import accounts.Portfolio_T;
 
 import com.ib.controller.OrderStatus;
 import com.ib.controller.OrderType;
@@ -769,7 +770,7 @@ if (DayTrader_T.d_useIB) {
 		Map<Integer, Execution> executedOrders = brokerManager.reqExecutions(reqId, 5000);
 
 		// our portfolio as returned from IB
-    	Map <String, Integer> portfolio = brokerManager.getPortfolio();
+    	Map <String, Portfolio_T> portfolio = brokerManager.getPortfolio();
     	
     	Iterator<Holding_T> hit = holdings.iterator();
     	while (hit.hasNext())
@@ -784,8 +785,8 @@ if (DayTrader_T.d_useIB) {
         	else {
         		Log.println("[DEBUG]Matching portfolio with DB holding...");
         		
-        		Integer p= portfolio.get(holding.getSymbol().getSymbol());
-        		if (p==0) {        // 0 is closed
+        		Integer pos= portfolio.get(holding.getSymbol().getSymbol()).m_position;
+        		if (pos==0) {        // 0 is closed
         			Log.println("[DEBUG] portfolio says holding is closed..updating DB");
 
     				if (!holding.isOwned() && !holding.isSelling()) {
@@ -796,8 +797,7 @@ if (DayTrader_T.d_useIB) {
         				holding.setOrderStatus(OrderStatus.Filled.toString());
         				holding.setRemaining(0);
     					holding.setSellDate(timeManager.TimeNow());
-        				// TODO: get price from portfolio.marketPrice
-    					holding.setAvgFillPrice(holding.getSellPrice());
+    					holding.setAvgFillPrice(portfolio.get(holding.getSymbol().getSymbol()).m_marketPrice);
 
             			if (holding.isSold()) {
             				Log.println("[DEBUG] Agree - both say sold");
@@ -809,7 +809,7 @@ if (DayTrader_T.d_useIB) {
     					nOpen--;						// one less to deal with
     				}
         		}
-        		else if (p==holding.getVolume()) {		//IB says we own it
+        		else if (pos==holding.getVolume()) {		//IB says we own it
     				if (!holding.isOwned()) {
     					Log.println("[ERROR] portfolio says holding is owned, but DB says we dont own! NOT updating DB");
     				} else {
@@ -818,8 +818,7 @@ if (DayTrader_T.d_useIB) {
         				holding.setOrderStatus(OrderStatus.Filled.toString());
         				holding.setFilled(holding.getVolume());
     					holding.setSellDate(timeManager.TimeNow());
-        				// TODO: get price from portfolio.avgCost
-    					holding.setActualBuyPrice(holding.getSellPrice());
+    					holding.setActualBuyPrice(portfolio.get(holding.getSymbol().getSymbol()).m_avgCost);
 
     					holding.updateOrderPosition();	//persist
             		
@@ -828,7 +827,7 @@ if (DayTrader_T.d_useIB) {
         		}
         		else
         			Log.println("[DEBUG] Poitions dont agree: "+holding.getVolume()+"/"+holding.getFilled()+
-        					"/"+holding.getRemaining()+" IB:"+p);
+        					"/"+holding.getRemaining()+" IB:"+pos);
 
         	} // matched portfolio
 
@@ -1097,11 +1096,11 @@ if (true) {
 	}
 
 	// Test Portfolio
-	Map<String, Integer> portfolio = brokerManager.getPortfolio();
-	for (Map.Entry<String, Integer> entry : portfolio.entrySet()) {
+	Map<String, Portfolio_T> portfolio = brokerManager.getPortfolio();
+	for (Map.Entry<String, Portfolio_T> entry : portfolio.entrySet()) {
 	    String key = entry.getKey();
-	    Integer value = entry.getValue();
-	    System.out.println("Symbol="+key+": "+value);
+	    Portfolio_T value = entry.getValue();
+	    System.out.println("Symbol="+key+": "+value.m_position+" "+value.m_marketPrice);
 	}
 	
 }

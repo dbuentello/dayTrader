@@ -19,6 +19,7 @@ import trader.Holding_T;
 import util.XMLTags_T;
 import util.dtLogger_T;
 import accounts.Account_T;
+import accounts.Portfolio_T;
 
 import com.ib.client.CommissionReport;
 import com.ib.client.Contract;
@@ -41,6 +42,11 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 
     private final String GATEWAY_HOST = "localhost";
     private final int GATEWAY_PORT = 4001;
+    private final int CLIENT_ID = 1;
+    
+	//linnode server
+    //private final String GATEWAY_HOST = "74.207.244.99";
+    //private final int GATEWAY_PORT = 7462;
     
     
     /** A reference to the DatabaseManager class. */
@@ -57,7 +63,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
     private Map<Integer, Execution> executedOrders = new HashMap<Integer, Execution>();
     
     /** HashMap of Symbols, Portfolio standings */
-    private Map<String, Integer> portfolio = new HashMap<String, Integer>();
+    private Map<String, Portfolio_T> portfolio = new HashMap<String, Portfolio_T>();
 
     /** saved retrieved open orders */
     private ArrayList<Order> openOrders = new ArrayList<Order>();
@@ -88,7 +94,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
     public BrokerManager_T() {
         
         String accountCode = ((ConfigurationManager_T) DayTrader_T.getManager(ConfigurationManager_T.class)).getConfigParam(XMLTags_T.CFG_ACCOUNT_CODE);
-        account = new Account_T(1, accountCode);
+        account = new Account_T(CLIENT_ID, accountCode);
         ibClientSocket = new EClientSocket(this);
         
     }
@@ -765,14 +771,16 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 				" PNL= $"+realizedPNL+"/$"+unrealizedPNL);
 		
 		// save it
-        portfolio.put(contract.m_symbol, position); 
+		Portfolio_T p = new Portfolio_T(contract.m_symbol, position,marketPrice, marketValue,
+										averageCost, realizedPNL, unrealizedPNL);
+        portfolio.put(contract.m_symbol, p); 
 	}
 	
 	/**
 	 * 
 	 * @return our portfolio, by symbols
 	 */
-	public Map<String, Integer> getPortfolio()
+	public Map<String, Portfolio_T> getPortfolio()
 	{
 		return portfolio;		
 	}

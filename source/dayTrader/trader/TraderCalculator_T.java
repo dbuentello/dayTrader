@@ -20,6 +20,7 @@ import org.hibernate.criterion.Order;
 import org.hibernate.criterion.Restrictions;
 
 import dayTrader.DayTrader_T;
+import accounts.Portfolio_T;
 import util.XMLTags_T;
 import util.dtLogger_T;
 
@@ -587,7 +588,7 @@ if (!DayTrader_T.d_useIB) {
         // get most recent portfolio
     	//brokerManager.updateAccount();
 
-    	Map <String, Integer> portfolio = brokerManager.getPortfolio();
+    	Map <String, Portfolio_T> portfolio = brokerManager.getPortfolio();
 
     	
     	Date buyDate = timeManager.getPreviousTradeDate();
@@ -617,12 +618,13 @@ if (!DayTrader_T.d_useIB) {
         					" "+holding.getVolume()+" shares at net $"+holding.getNet());
         	
         	if (!portfolio.containsKey(holding.getSymbol().getSymbol()))
-        		report.println(" [NOT IN PORTFOLIO!]");
+        		report.print(" [NOT IN PORTFOLIO!]");
         	else {
-        		Integer p= portfolio.get(holding.getSymbol().getSymbol());
-        		if (p!=0)	// 0 is closed
-        			report.println(" [OUTSTANDING SHARES: "+p+"]");
+        		Integer pos= portfolio.get(holding.getSymbol().getSymbol()).m_position;
+        		if (pos!=0)	// 0 is closed
+        			report.print(" [OUTSTANDING SHARES: "+pos+"]");
         	}
+        	report.newline();
         	
         	// we found it, whats left will be what IB thinks we own
         	portfolio.remove(holding.getSymbol().getSymbol());
@@ -652,12 +654,13 @@ if (!DayTrader_T.d_useIB) {
         					" out of "+holding.getVolume());
         	
         	if (!portfolio.containsKey(holding.getSymbol().getSymbol()))
-        		report.println(" [NOT IN PORTFOLIO!]");
+        		report.print(" [NOT IN PORTFOLIO!]");
         	else {
-        		Integer p= portfolio.get(holding.getSymbol().getSymbol());
-        		if (p!=holding.getRemaining())
-        			report.println(" [NUMBER OF SHARES DONT MATCH: "+p+"]");
+        		Integer pos= portfolio.get(holding.getSymbol().getSymbol()).m_position;
+        		if (pos!=holding.getRemaining())
+        			report.print(" [NUMBER OF SHARES DONT MATCH: "+pos+"]");
         	}
+        	report.newline();
         	
         	// we found it, whats left will be what IB thinks we own
         	portfolio.remove(holding.getSymbol().getSymbol());
@@ -680,32 +683,33 @@ if (!DayTrader_T.d_useIB) {
           	Holding_T holding = it.next();
             	
            	if (!portfolio.containsKey(holding.getSymbol().getSymbol()))
-           		report.println("  "+holding.getSymbol().getSymbol()+" ("+holding.getSymbolId()+") "+
+           		report.print("  "+holding.getSymbol().getSymbol()+" ("+holding.getSymbolId()+") "+
           				" is NOT IN PORTFOLIO");
            	else {
-           		Integer p= portfolio.get(holding.getSymbol().getSymbol());
-           		if (p!=holding.getRemaining())
-           			report.println("  "+holding.getSymbol().getSymbol()+" ("+holding.getSymbolId()+") "+
-           				" [NUMBER OF SHARES DONT MATCH: "+p+"]");
+           		Integer pos= portfolio.get(holding.getSymbol().getSymbol()).m_position;
+           		if (pos!=holding.getRemaining())
+           			report.print("  "+holding.getSymbol().getSymbol()+" ("+holding.getSymbolId()+") "+
+           				" [NUMBER OF SHARES DONT MATCH: "+pos+"]");
            	}
+           	report.newline();
             	
            	portfolio.remove(holding.getSymbol().getSymbol());           	
         }
         
         // remove closed positions
-        for (Map.Entry<String, Integer> entry : portfolio.entrySet()) {
-    	    Integer value = entry.getValue();
-    	    if (value == 0)
+        for (Map.Entry<String, Portfolio_T> entry : portfolio.entrySet()) {
+    	    Integer pos = entry.getValue().m_position;
+    	    if (pos == 0)
     	    	portfolio.remove(entry.getKey());
     	}
         
         // The remaining are what IB thinks we own...
         report.println("\nThere are "+portfolio.size()+" Unaccounted Holdings:");
-        Map<String, Integer> sortedMap = new TreeMap<String, Integer>(portfolio);
-    	for (Map.Entry<String, Integer> entry : sortedMap.entrySet()) {
+        Map<String, Portfolio_T> sortedMap = new TreeMap<String, Portfolio_T>(portfolio);
+    	for (Map.Entry<String, Portfolio_T> entry : sortedMap.entrySet()) {
     	    String key = entry.getKey();
-    	    Integer value = entry.getValue();
-    	    report.println(key+": "+value+" shares");
+    	    Integer pos = entry.getValue().m_position;
+    	    report.println(key+": "+pos+" shares");
     	}    	
 
         session.close();

@@ -101,7 +101,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
         Log.println("\n*** Day Trader V.12.02.0 has started at "+TimeNow()+" ***\n");
 
         if (!isMarketOpen()) {
-        	Log.print("Market is not open.  Bye.");
+        	Log.println("Market is not open.  Bye.");
         	return;
         }
 
@@ -124,7 +124,8 @@ public class TimeManager_T implements Manager_IF, Runnable {
 //boolean b = trader.buyHoldings(); running = false;
 //trader.getOutstandingOrders();
 //boolean b = trader.liquidateHoldings();
-//tCalculator.CreateReport();
+//tCalculator.DailyReport();
+//tCalculator.ReconciliationReport();
 //running = false;
 //TEST        
 
@@ -289,7 +290,8 @@ if (DayTrader_T.d_useIB) {
 
                     
                     // DayTrader_YYYY-MM-DD.rpt
-                    tCalculator.CreateReport();
+                    tCalculator.DailyReport();
+                    tCalculator.ReconciliationReport();
                     
                     //set buy_time to tomorrow so we don't execute this block again
                     //TODO: Check that this works

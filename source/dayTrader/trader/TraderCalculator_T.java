@@ -6,6 +6,9 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.TreeMap;
 
 import org.apache.log4j.Level;
 import org.hibernate.Criteria;
@@ -401,12 +404,12 @@ if (DayTrader_T.d_useIB) {
     /**
      * Create End of Day Holdings Report
      */
-    public void CreateReport()
+    public void DailyReport()
     {
         ConfigurationManager_T cfgMgr = (ConfigurationManager_T) DayTrader_T.getManager(ConfigurationManager_T.class);
         String reportDir = cfgMgr.getConfigParam(XMLTags_T.CFG_DT_REPORT_DIR_PATH);
         DateFormat df = new SimpleDateFormat("yyyy-MM-dd"); 
-    	String reportName = "dt_"+df.format(timeManager.getCurrentTradeDate());
+    	String reportName = "dayTrader_"+df.format(timeManager.getCurrentTradeDate());
     	dtLogger_T report = new dtLogger_T();
     	report.open(reportDir +"/"+reportName+".rpt");
 
@@ -508,7 +511,7 @@ if (DayTrader_T.d_useIB) {
         // outstanding positions (unrealized)
         //===================================
         criteria = session.createCriteria(Holding_T.class)
-                .add(Restrictions.le("buyDate", buyDate))
+                .add(Restrictions.lt("buyDate", buyDate))
                 .add(Restrictions.isNull("net"))
     			.add(Restrictions.ne("orderId", 0));
     	
@@ -559,5 +562,153 @@ if (DayTrader_T.d_useIB) {
         session.close();        
         report.close();
     }
-    
+ 
+    /**
+     * Reconcile our DB with IB - report differences in portfolio holdings
+     */
+    public void ReconciliationReport()
+    {
+if (!DayTrader_T.d_useIB) {
+   return;    		
+}
+
+        ConfigurationManager_T cfgMgr = (ConfigurationManager_T) DayTrader_T.getManager(ConfigurationManager_T.class);
+        String reportDir = cfgMgr.getConfigParam(XMLTags_T.CFG_DT_REPORT_DIR_PATH);
+        DateFormat df = new SimpleDateFormat("yyyy-MM-dd"); 
+    	String reportName = "Reconcile_"+df.format(timeManager.getCurrentTradeDate());
+    	dtLogger_T report = new dtLogger_T();
+    	report.open(reportDir +"/"+reportName+".rpt");
+
+    	report.println("\nReconciliation Report for "+df.format(timeManager.getCurrentTradeDate())+"\n");
+
+
+        BrokerManager_T brokerManager = (BrokerManager_T) DayTrader_T.getManager(BrokerManager_T.class);
+
+        // get most recent portfolio
+    	//brokerManager.updateAccount();
+
+    	Map <String, Integer> portfolio = brokerManager.getPortfolio();
+
+    	
+    	Date buyDate = timeManager.getPreviousTradeDate();
+    	
+    	// these are the ones we expect to have closed
+
+        Session session = databaseManager.getSessionFactory().openSession();
+        
+        Criteria criteria = session.createCriteria(Holding_T.class)
+            .add(Restrictions.between("buyDate", buyDate, Utilities_T.tomorrow(buyDate)))
+            .add(Restrictions.eqProperty("volume", "filled"))
+            .add(Restrictions.eq("remaining", 0))
+            .add(Restrictions.ne("orderId", 0))
+            .add(Restrictions.ne("orderId2", 0));       
+        
+        @SuppressWarnings("unchecked")
+        List<Holding_T> holdingData = criteria.list();
+     
+        report.println("\nThere are "+holdingData.size()+" Closed Holdings: ");
+        
+        Iterator<Holding_T> it = holdingData.iterator();
+        while (it.hasNext()) {
+        	
+        	Holding_T holding = it.next();
+        	report.print("  "+holding.getSymbol().getSymbol()+" ("+holding.getSymbolId()+") "+
+        					"Bought: "+holding.getBuyDate()+" Sold: "+holding.getSellDate()+
+        					" "+holding.getVolume()+" shares at net $"+holding.getNet());
+        	
+        	if (!portfolio.containsKey(holding.getSymbol().getSymbol()))
+        		report.println(" [NOT IN PORTFOLIO!]");
+        	else {
+        		Integer p= portfolio.get(holding.getSymbol().getSymbol());
+        		if (p!=0)	// 0 is closed
+        			report.println(" [OUTSTANDING SHARES: "+p+"]");
+        	}
+        	
+        	// we found it, whats left will be what IB thinks we own
+        	portfolio.remove(holding.getSymbol().getSymbol());
+        }
+
+       	// these are the ones we expect to have open (not including today)
+        // (submitted but not filled)
+        
+        criteria = session.createCriteria(Holding_T.class)
+            .add(Restrictions.le("buyDate", buyDate))
+            .add(Restrictions.eqProperty("volume", "filled"))
+            .add(Restrictions.ne("remaining", 0))
+            .add(Restrictions.ne("orderId", 0))
+        	.add(Restrictions.ne("orderId2", 0));      
+        
+        @SuppressWarnings("unchecked")
+        List<Holding_T> openData = criteria.list();
+     
+        report.println("\nThere are "+openData.size()+" Open Holdings: ");
+        
+        it = openData.iterator();
+        while (it.hasNext()) {
+        	
+        	Holding_T holding = it.next();
+        	report.print("  "+holding.getSymbol().getSymbol()+" ("+holding.getSymbolId()+") "+
+        					"Bought: "+holding.getBuyDate()+" Remaining shares: "+holding.getRemaining()+
+        					" out of "+holding.getVolume());
+        	
+        	if (!portfolio.containsKey(holding.getSymbol().getSymbol()))
+        		report.println(" [NOT IN PORTFOLIO!]");
+        	else {
+        		Integer p= portfolio.get(holding.getSymbol().getSymbol());
+        		if (p!=holding.getRemaining())
+        			report.println(" [NUMBER OF SHARES DONT MATCH: "+p+"]");
+        	}
+        	
+        	// we found it, whats left will be what IB thinks we own
+        	portfolio.remove(holding.getSymbol().getSymbol());
+        }
+        
+        // remove todays holdings
+        buyDate = timeManager.getCurrentTradeDate();
+        
+        criteria = session.createCriteria(Holding_T.class)
+                .add(Restrictions.between("buyDate", buyDate, Utilities_T.tomorrow(buyDate)))
+                .add(Restrictions.ne("orderId", 0))
+                .add(Restrictions.eq("orderId2", 0));               
+            
+        @SuppressWarnings("unchecked")
+        List<Holding_T> todaysData = criteria.list();
+            
+        it = todaysData.iterator();
+        while (it.hasNext()) {
+            	
+          	Holding_T holding = it.next();
+            	
+           	if (!portfolio.containsKey(holding.getSymbol().getSymbol()))
+           		report.println("  "+holding.getSymbol().getSymbol()+" ("+holding.getSymbolId()+") "+
+          				" is NOT IN PORTFOLIO");
+           	else {
+           		Integer p= portfolio.get(holding.getSymbol().getSymbol());
+           		if (p!=holding.getRemaining())
+           			report.println("  "+holding.getSymbol().getSymbol()+" ("+holding.getSymbolId()+") "+
+           				" [NUMBER OF SHARES DONT MATCH: "+p+"]");
+           	}
+            	
+           	portfolio.remove(holding.getSymbol().getSymbol());           	
+        }
+        
+        // remove closed positions
+        for (Map.Entry<String, Integer> entry : portfolio.entrySet()) {
+    	    Integer value = entry.getValue();
+    	    if (value == 0)
+    	    	portfolio.remove(entry.getKey());
+    	}
+        
+        // The remaining are what IB thinks we own...
+        report.println("\nThere are "+portfolio.size()+" Unaccounted Holdings:");
+        Map<String, Integer> sortedMap = new TreeMap<String, Integer>(portfolio);
+    	for (Map.Entry<String, Integer> entry : sortedMap.entrySet()) {
+    	    String key = entry.getKey();
+    	    Integer value = entry.getValue();
+    	    report.println(key+": "+value+" shares");
+    	}    	
+
+        session.close();
+        report.close();
+    }
 }

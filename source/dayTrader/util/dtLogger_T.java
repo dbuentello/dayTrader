@@ -28,6 +28,8 @@ public class dtLogger_T {
 	{
 		boolean ret = true;
 		
+		// Append suffix
+		
 		try {
 			File file = new File(fileName);
 

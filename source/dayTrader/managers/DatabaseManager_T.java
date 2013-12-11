@@ -360,6 +360,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
             holding.setBuyDate(date);
             
             holding.insertOrUpdate();
+            
         }
         
     }    
@@ -457,8 +458,6 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
     public List<Holding_T> getSubmittedOrders() {
 
         Session session = getSessionFactory().openSession();
-        //Criteria criteria = session.createCriteria(Holding_T.class)
-        //        .add(Restrictions.eq("orderStatus", "Submitted"));		// TODO use def
 
         Criteria criteria = session.createCriteria(Holding_T.class)
                 .add(Restrictions.disjunction()

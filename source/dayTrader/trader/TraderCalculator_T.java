@@ -101,21 +101,19 @@ if (DayTrader_T.d_useIB) {
         return availCap <= MAX_BUY_AMOUNT ? availCap : MAX_BUY_AMOUNT;
   
     }
-    
+ 
     /**
-     * for the most recent updates to Holdings, the net profit/loss field
-	 * will be empty.  Update the sell total, and calculate the net. Add this to our daily net table
-	 * Only completely sold holdings are calculated - deferred holdings will
-	 * show up later
+     * Calculate the net for the holdings that were just sold.
+     * For the most recent updates to Holdings, the net profit/loss field
+	 * will be empty.
+	 * Only completely sold holdings are calculated
      */
     public void calculateNet()
     {
+Log.println("---BGN CalculateNET---");
+
     	Date buyDate = timeManager.getPreviousTradeDate();
     	
-    	Double cumNet = 0.00;
-    	long   cumVol = 0;
-    	
-    	//SELECT id, buy_volume, buy_total, sell_price FROM Holdings WHERE DATE(buy_date) = \"$buy_date\" AND net IS NULL
         Session session = databaseManager.getSessionFactory().openSession();
         
         // checking the net field makes sure we dont calculate it twice
@@ -125,12 +123,7 @@ if (DayTrader_T.d_useIB) {
         
         @SuppressWarnings("unchecked")
         List<Holding_T> holdingData = criteria.list();
-        
-        
-        if (holdingData.size() != Trader_T.MAX_BUY_POSITIONS) {
-        	Log.println("[ATTENTION] CalculateNet() There are only " + holdingData.size() +" There should be "+Trader_T.MAX_BUY_POSITIONS);
-        }
-            
+                   
         Iterator<Holding_T> it = holdingData.iterator();
         while (it.hasNext()) {
         	Holding_T holding = it.next();
@@ -143,7 +136,7 @@ if (DayTrader_T.d_useIB) {
         	double sellPrice = holding.getAvgFillPrice();	//getActualSellPrice();
         	long   volume    = holding.getVolume();
         	
-        	// TODO:  this should never happen
+        	// TODO:  this should never placeOrderhappen
         	if (sellPrice == 0.00) {
         		Log.println("[ERROR] CalculateNet() no sell price for "+holding.getSymbolId());
         		continue;
@@ -154,26 +147,60 @@ if (DayTrader_T.d_useIB) {
             if (sellPrice > buyPrice) { netGL = "GAIN"; }
             if (sellPrice < buyPrice) { netGL = "LOSS"; }
 
-            double delta = sellPrice - buyPrice;
-            delta = Utilities_T.round(delta);
+            double delta = Utilities_T.round(sellPrice - buyPrice);
+            double total = Utilities_T.round(delta*volume);
 
             // TODO: there better not be any remaining! - remove remaining when we're sure
-            Log.println("*** SOLD " +holding.getSymbolId()+ " at a " +netGL+" of $"+delta+" ("+sellPrice+"/"+buyPrice+" "+
-               				holding.getRemaining()+ " remaining) at "+holding.getSellDate().toString()+" ***"); 
+            Log.println("*** SOLD " +holding.getSymbol().getSymbol()+" ("+holding.getSymbolId()+ ") at a "+
+            			netGL+" of $"+total+" ("+delta+":"+sellPrice+"/"+buyPrice+") "+
+               			" at "+holding.getSellDate().toString()+" ***"); 
 
                 
         	double buyTotal  = buyPrice * volume;
         	double sellTotal = sellPrice * volume;
         	double net = sellTotal - buyTotal;
         	net = Utilities_T.round(net);
-        		
-        	// update the Holdings net for this stock in the Holdings Table
-            //holding.setNet(net);
-        	//holding.update();							// SAL why doesnt this worK?  no errors
-        												// but this does?
+
         	holding.updateNet(net);
-	
-        		
+        	
+        }  // next Holding
+        
+Log.println("---END CalculateNET---");
+
+    }
+    
+    
+    /**
+     * Calculate the total net for all holdings that were bought yesterday and 
+     * completely sold today.
+     * Calculate the volume and total net and add this to our daily net table
+	 * Only completely sold holdings are calculated - deferred holdings will
+	 * show up later
+     */
+    public void calculateRealizedNet()
+    {
+    	Date buyDate = timeManager.getPreviousTradeDate();
+    	
+    	Double cumNet = 0.00;
+    	long   cumVol = 0;
+    	
+        Session session = databaseManager.getSessionFactory().openSession();
+        
+        // anull net field means it wasnt calculated - deferred will show up later
+        Criteria criteria = session.createCriteria(Holding_T.class)
+            .add(Restrictions.between("buyDate", buyDate, Utilities_T.tomorrow(buyDate)))
+        	.add(Restrictions.isNotNull("net"));
+        
+        @SuppressWarnings("unchecked")
+        List<Holding_T> holdingData = criteria.list();
+                    
+        Iterator<Holding_T> it = holdingData.iterator();
+        while (it.hasNext()) {
+        	Holding_T holding = it.next();
+
+        	double net    = holding.getNet();
+        	long   volume = holding.getVolume();
+   		
         	cumNet += net;
         	cumVol += volume;
         	
@@ -681,18 +708,7 @@ if (!DayTrader_T.d_useIB) {
         while (it.hasNext()) {
             	
           	Holding_T holding = it.next();
-            	
-           	if (!portfolio.containsKey(holding.getSymbol().getSymbol()))
-           		report.print("  "+holding.getSymbol().getSymbol()+" ("+holding.getSymbolId()+") "+
-          				" is NOT IN PORTFOLIO");
-           	else {
-           		Integer pos= portfolio.get(holding.getSymbol().getSymbol()).m_position;
-           		if (pos!=holding.getRemaining())
-           			report.print("  "+holding.getSymbol().getSymbol()+" ("+holding.getSymbolId()+") "+
-           				" [NUMBER OF SHARES DONT MATCH: "+pos+"]");
-           	}
-           	report.newline();
-            	
+             	
            	portfolio.remove(holding.getSymbol().getSymbol());           	
         }
         

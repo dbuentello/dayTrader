@@ -46,7 +46,6 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
     
 	//linnode server
     //private final String GATEWAY_HOST = "74.207.244.99";
-    //private final int GATEWAY_PORT = 7462;
     
     
     /** A reference to the DatabaseManager class. */
@@ -111,13 +110,12 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 
 	@Override
 	public void error(Exception e) {
-		System.out.println("Error exception="+e.getMessage());		
+		Log.println("[ERROR] exception="+e.getMessage());
 	}
 	
 	@Override
 	public void error(String str) {
-		System.out.println("Error str="+str);
-		
+		Log.println("[ERROR] str="+str);
 	}
 	
 	@Override

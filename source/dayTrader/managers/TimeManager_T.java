@@ -146,6 +146,14 @@ if (DayTrader_T.d_useIB) {
                 //updateTime is a blocking call that won't return until the time has been updated
             	updateTime();
 
+            	// make sure we have a connection - cant do much without it
+            	// we'll just wait a bit and try again
+            	// TODO: maybe a counter - this will print every time we go thru this loop
+            	if (!trader.checkConnection()) {
+            		Log.println("[ERROR] no connection at "+TimeNow());
+            		continue;
+            	}
+            	
             	/*
             	 * During market open hours, get RealTime Quotes for our Holdings
             	 * according to the scan interval
@@ -164,6 +172,7 @@ if (DayTrader_T.d_getRTData) {
             		List <RTData_T> rtData = marketDataManager.getRealTimeQuotes();
             		
             		trader.shouldWeSell(rtData);
+					tCalculator.calculateNet();
             		
             		prevScanTime.setTime(prevScanTime.getTime() + RT_SCAN_INTERVAL);
             	}
@@ -221,20 +230,16 @@ if (DayTrader_T.d_useIB) {
 						remaining = trader.allSold();
 						nRemaining = remaining.size();
 					}
-					trader.logRemaining("SELL", remaining);
-
-					
+					trader.logRemaining("SELL", remaining);	
 }  // useIB
-
-
-                    // now we can calculate net for the end of the day
-                 	
-                	// how much did we gain or lose today?  Persist in DB and log
-                	// NOTE: we wont know until all the orders are executed, but they
-					// all should be by now.
+					// for what we just liquidated
+					tCalculator.calculateNet();
+					
+                    // now we can calculate total net (how much we gained/lost)
+					// for the end of the day
 					// also calculate the estimate of unsold holdings, and
 					// the actual net of any deferred holdings that were realized today
-            		tCalculator.calculateNet();
+            		tCalculator.calculateRealizedNet();
             		tCalculator.calculateUnrealizedNet();
             		tCalculator.calculateDeferredNet();
 

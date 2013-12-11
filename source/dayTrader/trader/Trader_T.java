@@ -35,6 +35,7 @@ import com.ib.client.Execution;
 import com.ib.client.Order;
 
 import dayTrader.DayTrader_T;
+import exceptions.ConnectionException;
 import trader.TraderCalculator_T;
 
 import util.Utilities_T;
@@ -106,6 +107,26 @@ if (DayTrader_T.d_useIB) {
 		// we're good to go
 		return true;
 
+    }
+
+    /**
+     * See if we're still connected.  If not try a reconnect. 
+     * If we still fail, the caller should retry
+     * @return
+     */
+    public boolean checkConnection() {
+    	
+if (!DayTrader_T.d_useIB) {
+	return true;
+}
+
+	    if (brokerManager.isConnected()) 
+	    	return true;
+
+        try { brokerManager.connect(); }
+        catch (ConnectionException e)  { }
+    
+        return brokerManager.isConnected();
     }
     
     
@@ -212,8 +233,6 @@ if (DayTrader_T.d_useIB) {
 			// place a sell order
 	        brokerManager.placeOrder(holding);
 
-
-
 } else {
 			// fake it... set the status to filled, etc order id will be -1 to 
 			// indicate simulation, and other ids will be null
@@ -251,6 +270,8 @@ if (DayTrader_T.d_useIB) {
     		date = timeManager.getCurrentTradeDate();
     	else
     		date = timeManager.TimeNow();
+
+Log.println("---BGN ShouldWeSell---");
 
     	//for each holding
         Iterator<RTData_T> it = rtData.iterator();
@@ -308,8 +329,7 @@ if (DayTrader_T.d_useIB) {
 //Log.println("\n$symbol price= $price at $date  range for trail: $lower_limit - $upper_limit"; }
 
 	 		// hard stop - limit losses
-	 		if (price < lower_limit)
-	 		{
+	 		if (price < lower_limit) {
 	 			sell = true; 
 	 		}
 
@@ -351,14 +371,14 @@ if (DayTrader_T.d_useIB) {
 	            holding.setSellPrice(price);		// desired price - may be different when the trade is executed
 
 	 			if (holding.updateSellPosition(sym.getId(), price, date) != 1) {
-	 				Log.println("[ERROR] sell order date not updated in DB");
+	 				Log.println("[ERROR] sell order "+holding.getOrderId2()+ " for "+holding.getSymbolId()+" not updated in DB");
 	 				continue;
 	 			}
 	
 	        	// this is where the sell is executed
 	            // if we get immediate confirmation, use the actual sell price, not EOD price
 	            // if we dont get immediate confirmation that all share sells were executed, we'll
-	            // need alternate logic
+	            // need alLog.println("---BGN CalculateNET---");ternate logic
 	            
 	        	
 if (DayTrader_T.d_useIB) {
@@ -402,6 +422,8 @@ else
         	
         }  // next holding
 
+Log.println("---END ShouldWeSell---");        
+        
     }    
 
     /**
@@ -506,7 +528,12 @@ else
             int buyVolume = (int)(buyTotal/buyPrice);
             double adjustedBuyTotal = buyVolume * buyPrice;
     	
-            // TODO: put this as a Holding_T method updateBuyPosition(price, vol)
+
+           // TODO/DONE: put this as a Holding_T method updateBuyPosition(symId, price, vol, date)
+/***
+            Holding_T h = new Holding_T();		// just a container
+            h.updateBuyPosition(symbol.getId(), buyPrice, buyVolume, timeManager.getCurrentTradeDate());
+***/           
             Session session = databaseManager.getSessionFactory().openSession();
 
             // updates must be within a transaction
@@ -517,11 +544,12 @@ else
 
             	String hql = "UPDATE trader.Holding_T " +
             			"SET buyPrice = :buyPrice, volume = :buyVolume, " +
-            			"remaining = :buyVolume " + 
+            			"remaining = :buyVolume, orderStatus = :presubmitted  " + 
             			"WHERE symbolId = :sym AND buyDate >= :date";
             	Query query = session.createQuery(hql);
             	query.setDouble("buyPrice", buyPrice);
             	query.setInteger("buyVolume", buyVolume);
+            	query.setParameter("presubmitted", OrderStatus.PreSubmitted.toString());
             	query.setParameter("sym", symbol.getId());
             	query.setDate("date", timeManager.getCurrentTradeDate());
 
@@ -749,8 +777,7 @@ if (DayTrader_T.d_useIB) {
     	//     openOrder will confirm and update as necessary
 
     	
-    	// see which holdings in our DB are still in the 'not filled' state   	
-    	//ArrayList<Integer> submittedOrders = getSubmittedOrders();
+    	// see which holdings in our DB are still in the 'not filled' state
     	List<Holding_T> holdings = databaseManager.getSubmittedOrders();
     	
     	Log.println("[DEBUG] There are "+holdings.size() + " outstanding in DB");
@@ -776,12 +803,37 @@ if (DayTrader_T.d_useIB) {
     	while (hit.hasNext())
     	{
     		Holding_T holding = hit.next();
+    		Log.println("[DEBUG] checking Holding "+holding.getId() +  ": "+holding.getSymbol().getSymbol()+" ("+holding.getSymbolId());
     	
     		// first, match up with portfolio
         	
-        	if (!portfolio.containsKey(holding.getSymbol().getSymbol()))
+        	if (!portfolio.containsKey(holding.getSymbol().getSymbol())) {
         		Log.println("[ERROR] Holding "+holding.getId()+ ": "+holding.getSymbol().getSymbol()+
         				" ("+holding.getSymbolId()+") is not in IB Portfolio");
+        	
+				// did we attempt to place the order, but it didnt do thru?
+				if (holding.getOrderStatus().equalsIgnoreCase(OrderStatus.PreSubmitted.toString()) &&
+						holding.getOrderId()==0) {
+					
+					Log.println("[DEBUG] Buy order didnt go thru... resubmitting");
+					
+					// update the holding with the order and contract
+					holding = createMarketOrder(holding, Action.BUY);
+
+			        Log.println("Placing BUY order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") " +
+			            				" OrderId: "+holding.getOrderId());
+						
+					if (holding.getOrderId() == 0)	{
+						Log.println("[BAD ERROR] Buy order not placed - null OrderId");
+			   		    continue;
+					}
+						
+					// place a sell order
+				    brokerManager.placeOrder(holding);
+
+				}
+
+        	}
         	else {
         		Log.println("[DEBUG]Matching portfolio with DB holding...");
         		
@@ -810,18 +862,44 @@ if (DayTrader_T.d_useIB) {
     				}
         		}
         		else if (pos==holding.getVolume()) {		//IB says we own it
-    				if (!holding.isOwned()) {
+    			
+        			if (!holding.isOwned()) {
     					Log.println("[ERROR] portfolio says holding is owned, but DB says we dont own! NOT updating DB");
-    				} else {
-    					Log.println("[DEBUG] Setting DB to Owned");
-    					
-        				holding.setOrderStatus(OrderStatus.Filled.toString());
-        				holding.setFilled(holding.getVolume());
-    					holding.setSellDate(timeManager.TimeNow());
-    					holding.setActualBuyPrice(portfolio.get(holding.getSymbol().getSymbol()).m_avgCost);
+    				
+    				
+        			} else {
+    					// did we attempt to place the order, but it didnt do thru?
+    					if (holding.getOrderStatus().equalsIgnoreCase(OrderStatus.PreSubmitted.toString()) &&
+    							holding.getOrderId2()==0) {
+    						
+        					Log.println("[DEBUG] Sell order didnt go thru... resubmitting");
+        					
+        					// update the holding with the order and contract
+        					holding = createMarketOrder(holding, Action.SELL);
 
-    					holding.updateOrderPosition();	//persist
-            		
+        			        Log.println("Placing SELL order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") " +
+        			            				" OrderId: "+holding.getOrderId2());
+        						
+        					if (holding.getOrderId2() == 0)	{
+        						Log.println("[BAD ERROR] Sell order not placed - null OrderId");
+        			   		    continue;
+        					}
+        						
+        					// place a sell order
+        				    brokerManager.placeOrder(holding);
+
+    					}
+    					else {	
+    						Log.println("[DEBUG] Setting DB to Owned");
+    					
+    						holding.setOrderStatus(OrderStatus.Filled.toString());
+    						holding.setFilled(holding.getVolume());
+    						holding.setSellDate(timeManager.TimeNow());
+    						holding.setActualBuyPrice(portfolio.get(holding.getSymbol().getSymbol()).m_avgCost);
+
+    						holding.updateOrderPosition();	//persist
+    					}
+    					
     					nOpen--;						// one less to deal with
     				}
         		}
@@ -896,6 +974,8 @@ if (DayTrader_T.d_useIB) {
     	// OrderStaus to be called
     	// and not care about the returned data (it will be updated asynchronously when orderStatus is called)
     	// but may be good to wait for initialization
+    	// NOT only overkill, but we could get a java.util.ConcurrentModificationException
+    	// on the iterator if we place an order, and the status is updated while we do this
     	Log .println("[DEBUG] Reqesting Open Orders from IB...");
     	List<Order> openOrders = brokerManager.reqOpenOrders(2000);
  

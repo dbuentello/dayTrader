@@ -532,10 +532,61 @@ public class Holding_T implements Persistable_IF {
     }
 
     /**
+     * Update the buy parameters (desired price, volume and date) for this symbol for the most
+     * recent entry for this symbol in the Holdings table.
+     * Also set the status to "PreSubmitted"
+     * 
+     * @param symId
+     * @param price
+     * @param volume
+     * @param date
+     * @return
+     * @throws HibernateException
+     */
+    // this is because update doesnt work
+    //  (also because we need to return a status)
+    public int updateBuyPosition(long symId, Double price, int volume, Date date)  throws HibernateException {
+
+    	Session session = DatabaseManager_T.getSessionFactory().openSession();
+        Transaction tx = null;
+        
+        int nrows = 0;
+
+        try {
+        	tx = session.beginTransaction();
+
+        	String hql = "UPDATE trader.Holding_T " +
+        			"SET buyPrice = :buyPrice, volume = :buyVolume, " +
+        			"remaining = :buyVolume, orderStatus = :presubmitted " + 
+        			"WHERE symbolId = :sym AND buyDate >= :date";
+        	Query query = session.createQuery(hql);
+        	query.setDouble("buyPrice", price);
+        	query.setInteger("buyVolume", volume);
+           	query.setParameter("presubmitted", OrderStatus.PreSubmitted.toString());
+        	query.setParameter("sym", symId);
+        	query.setDate("date", date);
+
+        	int n = query.executeUpdate();
+             
+        	tx.commit();
+        } catch (HibernateException e) {
+        	//TODO: for now just print to stdout, we'll change this to a log file later
+        	e.printStackTrace();
+        	if (tx != null) tx.rollback();
+        } finally {
+        	session.close();
+        }        
+        
+        return nrows;
+    	
+    }   
+    
+    
+    /**
      * Update the sell parameters (desired price and date) for this symbol for the most
      * recent entry for this symbol in the Holdings table.  Its sell date will be null
      * before it is updated - that is the trigger
-     * Also set the status back to "Unknown"
+     * Also set the status to "PreSubmitted"
      * 
      * @param symId
      * @param price
@@ -556,12 +607,12 @@ public class Holding_T implements Persistable_IF {
             tx = session.beginTransaction();
             
           	String hql = "UPDATE trader.Holding_T " +
-           			"SET sellPrice = :price, sellDate = :date, orderStatus = :unknown " + 
+           			"SET sellPrice = :price, sellDate = :date, orderStatus = :presubmitted " + 
            			"WHERE symbolId = :sym AND sellDate is null";
            	Query query = session.createQuery(hql);
            	query.setDouble("price", price);
            	query.setTimestamp("date", date);
-           	query.setParameter("unknown", OrderStatus.Unknown.toString());
+           	query.setParameter("presubmitted", OrderStatus.PreSubmitted.toString());
            	query.setParameter("sym", symId);
 
         	nrows = query.executeUpdate();
@@ -1014,7 +1065,12 @@ public class Holding_T implements Persistable_IF {
     	// unless there is 0 volume - special case if it was cancelled before it was filled
     	if (volume==0) return false;
     	
-        return  ((orderId != 0) && (buyDate != null) && (sellDate == null) && (filled == volume));
+        //return  ((orderId != 0) && (buyDate != null) && (sellDate == null) && (filled == volume));
+    
+    	// there is the exception case where an order is placed, but never recieved by IB
+    	// in that case, we did fill in the buydate, but never got an orderId in response.
+        return  ((orderId != 0) && (buyDate != null) && (orderId2 == 0) && (filled == volume));
+        
     }
 
 

@@ -120,13 +120,32 @@ if (!DayTrader_T.d_useIB) {
 	return true;
 }
 
-	    if (brokerManager.isConnected()) 
-	    	return true;
+	    if (brokerManager.isConnected()) {
+			// if the connection was previously lost, we need to recover
+	    	if (brokerManager.recoverConnection(true)) {
 
+	    		Log.println("[INFO] Recovering from lost connection");
+	    		recoverMissedExecutions();
+	    	}
+	    	return true;
+	    }
+
+	    // not connected... try to reconnect
         try { brokerManager.connect(); }
         catch (ConnectionException e)  { }
-    
-        return brokerManager.isConnected();
+
+	    if (brokerManager.isConnected()) {
+			// if the connection was previously lost, we need to recover
+	    	if (brokerManager.recoverConnection(true)) {
+	    		// TODO:
+	    		Log.println("[INFO] Recovering from lost connection");
+	    		recoverMissedExecutions();
+	    	}
+	    	return true;
+	    }
+
+	    // still no go..
+        return false;
     }
     
     
@@ -244,7 +263,7 @@ if (DayTrader_T.d_useIB) {
             Log.println("Placing SELL order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") ");
 
 	        if (holding.updateOrderPosition() == 0) {
-	        	System.out.println("[WARNING] order status not updated in DB");
+	        	Log.println("[WARNING] order status not updated in DB");
 	        	continue;
 	        }
 }
@@ -371,7 +390,7 @@ Log.println("---BGN ShouldWeSell---");
 	            holding.setSellPrice(price);		// desired price - may be different when the trade is executed
 
 	 			if (holding.updateSellPosition(sym.getId(), price, date) != 1) {
-	 				Log.println("[ERROR] sell order "+holding.getOrderId2()+ " for "+holding.getSymbolId()+" not updated in DB");
+	 				Log.println("[ERROR] sell order for "+holding.getSymbolId()+" not updated in DB");
 	 				continue;
 	 			}
 	
@@ -437,7 +456,6 @@ Log.println("---END ShouldWeSell---");
         Session session = DatabaseManager_T.getSessionFactory().openSession();
         Criteria criteria = session.createCriteria(Holding_T.class)
                 .add(Restrictions.eq("symbolId", symId))
-//SALxx                .add(Restrictions.ge("buyDate", date));
                 .add(Restrictions.between("buyDate", date, Utilities_T.tomorrow(date)));
 
         @SuppressWarnings("unchecked")
@@ -530,7 +548,7 @@ Log.println("---END ShouldWeSell---");
     	
 
            // TODO/DONE: put this as a Holding_T method updateBuyPosition(symId, price, vol, date)
-/***
+/***SALxx
             Holding_T h = new Holding_T();		// just a container
             h.updateBuyPosition(symbol.getId(), buyPrice, buyVolume, timeManager.getCurrentTradeDate());
 ***/           
@@ -633,7 +651,6 @@ if (DayTrader_T.d_useIB) {
         
         Criteria criteria = session.createCriteria(Holding_T.class)
         	.add(Restrictions.eq("symbolId", symbolId))
-//SALxx        	.add(Restrictions.ge("buyDate", date));
         	.add(Restrictions.between("buyDate", date, Utilities_T.tomorrow(date)));
         
         @SuppressWarnings("unchecked")
@@ -766,7 +783,7 @@ if (DayTrader_T.d_useIB) {
      * 
      * @return the number of remaining outstanding orders
      */
-    public int getOutstandingOrders()
+    public int recoverMissedExecutions()
     {
     	// 1. get all holdings from the DB that have a status of Submitted or PreSubmitted
     	//       TODO: PendingSubmit...InActive?
@@ -1155,7 +1172,7 @@ if (false) {
 if (false) {
 		//TestBuyOrSell("BUY");
     	//getSubmittedOrders();    // from our DB
-    	getOutstandingOrders();  // from IB
+		recoverMissedExecutions();  // from IB
     	try { Thread.sleep(10000); }
         catch (InterruptedException e) { e.printStackTrace(); }
 

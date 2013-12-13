@@ -172,6 +172,8 @@ public class DayTrader_T {
 
     public static void terminate() {
 
+        dtLog.println("\n*** DayTrader is terminating at "+timeManager.TimeNow()+" ***\n");
+
         Iterator<Manager_IF> mit = serviceManager.values().iterator();
         while (mit.hasNext()) {
             Manager_IF mgr = mit.next();
@@ -186,7 +188,7 @@ public class DayTrader_T {
             //stop each manager thread
             thread.interrupt();
         }
-
+        
         dtLog.close();
 
     }
@@ -214,8 +216,12 @@ public class DayTrader_T {
 class GlobalExceptionHandler implements Thread.UncaughtExceptionHandler {
     
     public void uncaughtException(Thread t, Throwable e) {
-        System.out.println("[ERROR] An exception was thrown and caught by the GlobalExceptionHandler!!!!");
+        dtLogger_T Log  = DayTrader_T.dtLog;
+        
+        Log.println("[ERROR] An exception was thrown and caught by the GlobalExceptionHandler!!!!");
         e.printStackTrace();
+        
+        DayTrader_T.terminate();
     }
     
 }

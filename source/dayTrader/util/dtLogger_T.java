@@ -61,16 +61,24 @@ public class dtLogger_T {
 
 	public void print(String str)
 	{
+		boolean writeToLog = true;
+		
+		// dont write debugging or callback info to log file
+		if (str.startsWith("[DEBUG]") || str.startsWith("{"))
+			writeToLog = false;;
+
 		if (timestamp) {
 			Date now = new Date();
 			str = "<" + now.toString() + "> " + str;
 		}
-		
-		try {
-			bw.write(str);
-			if (d_flush) bw.flush();			// TODO: remove in productoion
-		} catch (IOException e) {
-			e.printStackTrace();
+	
+		if (writeToLog) {
+			try {
+				bw.write(str);
+				if (d_flush) bw.flush();			// TODO: remove in productoion
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
 		}
 
 		if (echo) System.out.print(str);

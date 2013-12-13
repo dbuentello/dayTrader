@@ -134,7 +134,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
 if (DayTrader_T.d_useIB) {
 	
 		Log.println("Retrieving Outstanding orders...");
-   		int nOpenOrders = trader.getOutstandingOrders();  // from IB 
+   		int nOpenOrders = trader.recoverMissedExecutions();  // from IB 
    		Log.println("There are "+nOpenOrders+" Open Orders");
 }
 
@@ -148,12 +148,15 @@ if (DayTrader_T.d_useIB) {
 
             	// make sure we have a connection - cant do much without it
             	// we'll just wait a bit and try again
+            	// this will also recover from the lost connection by updating our
+            	// status from IB
             	// TODO: maybe a counter - this will print every time we go thru this loop
             	if (!trader.checkConnection()) {
             		Log.println("[ERROR] no connection at "+TimeNow());
             		continue;
             	}
-            	
+ 
+
             	/*
             	 * During market open hours, get RealTime Quotes for our Holdings
             	 * according to the scan interval
@@ -311,6 +314,7 @@ if (DayTrader_T.d_useIB) {
             } catch (InterruptedException e) {
                 running = false;
             }
+
         }  // while running
 
     }

@@ -86,6 +86,8 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
     private boolean openOrderEndComplete = false;
     private boolean reqOrderEndComplete = false;
     
+    // set when we lose connectivity to indicate we need to requery IB for status
+    private boolean resetNeeded = false;
     
     /**
      * 
@@ -110,7 +112,16 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 
 	@Override
 	public void error(Exception e) {
-		Log.println("[ERROR] exception="+e.getMessage());
+		if (e!=null)
+		{
+			Log.println("[ERROR] exception="+e.getMessage());
+			
+			if (e.getMessage().equalsIgnoreCase("Connection reset")) {
+				resetNeeded = true;
+				// force a hard disconnect
+				disconnect();
+			}
+		}
 	}
 	
 	@Override
@@ -120,8 +131,21 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	
 	@Override
 	public void error(int id, int errorCode, String errorMsg) {
+		// we lost connectivity
+		if (errorCode == 1100) {
+			Log.println("[WARNING] code="+errorCode+" "+errorMsg);
+			resetNeeded = true;
+			// force a hard disconnect
+			disconnect();
+		}
+		// automatic reconnect after loss of internet
+		else if (errorCode == 1101 || errorCode ==1102) {
+			Log.println("[WARNING] code="+errorCode+" "+errorMsg);
+			resetNeeded = true;
+		}
+		
 		// 200 means IB cant find the contract so no dice (orderId in DB will be 0)
-		if (errorCode == 202)
+		else if (errorCode == 202)
 			Log.println("[INFO] code="+errorCode+" "+errorMsg);
 		else if (errorCode >= 2100 && errorCode <= 2120)
 			Log.println("[WARNING] code="+errorCode+" "+errorMsg);
@@ -162,7 +186,18 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 		
 	}
 	
-	
+	/**
+	 * do we need to recover the connection?
+	 * @param reset true if we want to reset the state
+	 * @return
+	 */
+	public boolean recoverConnection(boolean reset) {
+		boolean currentState = resetNeeded;
+		
+		if (reset) resetNeeded = false;
+		
+		return currentState;
+	}
 	
 	
 	
@@ -232,6 +267,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 		
 		openOrderEndComplete = false;
 		openOrders.clear();
+		
 		ibClientSocket.reqOpenOrders();
 		
 		// wait for a response

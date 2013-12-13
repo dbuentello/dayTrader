@@ -224,9 +224,6 @@ public class Holding_T implements Persistable_IF {
     
     public void setOrderId(int orderId) {
     	this.orderId = orderId;
-    	
-    	// also add to our Order
-    	this.order.m_orderId = orderId;
     }
     
     /**
@@ -245,19 +242,17 @@ public class Holding_T implements Persistable_IF {
     public void setOrderId2(int orderId) {
     	
         this.orderId2 = orderId;
-        
-    	// also add to our Order
-    	this.order.m_orderId = orderId;
     }
 
     /**
-     * get the current OrderId that is in our Order
-     * TODO: we may not need this - could use order.getOrderId() instead
+     * get the current OrderId - the BUY (orderId) always comes first,
+     * so the most current is the SELL (orderId2) if its populated
      * @return
      */
     @Transient
     public int getCurrentOrderId() {
-    	return this.order.m_orderId;
+    	if (orderId2 != 0) return orderId2;
+    	else			   return orderId;
     }
     
     /**
@@ -531,6 +526,7 @@ public class Holding_T implements Persistable_IF {
         return exists;
     }
 
+    // TODO - replace from trader.updateBuyPositions
     /**
      * Update the buy parameters (desired price, volume and date) for this symbol for the most
      * recent entry for this symbol in the Holdings table.
@@ -583,9 +579,10 @@ public class Holding_T implements Persistable_IF {
     
     
     /**
-     * Update the sell parameters (desired price and date) for this symbol for the most
-     * recent entry for this symbol in the Holdings table.  Its sell date will be null
-     * before it is updated - that is the trigger
+     * Update the sell parameters (desired price and date) in the Holdings table
+     * SALxx---for this symbol for the most
+     * ---recent entry for this symbol.  Its sell date will be null
+     * ---before it is updated - that is the trigger
      * Also set the status to "PreSubmitted"
      * 
      * @param symId
@@ -596,7 +593,7 @@ public class Holding_T implements Persistable_IF {
      */
     // this is because update doesnt work
     //  (also because we need to return a status)
-    public int updateSellPosition(long symId, Double price, Date date)  throws HibernateException {
+    public int updateSellPosition(Double price, Date date)  throws HibernateException {
 
     	Session session = DatabaseManager_T.getSessionFactory().openSession();
         Transaction tx = null;
@@ -608,13 +605,14 @@ public class Holding_T implements Persistable_IF {
             
           	String hql = "UPDATE trader.Holding_T " +
            			"SET sellPrice = :price, sellDate = :date, orderStatus = :presubmitted " + 
-           			"WHERE symbolId = :sym AND sellDate is null";
+           			"WHERE id = :id";
+
            	Query query = session.createQuery(hql);
            	query.setDouble("price", price);
            	query.setTimestamp("date", date);
            	query.setParameter("presubmitted", OrderStatus.PreSubmitted.toString());
-           	query.setParameter("sym", symId);
-
+        	query.setParameter("id", this.id);
+        	
         	nrows = query.executeUpdate();
         	
             tx.commit();
@@ -704,7 +702,51 @@ public class Holding_T implements Persistable_IF {
         return nrows;
     }
 
+    /**
+     * Set the BUY (orderId) or SELL (orderId2) orderId
+     * 
+     * @param action BUY or SELL
+     * @param orderId
+     * @return
+     * @throws HibernateException
+     */
+    public int updateOrderId(String action, int orderId)  throws HibernateException {
+        
+    	Session session =  DatabaseManager_T.getSessionFactory().openSession();
+
+    	int nrows = 0;
+    	
+        // updates must be within a transaction
+        Transaction tx = null;
     
+        String whichSet;
+        if (action.equalsIgnoreCase("BUY"))
+        	whichSet = "SET orderId = :orderId ";
+        else
+        	whichSet = "SET orderId2 = :orderId ";
+        
+        try {
+        	tx = session.beginTransaction();
+
+        	String hql = "UPDATE trader.Holding_T " + 
+        			whichSet + "WHERE id = :id";
+        	Query query = session.createQuery(hql);
+        	query.setInteger("orderId", orderId);
+        	query.setParameter("id", this.id);
+
+        	nrows = query.executeUpdate();
+             
+        	tx.commit();
+        } catch (HibernateException e) {
+        	//TODO: for now just print to stdout, we'll change this to a log file later
+        	e.printStackTrace();
+        	if (tx != null) tx.rollback();
+        } finally {
+        	session.close();
+        } 
+        
+        return nrows;
+    }
     /**
      * update the current holdings with data returned from IB
      * This has logic to determine which fields to populate based on buy/sell
@@ -1068,8 +1110,9 @@ public class Holding_T implements Persistable_IF {
         //return  ((orderId != 0) && (buyDate != null) && (sellDate == null) && (filled == volume));
     
     	// there is the exception case where an order is placed, but never recieved by IB
-    	// in that case, we did fill in the buydate, but never got an orderId in response.
-        return  ((orderId != 0) && (buyDate != null) && (orderId2 == 0) && (filled == volume));
+    	// in that case, we did fill in the buydate and orderId, but the status wasnt updated from PreSubmitted
+        return  ((orderId != 0) && (buyDate != null) && (sellDate == null) && (filled == volume) &&
+        		  !orderStatus.equalsIgnoreCase("PreSubmitted"));
         
     }
 

@@ -344,7 +344,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 					contract.m_symbol+" "+execution.m_side+" execPrice $"+execution.m_price +"/$"+ execution.m_avgPrice +
 					" shares: "+execution.m_shares+"/"+execution.m_cumQty + " at "+execution.m_time);
 	
-		// save the most recent (or first)
+		// save the most recent (or first) and update with latest
 		Execution e = executedOrders.get(execution.m_orderId);
 		if ((e != null) && (execution.m_cumQty > e.m_cumQty))
 			executedOrders.put(execution.m_orderId, execution);

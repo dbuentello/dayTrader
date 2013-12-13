@@ -110,7 +110,6 @@ if (DayTrader_T.d_useIB) {
      */
     public void calculateNet()
     {
-Log.println("---BGN CalculateNET---");
 
     	Date buyDate = timeManager.getPreviousTradeDate();
     	
@@ -165,8 +164,6 @@ Log.println("---BGN CalculateNET---");
         	
         }  // next Holding
         
-Log.println("---END CalculateNET---");
-
     }
     
     
@@ -615,9 +612,12 @@ if (!DayTrader_T.d_useIB) {
         // get most recent portfolio
     	//brokerManager.updateAccount();
 
-    	Map <String, Portfolio_T> portfolio = brokerManager.getPortfolio();
+    	Map <String, Portfolio_T> p = brokerManager.getPortfolio();
 
-    	
+    	// make a copy, as we'll be deleting from this as we go
+    	// mind as well sort, too
+        Map<String, Portfolio_T> portfolio = new TreeMap<String, Portfolio_T>(p);
+
     	Date buyDate = timeManager.getPreviousTradeDate();
     	
     	// these are the ones we expect to have closed
@@ -712,6 +712,7 @@ if (!DayTrader_T.d_useIB) {
            	portfolio.remove(holding.getSymbol().getSymbol());           	
         }
         
+        // TODO: copy before removing, or synchronize, or use iterator to avoid exception
         // remove closed positions
         for (Map.Entry<String, Portfolio_T> entry : portfolio.entrySet()) {
     	    Integer pos = entry.getValue().m_position;
@@ -721,14 +722,106 @@ if (!DayTrader_T.d_useIB) {
         
         // The remaining are what IB thinks we own...
         report.println("\nThere are "+portfolio.size()+" Unaccounted Holdings:");
-        Map<String, Portfolio_T> sortedMap = new TreeMap<String, Portfolio_T>(portfolio);
-    	for (Map.Entry<String, Portfolio_T> entry : sortedMap.entrySet()) {
+        //Map<String, Portfolio_T> sortedMap = new TreeMap<String, Portfolio_T>(portfolio);
+    	for (Map.Entry<String, Portfolio_T> entry : portfolio.entrySet()) {
     	    String key = entry.getKey();
     	    Integer pos = entry.getValue().m_position;
     	    report.println(key+": "+pos+" shares");
     	}    	
 
         session.close();
+ 
+        //===========================================================
+        // TEST
+        //===========================================================
+        
+        // Stale holdings..
+        report.println("\nTEST-----------------\n");
+        
+        List<Holding_T> staleHoldings = databaseManager.getSubmittedOrders();
+        
+        Iterator<Holding_T> itt = staleHoldings.iterator();
+    	while (itt.hasNext()) {
+    		Holding_T h = itt.next();
+
+    		Date d = h.getSellDate(); String ds="NULL";
+    		if (d!=null) ds = h.getSellDate().toString();
+    		
+    		if (!portfolio.containsKey(h.getSymbol().getSymbol())) {
+    			report.println("STALE Holding "+h.getId()+": "+h.getSymbol().getSymbol()+
+    					" Status: "+h.getOrderStatus()+" owned: "+h.getFilled()+" remaining: "+h.getRemaining() +
+    					" BUY: "+h.getBuyDate()+" SELL: "+ds);
+    		}
+    	}
+    	
+        // Lets do the inverse - what does IB say we own that we cant account for?
+        ArrayList <String> IBHoldings = new ArrayList<String>();
+        
+        for (Map.Entry<String, Portfolio_T> entry : p.entrySet()) {
+    	    String symbol = entry.getKey();
+        	
+        	itt = staleHoldings.iterator();
+        	while (itt.hasNext()) {
+        		Holding_T h = itt.next();
+        		if (symbol.equalsIgnoreCase(h.getSymbol().getSymbol())) {
+        			IBHoldings.add(symbol);
+        			break;
+        		}
+        	}
+        }
+        if (!IBHoldings.isEmpty()) {
+            report.print("[There are "+IBHoldings.size()+" Unaccounted holdings: ");
+        	Iterator<String> its = IBHoldings.iterator();
+        	while (its.hasNext()) { report.print(its.next()+" "); } report.newline();
+        }
+        else report.println("There are no Unaccounted holdings");
+        
+        // current holdings
+        List<Holding_T> currentHoldings = databaseManager.getCurrentHoldings(timeManager.getPreviousTradeDate());
+        itt = currentHoldings.iterator();
+    	while (itt.hasNext()) {
+    		Holding_T h = itt.next();
+    		
+    		if (!p.containsKey(h.getSymbol().getSymbol())) {
+        		Date d = h.getSellDate(); String ds="NULL";
+        		if (d!=null) ds = h.getSellDate().toString();
+        		
+    			report.println("Current Holding "+h.getId()+": "+h.getSymbol().getSymbol()+
+    					" Status: "+h.getOrderStatus()+" owned: "+h.getFilled()+" remaining: "+h.getRemaining() +
+    					" BUY: "+h.getBuyDate()+" SELL: "+ds);
+    		}
+    	}
+    	   
+    	Map<String, Portfolio_T> sortedMap = new TreeMap<String, Portfolio_T>(p);
+    	for (Map.Entry<String, Portfolio_T> entry : sortedMap.entrySet()) {
+    	    String key = entry.getKey();
+    	    Integer pos = entry.getValue().m_position;
+    	    report.println("IB Holdings "+key+": "+pos+" shares");
+    	}
+    	
+    	// diff
+    	IBHoldings.clear();
+    	for (Map.Entry<String, Portfolio_T> entry : sortedMap.entrySet()) {
+    	    String symbol = entry.getKey();
+    	    
+        	itt = currentHoldings.iterator();
+        	while (itt.hasNext()) {
+        		Holding_T h = itt.next();
+        		if (symbol.equalsIgnoreCase(h.getSymbol().getSymbol())) {
+        			IBHoldings.add(symbol);
+        			break;
+        		}
+        	}
+    	}
+        if (!IBHoldings.isEmpty()) {
+            report.print("[There are "+IBHoldings.size()+" differences: ");
+        	Iterator<String> its = IBHoldings.iterator();
+        	while (its.hasNext()) { report.print(its.next()+" "); } report.newline();
+        }
+        else report.println("There are no differnces");
+  	
+        
+        
         report.close();
     }
 }

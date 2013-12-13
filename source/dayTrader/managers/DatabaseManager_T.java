@@ -276,13 +276,9 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         Date d2 = Utilities_T.tomorrow(timeManager.getCurrentTradeDate());
         
         Criteria criteria = session.createCriteria(MarketData_T.class)
-//SALxx            .add(Restrictions.ge("date", timeManager.mysqlDate() + "00:00:00" ))
-//SALxx--            .add(Restrictions.ge("lastTradeTimestamp", timeManager.getCurrentTradeDate() ))
             .add(Restrictions.between("lastTradeTimestamp", timeManager.getCurrentTradeDate(), d2 ))
         	.add(Restrictions.gt("volume", Trader_T.MIN_TRADE_VOLUME))
-//SALxx		.add(Restrictions.gt("price", Trader_T.MIN_BUY_PRICE))
             .add(Restrictions.gt("lastPrice", Trader_T.MIN_BUY_PRICE))
-//SALxx            .addOrder(Order.asc("chgper"))
             .addOrder(Order.asc("percentChange"))
             .setMaxResults(Trader_T.MAX_BUY_POSITIONS);
         
@@ -380,7 +376,6 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
     	Session session = getSessionFactory().openSession();
           
     	Criteria criteria = session.createCriteria(Holding_T.class)
-//SALxx              .add(Restrictions.ge("buyDate", date ));         
         .add(Restrictions.between("buyDate", date, Utilities_T.tomorrow(date) ));         
           
           @SuppressWarnings("unchecked")
@@ -410,8 +405,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
 
     	Session session = getSessionFactory().openSession();
           
-    	Criteria criteria = session.createCriteria(Holding_T.class)
-//SALxx              .add(Restrictions.ge("buyDate", buyDate ));         
+    	Criteria criteria = session.createCriteria(Holding_T.class)       
                 .add(Restrictions.between("buyDate", buyDate, Utilities_T.tomorrow(buyDate) ));         
           
           @SuppressWarnings("unchecked")
@@ -463,7 +457,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
                 .add(Restrictions.disjunction()
                 		.add(Restrictions.eq("orderStatus", OrderStatus.Submitted.toString()))
                         .add(Restrictions.eq("orderStatus", OrderStatus.PreSubmitted.toString()))
-                        .add(Restrictions.eq("orderStatus", OrderStatus.Inactive.toString())));		// TODO use def
+                        .add(Restrictions.eq("orderStatus", OrderStatus.Inactive.toString())));
        
         @SuppressWarnings("unchecked")
         List<Holding_T> results = criteria.list();        
@@ -487,7 +481,6 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         Session session = getSessionFactory().openSession();
         
         Criteria criteria = session.createCriteria(MarketData_T.class)
-//SALxx            .add(Restrictions.ge("lastTradeTimestamp", timeManager.getCurrentTradeDate() ))
             .add(Restrictions.between("lastTradeTimestamp", date, Utilities_T.tomorrow(date)))
             .add(Restrictions.eq("symbolId", symbol.getId()));
 

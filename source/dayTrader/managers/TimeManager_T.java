@@ -98,7 +98,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
         boolean running = true;
 
         // TODO - replace w/config paramter
-        Log.println("\n*** Day Trader V.12.02.0 has started at "+TimeNow()+" ***\n");
+        Log.println("\n*** Day Trader V.12.13.0 has started at "+TimeNow()+" ***\n");
 
         if (!isMarketOpen()) {
         	Log.println("Market is not open.  Bye.");
@@ -109,6 +109,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
         // and as it could take time to init, do it here
 		if (!trader.init()) {
 			Log.println("[FATAL ERROR] Cannot get account info or nextValidOrderId");
+			System.err.println("Cannot Connect to IB.  Terminating");
 			return;
 		}
 
@@ -134,8 +135,8 @@ public class TimeManager_T implements Manager_IF, Runnable {
 if (DayTrader_T.d_useIB) {
 	
 		Log.println("Retrieving Outstanding orders...");
-   		int nOpenOrders = trader.recoverMissedExecutions();  // from IB 
-   		Log.println("There are "+nOpenOrders+" Open Orders");
+   		int nOutstandingOrders = trader.recoverMissedExecutions();  // from IB 
+   		Log.println("There are "+nOutstandingOrders+" Outstanding Orders");
 }
 
 

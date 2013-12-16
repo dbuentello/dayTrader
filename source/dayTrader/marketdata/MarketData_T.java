@@ -67,12 +67,11 @@ public class MarketData_T implements Persistable_IF {
     private Double percentChange = null;
     private Double weekLow52 = null;
     private Double weekHigh52 = null;
-    
+
     
 /*    
  These are additional fields that are provided by IB
     private Double trades = null;
-    private Double avgVolume = null;
     private Double weekLow13 = null;
     private Double weekHigh13 = null;
     private Double weekLow26 = null;
@@ -507,7 +506,6 @@ public class MarketData_T implements Persistable_IF {
         this.weekHigh52 = weekHigh52;
     }
 
-    
     
     
 }

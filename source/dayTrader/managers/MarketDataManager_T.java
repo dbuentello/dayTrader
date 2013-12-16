@@ -80,6 +80,8 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
 
         try {
             connect();
+            
+            calcAvgVol();
         } catch (ConnectionException e) {
             // TODO Auto-generated catch block
             logger.logFault("Could not connect to TDAmeritrade API", e);      
@@ -260,7 +262,6 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
                     marketData.setWeekLow52(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_YEAR_LOW).item(0).getTextContent()));
                     marketData.setWeekHigh52(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_YEAR_HIGH).item(0).getTextContent()));
 
-
                     //update our snapshot map with the latest data
                     //SAL - not used
                     //--lastSnapshot.put(marketData.getSymbolId(), marketData);
@@ -424,6 +425,31 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
         }
 
         return retData;
+    }
+    
+    
+    public void calcAvgVol() {
+                
+        ArrayList<Symbol_T> symbols = new ArrayList<Symbol_T>(databaseManager.getSymbolsByExchange(Exchange_T.NASDAQ));
+        //TODO: Compute for all exchanges
+        //symbols.addAll(databaseManager.getSymbolsByExchange(Exchange_T.AMEX));
+        //symbols.addAll(databaseManager.getSymbolsByExchange(Exchange_T.NYSE));
+        int i = 0;
+        for(Symbol_T symbol : symbols) {
+            
+            ArrayList<MarketData_T> recentQuotes = (ArrayList<MarketData_T>) databaseManager.getRecentQuotes(symbol.getId(), 15);
+            
+            long vol = 0;
+            if (recentQuotes != null) {
+                for(MarketData_T quote : recentQuotes) {
+                    vol += quote.getVolume();
+                }
+            }
+
+            symbol.setAvgVolume15day(vol/15);
+        }
+        
+        databaseManager.bulkSymbolInsert(symbols);
     }
 
 }

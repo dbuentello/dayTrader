@@ -7,8 +7,6 @@ import interfaces.Persistable_IF;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
-import javax.persistence.EnumType;
-import javax.persistence.Enumerated;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
@@ -18,16 +16,11 @@ import managers.DatabaseManager_T;
 
 import org.hibernate.HibernateException;
 import org.hibernate.PropertyNotFoundException;
-import org.hibernate.Session;
-import org.hibernate.Transaction;
-import org.hibernate.annotations.Type;
 import org.hibernate.property.Getter;
 import org.hibernate.property.PropertyAccessor;
 import org.hibernate.property.Setter;
 
 import dayTrader.DayTrader_T;
-
-import util.Exchange_T;
 
 /**
  * @author nathan
@@ -44,6 +37,8 @@ public class Symbol_T implements PropertyAccessor, Persistable_IF {
     private String industry;
     private String exchange;
     private double market_cap;
+    private String type;
+    private Long avgVolume15day;
     //private Set<MarketData_T> quotes = new HashSet<MarketData_T>(0);
     
     /**
@@ -186,19 +181,34 @@ public class Symbol_T implements PropertyAccessor, Persistable_IF {
     public void setMarket_cap(double market_cap) {
         this.market_cap = market_cap;
     }
-
     
-    @Override
-    public Getter getGetter(Class theClass, String propertyName)
-            throws PropertyNotFoundException {
-        // TODO Auto-generated method stub
-        return null;
+    /**
+     * @return the type
+     */
+    public String getType() {
+        return type;
     }
-    @Override
-    public Setter getSetter(Class theClass, String propertyName)
-            throws PropertyNotFoundException {
-        // TODO Auto-generated method stub
-        return null;
+
+    /**
+     * @param type the type to set
+     */
+    public void setType(String type) {
+        this.type = type;
+    }
+    
+    /**
+     * @return the avgVolume15day
+     */
+    @Column (name = "avg_vol_15d")
+    public Long getAvgVolume15day() {
+        return avgVolume15day;
+    }
+
+    /**
+     * @param avgVolume15day the avgVolume15day to set
+     */
+    public void setAvgVolume15day(Long avgVolume) {
+        this.avgVolume15day = avgVolume;
     }
     
     @Override
@@ -242,6 +252,20 @@ public class Symbol_T implements PropertyAccessor, Persistable_IF {
     public boolean existsInDB(Persistable_IF persistable) {
         // TODO Auto-generated method stub
         return false;
+    }
+
+    @Override
+    public Getter getGetter(Class theClass, String propertyName)
+            throws PropertyNotFoundException {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public Setter getSetter(Class theClass, String propertyName)
+            throws PropertyNotFoundException {
+        // TODO Auto-generated method stub
+        return null;
     }
     
 }

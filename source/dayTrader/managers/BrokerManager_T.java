@@ -40,12 +40,12 @@ import exceptions.ConnectionException;
 public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runnable {
   /* {src_lang=Java}*/
 
-    private final String GATEWAY_HOST = "localhost";
+    //private final String GATEWAY_HOST = "localhost";
     private final int GATEWAY_PORT = 4001;
     private final int CLIENT_ID = 1;
     
 	//linnode server
-    //private final String GATEWAY_HOST = "74.207.244.99";
+    private final String GATEWAY_HOST = "74.207.244.99";
     
     
     /** A reference to the DatabaseManager class. */

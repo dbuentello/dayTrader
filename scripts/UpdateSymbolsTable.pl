@@ -78,7 +78,7 @@ my @exchanges = ('nasdaq', 'amex', 'nyse');
 	  $db->execute();
 		my $db_symbols = $db->fetchall_hashref('symbol');
 
-		print "db_symbols size = " . keys( %$db_symbols ) . "\n";
+		#print "db_symbols size = " . keys( %$db_symbols ) . "\n";
 	
 		my $insert_count = 0;
 		my %new_symbols = ();
@@ -93,19 +93,27 @@ my @exchanges = ('nasdaq', 'amex', 'nyse');
 			$new_symbols{$csv_row[$symbolIndex]}{'sector'} = $csv_row[$secIndex];
 			$new_symbols{$csv_row[$symbolIndex]}{'industry'} = $csv_row[$indIndex];
 	
+			my $type = "common";
+			if(length($csv_row[$symbolIndex]) > 4) {
+				$type = "other";
+			}
+			
 	
-			#if our database contains this symbol then we're good and don't have to do anything
+			#if our database contains this symbol then make sure the expired field is set to FALSE
 			#if the database doesn't contain our row add it to the database		
 			if (exists $db_symbols->{$csv_row[$symbolIndex]} ) {
+        my $update_statement = "UPDATE symbols SET expired = 0, type = \"${type}\" WHERE id = " . $db_symbols->{$csv_row[$symbolIndex]}{'id'};
+				#print $update_statement . "\n";
+				$connection->do( $update_statement );
 				delete $db_symbols->{$csv_row[$symbolIndex]};
 			} else {
-				my $insert_statement = "INSERT INTO symbols (symbol, name, market_cap, sector, industry, exchange, expired) VALUES " .
+				my $insert_statement = "INSERT INTO symbols (symbol, name, market_cap, sector, industry, exchange, expired, type) VALUES " .
 					"(\"$csv_row[$symbolIndex]\", " . 
 					"\"$new_symbols{$csv_row[$symbolIndex]}{'name'}\", " . 
 					"\"$new_symbols{$csv_row[$symbolIndex]}{'market_cap'}\", " . 
 					"\"$new_symbols{$csv_row[$symbolIndex]}{'sector'}\", " .
 					"\"$new_symbols{$csv_row[$symbolIndex]}{'industry'}\", " . 
-					"\"${exchange}\", 1)";
+					"\"${exchange}\", 0, \"${type}\")";
 					#print $insert_statement . "\n";
 					$connection->do( $insert_statement );
 					$insert_count++;
@@ -113,21 +121,26 @@ my @exchanges = ('nasdaq', 'amex', 'nyse');
 	
 	  }
 			
-		print "db_symbols size = " . keys( %$db_symbols ) . "\n";
-		print "new_symbols size = " . keys( %new_symbols ) . "\n";
+		#print "db_symbols size = " . keys( %$db_symbols ) . "\n";
+		#print "new_symbols size = " . keys( %new_symbols ) . "\n";
 
 
-		my $delete_count = 0;
+		my $update_count = 0;
 		#for every object that still exists in the db_symbols hash, it wasn't in the spread sheet so its
 		#no longer a valid symbol
 		while( my ($symbol, $hash) = each %$db_symbols ) {
-        my $delete_statement = "DELETE FROM symbols WHERE id = " . %$db_symbols->{$symbol}{'id'};
-				#print $delete_statement . " symbol = " . $symbol . "\n";
-				$connection->do( $delete_statement );
-				$delete_count++;
+				my $type = "common";
+    	  if(length($symbol) > 4) {
+  	      $type = "other";
+	      }
+
+        my $update_statement = "UPDATE symbols SET expired = 1, type = \"${type}\" WHERE id = " . $db_symbols->{$symbol}{'id'};
+			print $update_statement . " symbol = " . $symbol . "\n";
+				$connection->do( $update_statement );
+				$update_count++;
     }
 	
-		print "ADDED: " . $insert_count . " DELETED: " . $delete_count . "\n";
+		print "ADDED: " . $insert_count . " MARKED AS EXPIRED: " . $update_count . "\n";
 
 		close($file_handle);
 	

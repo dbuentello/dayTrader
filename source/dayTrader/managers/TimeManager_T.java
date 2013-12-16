@@ -306,6 +306,9 @@ if (DayTrader_T.d_useIB) {
                     //TODO: Check that this works
                     buyTime.setTime(buyTime.getTime() + (MS_IN_MINUTE * MIN_IN_HOUR * 24));
                     
+                    //re-calculate the 15 day moving average. This can take a while
+                    marketDataManager.calcAvgVol();
+                    
                     //TODO: For now terminate the application at the end of each day
                     Log.println("\n*** dayTrader is exiting at "+TimeNow()+"  Bye ***");
                     throw new InterruptedException("Terminating TimeManager thread because the market is now closed");

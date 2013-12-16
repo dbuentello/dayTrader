@@ -79,6 +79,7 @@ public class TDAmeritradeConnection_T implements Connector_IF {
                     String response = s.next();
                     sessionId = XMLTags_T.simpleParse(response, XMLTags_T.TDA_SESSION_ID);
                     
+                    // TODO use dtLogger class
                     if (sessionId != "") {
                         logger.logText("TDAmeritrade Session ID = " + sessionId, Level.INFO);
                     } else {
@@ -87,10 +88,8 @@ public class TDAmeritradeConnection_T implements Connector_IF {
          
                 
                 } catch (MalformedURLException e) {
-                    // TODO Auto-generated catch block
                     e.printStackTrace();
                 } catch (IOException e) {
-                    // TODO Auto-generated catch block
                     e.printStackTrace();
                     
                 } 
@@ -123,13 +122,10 @@ public class TDAmeritradeConnection_T implements Connector_IF {
             java.util.Scanner s = new java.util.Scanner(urlConnection.getInputStream()).useDelimiter("\\A");
             quoteXml = s.next();
         } catch (MalformedURLException e) {
-            // TODO Auto-generated catch block
             e.printStackTrace();
         } catch (ProtocolException e) {
-            // TODO Auto-generated catch block
             e.printStackTrace();
         } catch (SocketException e) {
-            // TODO Auto-generated catch block
             e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();

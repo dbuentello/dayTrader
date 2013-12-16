@@ -120,7 +120,7 @@ public class MarketData_T implements Persistable_IF {
      * 
      */
     public MarketData_T() {
-        // TODO Auto-generated constructor stub
+        // Auto-generated constructor stub
     }
 
     /**
@@ -181,7 +181,7 @@ public class MarketData_T implements Persistable_IF {
     
     @Override
     public void update() throws HibernateException {
-        // TODO Auto-generated method stub
+        // Auto-generated method stub
         
     }
     
@@ -327,7 +327,6 @@ public class MarketData_T implements Persistable_IF {
      * @param askPrice the askPrice to set
      */
     public void setAskPrice(Double askPrice) {
-    	//SALxx note! symbol_T is not populated yet!
     	if (askPrice >= 10000.00) { System.out.println("!!! Bad ask price for "+this.symbolId+" : "+askPrice); askPrice = 0.00; }
         this.askPrice = askPrice;
     }

@@ -40,12 +40,12 @@ import exceptions.ConnectionException;
 public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runnable {
   /* {src_lang=Java}*/
 
-    //private final String GATEWAY_HOST = "localhost";
+    private final String GATEWAY_HOST = "localhost";
     private final int GATEWAY_PORT = 4001;
     private final int CLIENT_ID = 1;
     
 	//linnode server
-    private final String GATEWAY_HOST = "74.207.244.99";
+    //private final String GATEWAY_HOST = "74.207.244.99";
     
     
     /** A reference to the DatabaseManager class. */
@@ -155,7 +155,6 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	
 	/***** connection ****/
 	
-	// TODO we could introduce retry logic or fail completely
 	public void connect() throws ConnectionException {
 	
 	    if (isConnected()) {
@@ -218,11 +217,10 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	    try {
 	        connect();
 	    } catch (ConnectionException e) {
-	        // TODO Handle the exception
-	        e.printStackTrace();
-	        							//TODO - fix this!
+	        //e.printStackTrace();
+
 	        Log.println("[FATAL] Cant connect to IB");
-	        return;						//TODO - we cant do much w/o a connection
+	        return;						// we cant do much w/o a connection
 	    }
 	    
 	    
@@ -280,7 +278,6 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
                 Thread.sleep(250);
                 waitCntr++;
             } catch (InterruptedException e) {
-                // TODO Auto-generated catch block
                 e.printStackTrace();
             }           
         }	
@@ -293,7 +290,8 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	}
 	
 	/**
-	 * Get execution status of this order
+	 * Get execution status of this order - there could be multiples for
+	 * the same order if it was filled in batches
 	 * 
 	 * @param reqId
 	 * @param waitms
@@ -322,13 +320,10 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
                 Thread.sleep(250);
                 waitCntr++;
             } catch (InterruptedException e) {
-                // TODO Auto-generated catch block
                 e.printStackTrace();
             }           
         }
         
-		// TODO: there should only be one, but we get multiple callbacks from IB
-        // once we determine its safe, we can delete the dups and only send one back
 		return executedOrders;
 	}
     
@@ -434,14 +429,13 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
                 Thread.sleep(500);
                 waitCntr++;
             } catch (InterruptedException e) {
-                // TODO Auto-generated catch block
                 e.printStackTrace();
             }           
         }
 
         
         if (waitCntr == MAX_WAIT) {
-        	Log.println("[ERROR]: reqAccountUpdates timeout!");
+        	Log.println("[ERROR] reqAccountUpdates timeout!");
         }
         else {
         	// debugging
@@ -475,7 +469,6 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 		try {
             account.setUpdateTime(df.parse(timeStamp));
         } catch (ParseException e) {
-            // TODO Auto-generated catch block
             e.printStackTrace();
         }
 ***/
@@ -491,8 +484,8 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	    //TODO: Handle other types of account updates - including time above!
 	    if (key.equals("CashBalance")) {
 	        account.setBalance(Integer.valueOf(value));
-	        account.setUpdated(true);					//SALxx - this was missing
-	        											// TODO; set flag on AccountDownloadEnd
+	        account.setUpdated(true);
+	        
 	        Log.println("{AccountValue callback} CashBalance= "+value);
 	    }
 
@@ -513,9 +506,8 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
         contract.m_currency = "USD";
         contract.m_exchange = "SMART";
     //SALxx - try this     - it may give different results based on the version of ibg
-    //contract.m_primaryExch = "ISLAND" or symbol.getExchange() ? if m_exchange = "DIRECT"?
+        //contract.m_primaryExch = "ISLAND" or symbol.getExchange() ? if m_exchange = "DIRECT"?
     
-        //contract.m_localSymbol = symbol.getSymbol();  //SALxx - dont think this is eeded
         contract.m_secType = "STK";
         contract.m_symbol = symbol.getSymbol();
         
@@ -534,7 +526,6 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
                 Thread.sleep(1000);
                 waitCntr++;
             } catch (InterruptedException e) {
-                // TODO Auto-generated catch block
                 e.printStackTrace();
             }
             
@@ -625,7 +616,6 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
             try {
                 Thread.sleep(250);
             } catch (InterruptedException e) {
-                // TODO Auto-generated catch block
                 e.printStackTrace();
             }
             retryCntr++;

@@ -165,13 +165,11 @@ public class RTData_T implements PropertyAccessor, Persistable_IF {
     @Override
     public Getter getGetter(Class theClass, String propertyName)
             throws PropertyNotFoundException {
-        // TODO Auto-generated method stub
         return null;
     }
     @Override
     public Setter getSetter(Class theClass, String propertyName)
             throws PropertyNotFoundException {
-        // TODO Auto-generated method stub
         return null;
     }
     
@@ -187,7 +185,7 @@ public class RTData_T implements PropertyAccessor, Persistable_IF {
             tx.commit();
         //SALxx - this is OK, but the warn/error is logged  we dont want that!  
         } catch(ConstraintViolationException  e) {                                                         
-            System.out.println("caught constraint violation"); 
+            //System.out.println("[DEBUG] caught constraint violation"); 
         } catch (HibernateException e) {
             //TODO: for now just print to stdout, we'll change this to a log file later
             e.printStackTrace();
@@ -203,20 +201,18 @@ public class RTData_T implements PropertyAccessor, Persistable_IF {
     
     @Override
     public void delete() throws HibernateException {
-        // TODO Auto-generated method stub
         
     }
     
     @Override
     public void update() throws HibernateException {
-        // TODO Auto-generated method stub
         
     }
 
 
     @Override
     public boolean existsInDB(Persistable_IF persistable) {
-        // TODO Auto-generated method stub
+
         return false;
     }
     

@@ -67,7 +67,7 @@ public class XMLTags_T {
      * @param tag
      * @return sessionId
      */
-    //TODO: Use a real parser, although this is very effective
+    //we use a real XML parser, although this is very effective
     public static String simpleParse(String xml, String tag) {
 
       LoggerManager_T logger = (LoggerManager_T) DayTrader_T.getManager(LoggerManager_T.class);

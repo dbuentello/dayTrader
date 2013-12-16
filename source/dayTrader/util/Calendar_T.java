@@ -100,25 +100,21 @@ public class Calendar_T implements Persistable_IF {
 
     @Override
     public long insertOrUpdate() throws HibernateException {
-        // TODO Auto-generated method stub
         return 0;
     }
 
     @Override
     public void delete() throws HibernateException {
-        // TODO Auto-generated method stub
         
     }
 
     @Override
     public void update() throws HibernateException {
-        // TODO Auto-generated method stub
         
     }
 
     @Override
     public boolean existsInDB(Persistable_IF persistable) {
-        // TODO Auto-generated method stub
         return false;
     }
     

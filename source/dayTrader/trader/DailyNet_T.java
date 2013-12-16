@@ -135,13 +135,11 @@ public class DailyNet_T implements PropertyAccessor, Persistable_IF {
     @Override
     public Getter getGetter(Class theClass, String propertyName)
             throws PropertyNotFoundException {
-        // TODO Auto-generated method stub
         return null;
     }
     @Override
     public Setter getSetter(Class theClass, String propertyName)
             throws PropertyNotFoundException {
-        // TODO Auto-generated method stub
         return null;
     }
     
@@ -171,20 +169,17 @@ public class DailyNet_T implements PropertyAccessor, Persistable_IF {
     
     @Override
     public void delete() throws HibernateException {
-        // TODO Auto-generated method stub
         
     }
     
     @Override
     public void update() throws HibernateException {
-        // TODO Auto-generated method stub
         
     }
 
 
     @Override
     public boolean existsInDB(Persistable_IF persistable) {
-        // TODO Auto-generated method stub
         return false;
     }
 

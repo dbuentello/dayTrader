@@ -137,8 +137,9 @@ if (!DayTrader_T.d_useIB) {
 	    if (brokerManager.isConnected()) {
 			// if the connection was previously lost, we need to recover
 	    	if (brokerManager.recoverConnection(true)) {
-	    		// TODO:
+
 	    		Log.println("[INFO] Recovering from lost connection");
+	    		
 	    		recoverMissedExecutions();
 	    	}
 	    	return true;
@@ -173,8 +174,6 @@ if (!DayTrader_T.d_useIB) {
     public int liquidateHoldings()
     {
     	// simdate is for development only TODO: date or timestamp?
-    	// SALxx is this necessary getCurrentTradeDate may return what we need
-    	// but check it to make sure it returns timestamp and note just Date!!!
     	Date date;
     	if (!DayTrader_T.d_useSimulateDate.isEmpty())
     		date = timeManager.getCurrentTradeDate();
@@ -317,10 +316,8 @@ if (DayTrader_T.d_useIB) {
         	//double price = data.getPrice();			// current RT price
         	double price = data.getBidPrice();			// current RT Bid (sell) price
         	        	
-        	//TODO: use actualBuyPrice
-        	// shouldnt this already be in Holdings_T?
-        	double buyPrice = getBuyPrice(sym.getId()); // our holdings buy (ask) price
-
+        	double buyPrice = holding.getActualBuyPrice();		// our holdings buy (ask) price
+        	
 
 			// determine if we should sell using a hard stop loss limit
 			// and trailing sell algorithm to maximize gain while limiting
@@ -398,7 +395,7 @@ if (DayTrader_T.d_useIB) {
 	        	// this is where the sell is executed
 	            // if we get immediate confirmation, use the actual sell price, not EOD price
 	            // if we dont get immediate confirmation that all share sells were executed, we'll
-	            // need alLog.println("---BGN CalculateNET---");ternate logic
+	            // need alternate logic
 	            
 	        	
 if (DayTrader_T.d_useIB) {
@@ -636,43 +633,7 @@ if (DayTrader_T.d_useIB) {
         return holdings.size();
         
     }
-    
-    
-    /**
-    * get the buy price for this symbol from the Holdings Table.  Get the last
-    * holdings by previous date
-    */
-    
-    // TODO: change to actualBuyPrice
-    public Double getBuyPrice(long symbolId)
-    {
 
-    	// get the buy price from the Holdings table from the day before
-      	Date date = timeManager.getPreviousTradeDate();
-      	
-      	//"SELECT buy_price FROM $tableName WHERE symbol = \"$symbol\" AND DATE(buy_date) = \"$date\"";
-        Session session = databaseManager.getSessionFactory().openSession();
-        
-        Criteria criteria = session.createCriteria(Holding_T.class)
-        	.add(Restrictions.eq("symbolId", symbolId))
-        	.add(Restrictions.between("buyDate", date, Utilities_T.tomorrow(date)));
-        
-        @SuppressWarnings("unchecked")
-        List<Holding_T> holdingData = criteria.list();
-        
-        session.close();
-        
-        if (holdingData.size() != 1)
-        {
-        	Log.println("WARNING: getBuyPrice returns empty for SymbolId:" + symbolId  + " (" + holdingData.size() + ")");
-        	return 0.00;
-        }
-
-        double buyPrice = holdingData.get(0).getBuyPrice();
-
-        return buyPrice;
-    }
-   
 
     
     /***************** Trade Execution ************************/
@@ -735,7 +696,7 @@ if (DayTrader_T.d_useIB) {
         // SALxx are these others necessary?
         order.getOrder().m_transmit = true;
             
-        // TODO: these should be the defaults
+        // these should be the defaults
         order.getOrder().m_lmtPrice = 0;
         order.getOrder().m_auxPrice = 0;
         order.getOrder().m_allOrNone = false;
@@ -836,6 +797,7 @@ if (DayTrader_T.d_useIB) {
     		
     		Execution e = executedOrders.get(orderId);
     		
+    		// there was an execution response
     		if (e!=null)
     		{
     			// update DB with latest execution info
@@ -887,24 +849,26 @@ if (DayTrader_T.d_useIB) {
     	  		holding.updateOrderPosition();	//persist updated info
             		
     			nOpen--;						// one less to deal with
-    		
+
 
     		} // the execution order matched our holding's orderId
     		
     		
-    		// now, match up with portfolio
-        	
+    		//----------------------------
+    		// now, sync up with portfolio
+    		//----------------------------
+    		
+        	// our holding isnt in IBs porfolio...
         	if (!portfolio.containsKey(holding.getSymbol().getSymbol())) {
         		
         		Log.println("[ATTENTION] Holding "+holding.getId()+ ": "+holding.getSymbol().getSymbol()+
         				" ("+holding.getSymbolId()+") is not in IB Portfolio");
         	
-				// did we attempt to place the order today, but it didnt do thru?
-				if (holding.getOrderStatus().equalsIgnoreCase(OrderStatus.PreSubmitted.toString()) &&
-						holding.getBuyDate().after(timeManager.getCurrentTradeDate()) &&
-						holding.getPermId()==0) {
+				// did we attempt to place the order today, but it didnt do thru (we never got a permId response)
+				if (holding.getBuyDate().after(timeManager.getCurrentTradeDate()) &&
+					holding.getOrderId()!=0 && holding.getPermId()==0) {
 
-					Log.println("[DEBUG] Buy order "+holding.getOrderId()+" didnt go thru... resubmitting");
+					Log.println("[DEBUG] Buy order "+holding.getOrderId()+" status: "+holding.getOrderStatus()+" didnt go thru... resubmitting");
 					
 /***SALxx  - do this with extreme caution  					
 					// update the holding with the order and contract
@@ -931,56 +895,43 @@ if (DayTrader_T.d_useIB) {
 
         	} // not in IB portfolio
         	
+        	// its in IBs portfolio... is it closed?  or in a buying or selling state?
+        	// position = volume means we bought it but havent sold it
+        	// position = 0 means we sold it
         	else {
         		Log.println("[DEBUG] Matched portfolio with DB holding...");
         		
-        		Integer pos= portfolio.get(holding.getSymbol().getSymbol()).m_position;
+        		Integer pos = portfolio.get(holding.getSymbol().getSymbol()).m_position;
+        		
         		if (pos==0) {        // 0 is closed
-        			Log.println("[DEBUG] portfolio says holding is closed..updating DB");
+        			Log.println("[DEBUG] portfolio says holding is closed...");
 
-    				if (!holding.isOwned() && !holding.isSelling()) {
-    					Log.println("[ERROR] portfolio says holding is closed, but DB says we dont own or not selling! NOT Updating DB");
-    				
-    				} else {
-            			if (holding.isSold()) {
-            				Log.println("[DEBUG] Agree - both say sold. Updating DB");
-            			}
-            			
-    					Log.println("[DEBUG] Setting DB to Sold");
-    					
+        			if (holding.isSold()) {
+        				Log.println("[DEBUG] Agree - both say sold. No need to update DB");
+        			}
+        			else if (holding.isSelling()) {
+        				Log.println("[WARNING] DB says we're selling - Updating DB to sold");        				
+        				// TODO: we probably dont have to..
         				holding.setOrderStatus(OrderStatus.Filled.toString());
         				holding.setRemaining(0);
     					holding.setSellDate(timeManager.TimeNow());
     					holding.setAvgFillPrice(portfolio.get(holding.getSymbol().getSymbol()).m_marketPrice);
             			
             			holding.updateOrderPosition();	//persist
-            		
+            			
     					nOpen--;						// one less to deal with
+        			}
+        			else {
+    					Log.println("[ERROR] portfolio says holding is closed, but DB says we dont own or we're still selling");
     				}
         		} // IB says closed
         		
-        		else if (pos==holding.getVolume()) {		//IB says we own it
+        		else if (pos==holding.getVolume()) {		//IB says we own it, but didnt sell it
     			
-        			if (!holding.isOwned()) {
-    					Log.println("[ERROR] portfolio says holding is owned, but DB says we dont own! updating DB "+
-    									holding.getOrderId()+" "+holding.getPermId()+" "+holding.getVolume()+" "+holding.getFilled());
-    					
-        				holding.setOrderStatus(OrderStatus.Filled.toString());
-        				holding.setFilled(pos);
-    					holding.setBuyDate(timeManager.TimeNow());
-    					holding.setActualBuyPrice(portfolio.get(holding.getSymbol().getSymbol()).m_avgCost);
-            			
-            			holding.updateOrderPosition();	//persist
-            		
-    					nOpen--;						// one less to deal with
-    				
-        			}  // IB says we own it, DB doesnt
-        			
-        			else {  // we own it
-        				
+        			if (holding.isOwned())  // DB says we own it
+        			{
     					// did we attempt to place the order at anytime in the past, but it didnt do thru?
-    					if (holding.getOrderStatus().equalsIgnoreCase(OrderStatus.PreSubmitted.toString()) &&
-    							holding.getPermId2()==0) {
+    					if (holding.getOrderId2() != 0 && holding.getPermId2() == 0) {
     						
         					Log.println("[DEBUG] Sell order "+holding.getOrderId2()+" didnt go thru... resubmitting");
         					
@@ -1001,23 +952,35 @@ if (DayTrader_T.d_useIB) {
         				    
         				    // persist new Id
         				    holding.updateOrderId(Action.SELL.toString(), holding.getOrderId2());
+        				    
 ****/
+        					continue;
+        					
     					}  // sell order didnt go thru
+        			}
+        			
+        			if (!holding.isOwned()) {  // DB says we dont own it
+        				
+        				// we better not be in another state besides selling
+        				if (holding.isSelling()) {
+        					Log.println("[WARNING] portfolio says holding is owned, but DB says selling. updating DB to Owned: "+
+    									holding.getOrderId()+" "+holding.getPermId()+" "+pos+" "+holding.getFilled());
     					
-    					else {	
-    						Log.println("[DEBUG] Setting DB to Owned");
-    					
-    						holding.setOrderStatus(OrderStatus.Filled.toString());
-    						holding.setFilled(holding.getVolume());
-    						holding.setSellDate(timeManager.TimeNow());
-    						holding.setActualBuyPrice(portfolio.get(holding.getSymbol().getSymbol()).m_avgCost);
+        					holding.setOrderStatus(OrderStatus.Filled.toString());
+        					holding.setFilled(pos);
+        					holding.setBuyDate(timeManager.TimeNow());
+        					holding.setActualBuyPrice(portfolio.get(holding.getSymbol().getSymbol()).m_avgCost);
+            			
+        					holding.updateOrderPosition();	//persist
+            		
+        					nOpen--;						// one less to deal with
+        				}
+        				else {
+        					Log.println("[ERROR]  portfolio says holding is owned, but DB says we dont own or we're not selling");
+        				}
+        			}  // IB says we own it, DB doesnt
 
-    						holding.updateOrderPosition();	//persist
-    					}
-    					
-    					nOpen--;						// one less to deal with
-    				}
-        		}
+        		} // IB says we own it
         		else
         			Log.println("[DEBUG] Positions for "+holding.getId() +  ": "+holding.getSymbol().getSymbol()+" ("+holding.getSymbolId()+
         					"): "+holding.getVolume()+"/"+holding.getFilled()+"/"+holding.getRemaining()+" IB:"+pos);

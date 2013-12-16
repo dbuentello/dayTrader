@@ -385,7 +385,6 @@ if (DayTrader_T.d_useIB) {
                 + (calendar.get(Calendar.MONTH) + 1) + "-" 
                 + calendar.get(Calendar.DAY_OF_MONTH);
         
-        //SALxx - changed to use date rather than string as string query doesnt work
         Calendar_T open = (Calendar_T) databaseManager.query(Calendar_T.class, time);
         
         //TODO: Can we use TDA or IB to determine if the market is open or not?

@@ -81,15 +81,16 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
         try {
             connect();
         } catch (ConnectionException e) {
-            // TODO Auto-generated catch block
-            logger.logFault("Could not connect to TDAmeritrade API", e);      
+            Log.println("[FATAL ERROR] Could not connect to TDAmeritrade API");
+            
+            // TODO... throw this error
+            e.printStackTrace();
         }
 
     }
 
     @Override
     public void sleep() {
-        // TODO Auto-generated method stub
 
     }
 

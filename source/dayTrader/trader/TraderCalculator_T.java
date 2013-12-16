@@ -135,7 +135,7 @@ if (DayTrader_T.d_useIB) {
         	double sellPrice = holding.getAvgFillPrice();	//getActualSellPrice();
         	long   volume    = holding.getVolume();
         	
-        	// TODO:  this should never placeOrderhappen
+        	// TODO:  this should never happen
         	if (sellPrice == 0.00) {
         		Log.println("[ERROR] CalculateNet() no sell price for "+holding.getSymbolId());
         		continue;
@@ -210,7 +210,7 @@ if (DayTrader_T.d_useIB) {
         
         double startCapital;
 	
-        // TODO: use he following getLatestDailyNet() method
+        // TODO: use the following getLatestDailyNet() method
         
         //"SELECT id, price from DailyNet ORDER BY date DESC LIMIT 1";
         criteria = session.createCriteria(DailyNet_T.class)
@@ -712,7 +712,6 @@ if (!DayTrader_T.d_useIB) {
            	portfolio.remove(holding.getSymbol().getSymbol());           	
         }
         
-        // TODO: copy before removing, or synchronize, or use iterator to avoid exception
         // remove closed positions
         for (Map.Entry<String, Portfolio_T> entry : portfolio.entrySet()) {
     	    Integer pos = entry.getValue().m_position;

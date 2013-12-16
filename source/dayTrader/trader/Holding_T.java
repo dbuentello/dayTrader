@@ -49,9 +49,7 @@ public class Holding_T implements Persistable_IF {
     int volume;
     /* the price we bought it at */
     double buy_price;
-    
-    // TODO: we're going to need an actual_buy_price
-    
+        
     /** Specifies the number of shares that have been executed. */
     private int filled;
     /** Specifies the number of shares still outstanding. */
@@ -464,7 +462,6 @@ public class Holding_T implements Persistable_IF {
 
     @Override
     public void delete() throws HibernateException {
-        // TODO Auto-generated method stub
         
     }
 
@@ -513,8 +510,7 @@ public class Holding_T implements Persistable_IF {
                 .add(Restrictions.eq("symbolId", holding.getSymbolId()))
                 .add(Restrictions.eq("filled", holding.filled))
                 .add(Restrictions.eq("remaining", holding.getRemaining()));
-//SALxx                .add(Restrictions.eq("status", holding.getOrderState().m_status));
-        
+       
         //If no symbol was found the consider this MarketData object to be unique and safe to insert into the db
 
         if (criteria.list().size() == 0) {

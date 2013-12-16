@@ -56,13 +56,10 @@ public class ConfigurationManager_T implements Manager_IF {
             }
             
         } catch (ParserConfigurationException e) {
-            // TODO Auto-generated catch block
             e.printStackTrace();
         } catch (SAXException e) {
-            // TODO Auto-generated catch block
             e.printStackTrace();
         } catch (IOException e) {
-            // TODO Auto-generated catch block
             e.printStackTrace();
         }
     }
@@ -78,7 +75,6 @@ public class ConfigurationManager_T implements Manager_IF {
      */
     @Override
     public void initialize() {
-        // TODO Auto-generated method stub
 
     }
 
@@ -87,7 +83,6 @@ public class ConfigurationManager_T implements Manager_IF {
      */
     @Override
     public void sleep() {
-        // TODO Auto-generated method stub
 
     }
 
@@ -96,7 +91,6 @@ public class ConfigurationManager_T implements Manager_IF {
      */
     @Override
     public void terminate() {
-        // TODO Auto-generated method stub
 
     }
 
@@ -105,7 +99,6 @@ public class ConfigurationManager_T implements Manager_IF {
      */
     @Override
     public void wakeup() {
-        // TODO Auto-generated method stub
 
     }
 

@@ -327,7 +327,7 @@ public class MarketData_T implements Persistable_IF {
      * @param askPrice the askPrice to set
      */
     public void setAskPrice(Double askPrice) {
-    	if (askPrice >= 10000.00) { System.out.println("!!! Bad ask price for "+this.symbolId+" : "+askPrice); askPrice = 0.00; }
+    	//if (askPrice >= 10000.00) { System.out.println("!!! Bad ask price for "+this.symbolId+" : "+askPrice); askPrice = 0.00; }
         this.askPrice = askPrice;
     }
 

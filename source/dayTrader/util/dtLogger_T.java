@@ -75,9 +75,9 @@ public class dtLogger_T {
 		if (writeToLog) {
 			try {
 				bw.write(str);
-				if (d_flush) bw.flush();			// TODO: remove in productoion
+				if (d_flush) bw.flush();			// TODO: remove in production
 			} catch (IOException e) {
-				e.printStackTrace();
+				//e.printStackTrace();
 			}
 		}
 

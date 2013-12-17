@@ -125,8 +125,10 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
      * information to the database
      * 
      */
-    public void takeMarketSnapshot() {
+    public int takeMarketSnapshot() {
 
+    	int nQuotes = 0;
+    	
         //get the symbols for an exchange from the database
         //TODO: update to query all exchanges
         String exchange = Exchange_T.NASDAQ;
@@ -168,12 +170,14 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
 
         //loop through our retrieved quotes and parse out the quote information
         for(int i = 0; i < quoteDataList.size(); i++) {
-            parseQuote(quoteDataList.get(i));
+            nQuotes += parseQuote(quoteDataList.get(i));
 
             System.out.print(".");		// progress
         }
 
-        System.out.println("Done");
+        System.out.println("Done "+nQuotes+" added to EOD Table");
+        
+        return nQuotes;
     }
 
     @Override
@@ -188,7 +192,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
      * 
      * @param quoteData
      */
-    private void parseQuote(String quoteString) {
+    private int parseQuote(String quoteString) {
 
         ArrayList<MarketData_T> snapshot = new ArrayList<MarketData_T>();
         
@@ -230,7 +234,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
                         marketData.setLastTradeTimestamp(date);
 
                     } catch (Exception e) {
-                        //--Log.println("[INFO] NULL last-trade-date for " + symbol.getId() + " - " + symbol.getSymbol() + "! using NULL for date");
+                        //Log.println("[INFO] NULL last-trade-date for " + symbol.getId() + " - " + symbol.getSymbol() + "! using NULL for date");
                         //Log.println("DEBUG]"+quoteString);
                     }
 
@@ -251,7 +255,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
                     marketData.setAskPrice(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_ASK).item(0).getTextContent()));
 
                     String bidAsk  = quoteData.getElementsByTagName(XMLTags_T.TDA_BID_ASK_PRICE).item(0).getTextContent();
-                    // retured as bidXask, eg 200X400
+                    // returned as bidXask, eg 200X400
                     int xIndex = bidAsk.indexOf("X");
                     String bidSize = bidAsk.substring(0, xIndex);
                     String askSize = bidAsk.substring(xIndex + 1);
@@ -284,17 +288,20 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
         } catch (ParserConfigurationException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
-            return;
+            return 0;
         } catch (SAXException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
+            return 0;
         } catch (IOException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
+            return 0;
         }
 
         databaseManager.bulkMarketDataInsert(snapshot);
         
+        return snapshot.size();
 
     }
 

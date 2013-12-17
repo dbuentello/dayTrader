@@ -36,6 +36,7 @@ import com.ib.controller.OrderStatus;
 
 import trader.Holding_T;
 import trader.Trader_T;
+import trader.TraderCalculator_T;
 import util.Utilities_T;
 import util.XMLTags_T;
 import dayTrader.DayTrader_T;
@@ -347,6 +348,11 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         // create initial holdings entries in the DB.  All it contains is the
         // symbol and buy date.  All other information (including the orderid) will
         // need to be filled in before submission
+        TraderCalculator_T tCalc = new TraderCalculator_T();
+        
+    	double totalCapital = tCalc.getCapital();
+    	double buyTotal = totalCapital/Trader_T.MAX_BUY_POSITIONS;
+    	
         Iterator<Symbol_T> it = losers.iterator();
         while (it.hasNext()) {
             Symbol_T symbol = it.next();
@@ -355,8 +361,19 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
             holding.setSymbol(symbol);
             holding.setBuyDate(date);
             
-            holding.insertOrUpdate();
+            // get the current ask(buy) price from EOD and calc number of shares to buy
+            double buyPrice = getEODAskPrice(symbol);
+            int buyVolume = (int)(buyTotal/buyPrice);
+            double adjustedBuyTotal = buyVolume * buyPrice;
             
+            holding.setBuyPrice(buyPrice);
+            holding.setVolume(buyVolume);
+            
+            // also initialize these...
+            holding.setRemaining(buyVolume);
+            holding.setOrderStatus(OrderStatus.PreSubmitted.toString());
+            
+            holding.insertOrUpdate();
         }
         
     }    

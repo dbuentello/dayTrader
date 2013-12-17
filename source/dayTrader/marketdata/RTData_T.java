@@ -46,7 +46,7 @@ public class RTData_T implements PropertyAccessor, Persistable_IF {
     private long id;
     private Date date;
     private String symbol;
-    private Double price;
+    private Double price;	// market
     private Double ask;		// for Buys
     private Double bid;		// for Sells
     private long volume;

@@ -11,6 +11,7 @@ import java.util.Map;
 import managers.BrokerManager_T;
 import managers.ConfigurationManager_T;
 import managers.DatabaseManager_T;
+import managers.EmailManager_T;
 import managers.LoggerManager_T;
 import managers.MarketDataManager_T;
 import managers.TimeManager_T;
@@ -107,6 +108,9 @@ public class DayTrader_T {
         d_useSystemTime = Boolean.parseBoolean(configurationManager.getConfigParam(XMLTags_T.CFG_USE_SYSTEM_TIME));
 
 
+//        EmailManager_T emailMgr = new EmailManager_T();
+//        emailMgr.sendEmail();
+        
         initialize();
         run();
         terminate();

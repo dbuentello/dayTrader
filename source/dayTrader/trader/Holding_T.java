@@ -535,8 +535,10 @@ public class Holding_T implements Persistable_IF {
      * @return
      * @throws HibernateException
      */
-    // this is because update doesnt work
-    //  (also because we need to return a status)
+
+ 
+    // we need to update by symbol and date rather by holding id
+    // TODO: addHoldings could return the holdingIds
     public int updateBuyPosition(long symId, Double price, int volume, Date date)  throws HibernateException {
 
     	Session session = DatabaseManager_T.getSessionFactory().openSession();

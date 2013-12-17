@@ -123,6 +123,8 @@ if (DayTrader_T.d_useIB) {
         @SuppressWarnings("unchecked")
         List<Holding_T> holdingData = criteria.list();
                    
+        session.close();
+
         Iterator<Holding_T> it = holdingData.iterator();
         while (it.hasNext()) {
         	Holding_T holding = it.next();
@@ -424,7 +426,192 @@ if (DayTrader_T.d_useIB) {
         
         // TODO: update Daily Net w/Deferred Net and total Volume
     }
+ 
+    /**
+     * Prelude Report - indicate outstanding holdings
+     *   open orders from more than 2 days ago that didnt buy or sell, or
+     *   are still in the process of bying or selling.  This most likely
+     *   indicates some error, but they could also be low volatility holdings
+     *   We would need to take manual action
+     *   
+     *   @return whether the report needs attention
+     */
+    public boolean PreludeReport()
+    {
+    	boolean attention = false;
+    	
+        ConfigurationManager_T cfgMgr = (ConfigurationManager_T) DayTrader_T.getManager(ConfigurationManager_T.class);
+        String reportDir = cfgMgr.getConfigParam(XMLTags_T.CFG_DT_REPORT_DIR_PATH);
+        DateFormat df = new SimpleDateFormat("yyyy-MM-dd"); 
+      	String reportName = "Attention_"+df.format(timeManager.getCurrentTradeDate());
+       	dtLogger_T report = new dtLogger_T();
+       	report.open(reportDir +"/"+reportName+".rpt");
+
+       	report.println("\nDaily Trade Report for "+df.format(timeManager.getCurrentTradeDate())+"\n");
+
+       	// anything that was before this...
+    	Date buyDate = timeManager.getPreviousTradeDate();
+    	
+        Session session = databaseManager.getSessionFactory().openSession();
+
+        //======================================
+    	// these are the ones that werent bought
+        //======================================
         
+        // if no orderId and permId, the order was not created. thats probably due to a crash
+        Criteria criteria = session.createCriteria(Holding_T.class)
+            .add(Restrictions.lt("buyDate", buyDate))
+            .add(Restrictions.eq("orderId", 0))
+            .add(Restrictions.eq("permId", 0));       
+        
+        @SuppressWarnings("unchecked")
+        List<Holding_T> h1 = criteria.list();
+     
+        if (!h1.isEmpty()) {
+        	report.println("\nThere are "+h1.size()+" Holdings with no BUY order id:");
+        
+        	Iterator<Holding_T> it = h1.iterator();
+        	while (it.hasNext()) {
+        	
+        		Holding_T h = it.next();
+        		report.println("  "+h.getSymbol().getSymbol()+" ("+h.getSymbolId()+") "+
+        					"Buy date: "+h.getBuyDate()+" RecordId: "+h.getId()+" "+h.getVolume()+" shares");        	
+        	}
+        	
+        	attention = true;
+        }
+
+        // no permId - order may not have gone thru to IB, or we never received the ack
+        criteria = session.createCriteria(Holding_T.class)
+                .add(Restrictions.lt("buyDate", buyDate))
+                .add(Restrictions.ne("orderId", 0))
+                .add(Restrictions.eq("permId", 0));       
+            
+        @SuppressWarnings("unchecked")
+        List<Holding_T>h2 = criteria.list();
+         
+        if (!h2.isEmpty()) {
+        	report.println("\nThere are "+h2.size()+" BUY Holdings that were not placed or confirmed:");
+
+        	Iterator<Holding_T> it = h2.iterator();
+        	while (it.hasNext()) {
+        		Holding_T h = it.next();
+        		report.println("  "+h.getSymbol().getSymbol()+" ("+h.getSymbolId()+") "+
+    					"Buy date: "+h.getBuyDate()+" OrderId: "+h.getOrderId()+ " RecordId: "+h.getId() +
+    					" "+h.getVolume()+" shares");
+        	}
+        	
+        	attention = true;
+        }
+
+        // these may still be in progress (filled < volume)
+        criteria = session.createCriteria(Holding_T.class)
+                .add(Restrictions.lt("buyDate", buyDate))
+                .add(Restrictions.ltProperty("filled", "volume"))
+                .add(Restrictions.ne("orderId", 0))
+                .add(Restrictions.ne("permId", 0));       
+            
+        @SuppressWarnings("unchecked")
+        List<Holding_T>h3 = criteria.list();
+         
+        if (!h3.isEmpty()) {
+        	report.println("\nThere are "+h3.size()+" BUY Holdings still being processed:");
+            
+        	Iterator<Holding_T> it = h3.iterator();
+        	while (it.hasNext()) {
+        		Holding_T h = it.next();
+        		report.println("  "+h.getSymbol().getSymbol()+" ("+h.getSymbolId()+") "+
+    					"Buy date: "+h.getBuyDate()+" OrderId: "+h.getOrderId()+ " RecordId: "+h.getId() +
+    					" "+h.getVolume()+" shares, only "+h.getFilled()+" filled");        	
+        	}
+        	
+        	attention = true;
+        }        
+
+        //====================================
+    	// these are the ones that werent sold
+        //====================================
+        
+        // if no orderId2 and permId2, the order was not created. thats probably due to a crash
+        criteria = session.createCriteria(Holding_T.class)
+            .add(Restrictions.lt("buyDate", buyDate))
+            .add(Restrictions.eq("orderId2", 0))
+            .add(Restrictions.eq("permId2", 0));       
+        
+        @SuppressWarnings("unchecked")
+        List<Holding_T> h4 = criteria.list();
+     
+        if (!h4.isEmpty()) {
+        	report.println("\nThere are "+h4.size()+" Holdings with no SELL order id:");
+        
+        	Iterator<Holding_T> it = h4.iterator();
+        	while (it.hasNext()) {
+        	
+        		Holding_T h = it.next();
+        		report.println("  "+h.getSymbol().getSymbol()+" ("+h.getSymbolId()+") "+
+        					"Buy date: "+h.getBuyDate()+" RecordId: "+h.getId()+" "+h.getVolume()+" shares");        	
+        	}
+        	
+        	attention = true;
+        }
+
+        // no permId2 - order may not have gone thru to IB, or we never received the ack
+        criteria = session.createCriteria(Holding_T.class)
+                .add(Restrictions.lt("buyDate", buyDate))
+                .add(Restrictions.ne("orderId2", 0))
+                .add(Restrictions.eq("permId2", 0));       
+            
+        @SuppressWarnings("unchecked")
+        List<Holding_T>h5 = criteria.list();
+         
+        if (!h5.isEmpty()) {
+        	report.println("\nThere are "+h5.size()+" SELL Holdings that were not placed or confirmed:");
+
+        	Iterator<Holding_T> it = h5.iterator();
+        	while (it.hasNext()) {
+        		Holding_T h = it.next();
+        		report.println("  "+h.getSymbol().getSymbol()+" ("+h.getSymbolId()+") "+
+    					"Buy date: "+h.getBuyDate()+" OrderId: "+h.getOrderId2()+ " RecordId: "+h.getId() +
+    					" "+h.getVolume()+" shares");        	
+
+        	}
+        	
+        	attention = true;
+        }
+
+        // these may still be in progress (there are still some remaining)
+        criteria = session.createCriteria(Holding_T.class)
+                .add(Restrictions.lt("buyDate", buyDate))
+                .add(Restrictions.ne("orderId", 0))
+                .add(Restrictions.ne("permId", 0))
+                .add(Restrictions.ne("remaining", 0));
+            
+        @SuppressWarnings("unchecked")
+        List<Holding_T>h6 = criteria.list();
+         
+        if (!h6.isEmpty()) {
+        	report.println("\nThere are "+h6.size()+" SELL Holdings still being processed:");
+            
+        	Iterator<Holding_T> it = h6.iterator();
+        	while (it.hasNext()) {
+        		Holding_T h = it.next();
+        		report.println("  "+h.getSymbol().getSymbol()+" ("+h.getSymbolId()+") "+
+    					"Buy date: "+h.getBuyDate()+" OrderId: "+h.getOrderId2()+ " RecordId: "+h.getId() +
+    					" "+h.getVolume()+" shares, still "+h.getRemaining()+" remaining");        	
+        	}
+        	
+        	attention = true;
+        }        
+
+        // maybe TODO: delete if nothing needs attention
+        if (!attention)
+        	report.println("No Holdings need attention");
+ 
+        session.close();
+        report.close();
+        
+        return attention;
+    }
     
     /**
      * Create End of Day Holdings Report
@@ -525,7 +712,8 @@ if (DayTrader_T.d_useIB) {
         cumNet = Utilities_T.round(cumNet);
         //double netLessCommision =  Utilities_T.round(cumNet - (cumVol * 0.01));
         double netLessCommision =  Utilities_T.round(cumNet - 50.00);
-        report.println("\nTotal Net: $"+netLessCommision+" on "+cumVol+" shares ($"+cumNet+" less commission)");
+        //report.println("\nTotal Net: $"+netLessCommision+" on "+cumVol+" shares ($"+cumNet+" less commission)");
+        report.println("\nTotal Net: $"+cumNet+" on "+cumVol+" shares");
 
         //==================================
         // TODO: maybe we should report adjusted cancel orders new volume and old remaining
@@ -609,7 +797,7 @@ if (!DayTrader_T.d_useIB) {
 
         BrokerManager_T brokerManager = (BrokerManager_T) DayTrader_T.getManager(BrokerManager_T.class);
 
-        // get most recent portfolio
+        // get most recent portfolio?
     	//brokerManager.updateAccount();
 
     	Map <String, Portfolio_T> p = brokerManager.getPortfolio();
@@ -712,12 +900,20 @@ if (!DayTrader_T.d_useIB) {
            	portfolio.remove(holding.getSymbol().getSymbol());           	
         }
         
-        // remove closed positions
-        for (Map.Entry<String, Portfolio_T> entry : portfolio.entrySet()) {
-    	    Integer pos = entry.getValue().m_position;
-    	    if (pos == 0)
-    	    	portfolio.remove(entry.getKey());
-    	}
+        // remove closed positions, need to remove from iterator
+        Iterator <Map.Entry<String, Portfolio_T>> pit = portfolio.entrySet().iterator();
+        while (pit.hasNext())
+        {
+        	Map.Entry<String, Portfolio_T> entry  = pit.next();
+        	if (entry.getValue().m_position == 0)
+        		pit.remove();
+        	
+        }
+        //for (Map.Entry<String, Portfolio_T> entry : portfolio.entrySet()) {
+    	//    Integer pos = entry.getValue().m_position;
+    	//    if (pos == 0)
+    	//    	portfolio.remove(entry.getKey());
+    	//}
         
         // The remaining are what IB thinks we own...
         report.println("\nThere are "+portfolio.size()+" Unaccounted Holdings:");

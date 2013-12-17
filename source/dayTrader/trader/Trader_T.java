@@ -343,7 +343,8 @@ if (DayTrader_T.d_useIB) {
 
 	 		boolean sell = false;
 
-//Log.println("\n$symbol price= $price at $date  range for trail: $lower_limit - $upper_limit"; }
+double market = data.getPrice();
+Log.println("[DEBUG] >>"+sym.getSymbol()+": bid=$"+price+"(market= $"+market+" buy= $"+buyPrice+" range: $"+lower_limit+" - $"+upper_limit);
 
 	 		// hard stop - limit losses
 	 		if (price < lower_limit) {
@@ -359,7 +360,7 @@ if (DayTrader_T.d_useIB) {
 	 			{
 	 				if (price >= upper_limit)
 	 				{
-//if ($_dbg) { print DBGFILE "\n$symbol: Adjusting upper price limit from $upper_limit to $price"; }
+Log.println("[DEBUG] >>"+sym.getSymbol()+": Adjusting upper price limit from $"+upper_limit+" to $"+price);
 	 					setUpperSellLimit(sym.getId(), price);
 	 				}
 	 				else   // we'll tolerate a 1/2% deviation
@@ -367,7 +368,7 @@ if (DayTrader_T.d_useIB) {
 	 					double upper_threshhold = upper_limit - (upper_limit * .005);
 	 					if (price <= upper_threshhold)
 	 					{
-//if ($_dbg) { print DBGFILE "\n**SELL (gain)** price $price fell below .005% tolerance: $upper_threshhold (initial: $initial_upper_limit)"; }
+Log.println("[DEBUG] >>"+sym.getSymbol()+": SELL (gain) at $"+price+" price fell below .005% tolerance: $"+upper_threshhold+" (initial: $"+initial_upper_limit);
 	 						sell = true;
 	 					}
 	 				}      
@@ -376,7 +377,7 @@ if (DayTrader_T.d_useIB) {
 	 			//otherwise check if we've gone above the new upper limit, and adjust higher
 	 			else if (price > upper_limit)
 	 			{
-//if ($_dbg) { print DBGFILE "\n$symbol: Adjusting upper price limit from $upper_limit to $price"; }
+Log.println("[DEBUG] >>"+sym.getSymbol()+": Adjusting upper price limit from $"+upper_limit+" to $"+price);
 	 				setUpperSellLimit(sym.getId(), price);
 	 			}
 	 		}
@@ -385,7 +386,7 @@ if (DayTrader_T.d_useIB) {
 	 		{	        	
 	        	// update these two fields... the date is a trigger field, desired price is for stats
 	            holding.setSellDate(date);
-	            holding.setSellPrice(price);		// desired price - may be different when the trade is executed
+	            holding.setSellPrice(price);		// desired bid price - may be different when the trade is executed
 
 	 			if (holding.updateSellPosition(price, date) != 1) {
 	 				Log.println("[ERROR] sell order for "+holding.getSymbolId()+" not updated in DB");
@@ -513,7 +514,7 @@ else
         return nrows;
     }
    
-    
+    // TODO - remove this
     /**
      * update our Holdings db with buy position of the the stocks we want to buy today
  	 * buy price, #of share, [from total $ amt]

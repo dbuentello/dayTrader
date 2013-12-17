@@ -116,7 +116,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 		{
 			Log.println("[ERROR] exception="+e.getMessage());
 			
-			if (e.getMessage().equalsIgnoreCase("Connection reset")) {
+			if (!e.getMessage().isEmpty() && e.getMessage().equalsIgnoreCase("Connection reset")) {
 				resetNeeded = true;
 				// force a hard disconnect
 				disconnect();
@@ -139,6 +139,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 			disconnect();
 		}
 		// automatic reconnect after loss of internet
+		// TODO: reset may not be necessary after 1102
 		else if (errorCode == 1101 || errorCode ==1102) {
 			Log.println("[WARNING] code="+errorCode+" "+errorMsg);
 			resetNeeded = true;

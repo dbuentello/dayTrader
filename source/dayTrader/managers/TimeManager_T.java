@@ -130,11 +130,14 @@ public class TimeManager_T implements Manager_IF, Runnable {
 //running = false;
 //TEST        
 
-
+		// do any old holdings need attention?
+		if (tCalculator.PreludeReport())
+			Log.println("[ATTENTION] Review Prelude Report for Holdings needing attention\n");
+		
         // whenever we start/restart, get open orders, and unrecorded execute orders
 if (DayTrader_T.d_useIB) {
 	
-		Log.println("Retrieving Outstanding orders...");
+		//Log.println("Retrieving Outstanding orders...");
    		int nOutstandingOrders = trader.recoverMissedExecutions();  // from IB 
    		Log.println("There are "+nOutstandingOrders+" Outstanding Orders");
 }
@@ -213,7 +216,11 @@ if (DayTrader_T.d_getRTData) {
 					// (I hope its enough time...)
 if ( DayTrader_T.d_takeSnapshot) {
 
-					marketDataManager.takeMarketSnapshot();
+					if (marketDataManager.takeMarketSnapshot()==0) {
+						Log.println("[FATAL ERROR] No EOD Data!");
+						
+						// TODO throw global exception
+					}
 }
 
 
@@ -261,7 +268,7 @@ if (DayTrader_T.d_useIB) {
                     databaseManager.addHoldings(losers);
                     
                     // calculate buy positions (buy price and volume) and set initial fill/remaining
-                    trader.updateBuyPositions(losers);
+                    //---trader.updateBuyPositions(losers);
                     
                     // Now buy them - this will wait a bit for immediate fills
                     // TODO: but what do we do if they arent all filled now?

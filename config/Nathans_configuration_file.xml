@@ -2,10 +2,16 @@
 
 	<version>V.11.26.0</version>
 
+	<!-- IB Configuration Parameters -->
 	<!-- Production account -->
 	<!-- <accountCode>U1235379</accountCode> -->
 	<!-- Paper trader account -->
   <accountCode>DU171047</accountCode>
+	<!-- <ibGatewayHost>74.207.244.99<ibGatewayHost> -->
+	<ibGatewayHost>localhost</ibGatewayHost>
+	<ibGatewayApiPort>4001</ibGatewayApiPort>
+	<ibClientId>1</ibClientId>
+
 
 	<!-- Trading configuration parameters -->
 	<minTradeVolume>10000</minTradeVolume>
@@ -13,6 +19,7 @@
 	<maxBuyPositions>5</maxBuyPositions>
 	<maxBuyAmount>10000</maxBuyAmount>
 	<minAccountBalance>25000</minAccountBalance>
+  <minutesToWaitForExecution>5</minutesToWaitForExecution>
 
   <databaseName>dayTrader_test</databaseName>
 	<databaseUser>root</databaseUser>
@@ -34,6 +41,11 @@
 	<takeSnapshot>TRUE</takeSnapshot>
 	<getRTData>TRUE</getRTData>
 	<useSystemTime>TRUE</useSystemTime>
-
+	<sendEmails>TRUE</sendEmails>
+	
+	<emailRecipients>
+		<address>NathanALadd@gmail.com</address>
+		<address>stevenladd@comcast.net</address>
+	</emailRecipients>
 
 </dayTraderConfig>

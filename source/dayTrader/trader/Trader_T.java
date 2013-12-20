@@ -1,11 +1,19 @@
 package trader;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+
+import managers.BrokerManager_T;
+import managers.ConfigurationManager_T;
+import managers.DatabaseManager_T;
+import managers.MarketDataManager_T;
+import managers.TimeManager_T;
+import marketdata.MarketData_T;
+import marketdata.RTData_T;
+import marketdata.Symbol_T;
 
 import org.hibernate.Criteria;
 import org.hibernate.HibernateException;
@@ -14,33 +22,21 @@ import org.hibernate.Session;
 import org.hibernate.Transaction;
 import org.hibernate.criterion.Restrictions;
 
-import managers.BrokerManager_T;
-import managers.ConfigurationManager_T;
-import managers.DatabaseManager_T;
-import managers.MarketDataManager_T;
-import managers.TimeManager_T;
-
-import marketdata.MarketData_T;
-import marketdata.RTData_T;
-import marketdata.Symbol_T;
+import util.Utilities_T;
+import util.XMLTags_T;
+import util.dtLogger_T;
 import accounts.Account_T;
 import accounts.Portfolio_T;
 
+import com.ib.client.Execution;
+import com.ib.client.Order;
 import com.ib.controller.OrderStatus;
 import com.ib.controller.OrderType;
 import com.ib.controller.Types.Action;
 import com.ib.controller.Types.SecType;
 
-import com.ib.client.Execution;
-import com.ib.client.Order;
-
 import dayTrader.DayTrader_T;
 import exceptions.ConnectionException;
-import trader.TraderCalculator_T;
-
-import util.Utilities_T;
-import util.XMLTags_T;
-import util.dtLogger_T;
 
 
 public class Trader_T {
@@ -185,7 +181,7 @@ if (!DayTrader_T.d_useIB) {
     	// retrieve unsold holdings
     	int nOrdersPlaced = 0;
     	
-        Session session = databaseManager.getSessionFactory().openSession();
+        Session session = DatabaseManager_T.getSessionFactory().openSession();
 
         Criteria criteria = session.createCriteria(Holding_T.class)
         	.add(Restrictions.between("buyDate", buyDate, Utilities_T.tomorrow(buyDate)))
@@ -551,7 +547,7 @@ else
             Holding_T h = new Holding_T();		// just a container
             h.updateBuyPosition(symbol.getId(), buyPrice, buyVolume, timeManager.getCurrentTradeDate());
 ***/           
-            Session session = databaseManager.getSessionFactory().openSession();
+            Session session = DatabaseManager_T.getSessionFactory().openSession();
 
             // updates must be within a transaction
             Transaction tx = null;
@@ -1038,7 +1034,7 @@ if (DayTrader_T.d_useIB) {
     	
     	// check the DB to be sure all of todays orders are filled
     	//"SELECT *FROM Holdings where DATE(buy_date) = today AND order_status <> FILLED OR order_status <> CANCELLED";
-        Session session = databaseManager.getSessionFactory().openSession();
+        Session session = DatabaseManager_T.getSessionFactory().openSession();
         
         Criteria criteria = session.createCriteria(Holding_T.class)
             .add(Restrictions.ne("orderStatus", "Filled"))
@@ -1067,7 +1063,7 @@ if (DayTrader_T.d_useIB) {
     	
     	// check the DB to be sure all of todays orders are filled
     	//"SELECT * FROM Holdings where status != "Filled" AND status != "Cancelled" AND DATE(buy_date) = previous trade date";
-        Session session = databaseManager.getSessionFactory().openSession();
+        Session session = DatabaseManager_T.getSessionFactory().openSession();
         
         Criteria criteria = session.createCriteria(Holding_T.class)
             .add(Restrictions.between("buyDate", date, Utilities_T.tomorrow(date)))
@@ -1116,7 +1112,7 @@ if (DayTrader_T.d_useIB) {
 
     	
     	// check the DB to be sure all of todays orders are filled
-        Session session = databaseManager.getSessionFactory().openSession();
+        Session session = DatabaseManager_T.getSessionFactory().openSession();
         
         Criteria criteria = session.createCriteria(Holding_T.class)
             .add(Restrictions.ne("orderStatus", "Filled"))
@@ -1220,7 +1216,7 @@ if (true) {
 
         Long id = new Long(2501);		// get this holdingId from the DB (CRDChen)
         
-        Session session = databaseManager.getSessionFactory().openSession();
+        Session session = DatabaseManager_T.getSessionFactory().openSession();
         
         Criteria criteria = session.createCriteria(Holding_T.class)
             .add(Restrictions.eq("id", id));

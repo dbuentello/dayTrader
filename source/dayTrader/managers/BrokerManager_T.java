@@ -7,14 +7,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
-import java.util.Date;
-import java.text.SimpleDateFormat;
-
 import marketdata.MarketData_T;
 import marketdata.Symbol_T;
-
-import org.apache.log4j.Level;
-
 import trader.Holding_T;
 import util.XMLTags_T;
 import util.dtLogger_T;
@@ -40,16 +34,10 @@ import exceptions.ConnectionException;
 public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runnable {
   /* {src_lang=Java}*/
 
-    private final String GATEWAY_HOST = "localhost";
-    private final int GATEWAY_PORT = 4001;
-    private final int CLIENT_ID = 1;
-    
-	//linnode server
-    //private final String GATEWAY_HOST = "74.207.244.99";
-    
-    
-    /** A reference to the DatabaseManager class. */
-    private DatabaseManager_T databaseManager;
+    private String GATEWAY_HOST = "localhost";
+    private int GATEWAY_PORT = 4001;
+    private int CLIENT_ID = 1;
+
     /** A reference to the TimeManager class to update the time returned from the broker. */
     private TimeManager_T timeManager;
 
@@ -211,9 +199,13 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	@Override
 	public void initialize() {
 	    
-	    databaseManager = (DatabaseManager_T) DayTrader_T.getManager(DatabaseManager_T.class);
 	    timeManager = (TimeManager_T) DayTrader_T.getManager(TimeManager_T.class);
 	    Log = DayTrader_T.dtLog;
+	    
+	    ConfigurationManager_T configMgr = (ConfigurationManager_T) DayTrader_T.getManager(ConfigurationManager_T.class);
+	    GATEWAY_HOST = configMgr.getConfigParam(XMLTags_T.CFG_IB_GATEWAY_HOST);
+	    GATEWAY_PORT = Integer.parseInt(configMgr.getConfigParam(XMLTags_T.CFG_IB_GATEWAY_API_PORT));
+	    CLIENT_ID = Integer.parseInt(configMgr.getConfigParam(XMLTags_T.CFG_IB_CLIENT_ID));
 	    
 	    try {
 	        connect();

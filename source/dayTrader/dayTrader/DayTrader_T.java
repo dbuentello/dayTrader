@@ -32,6 +32,7 @@ public class DayTrader_T {
     private static BrokerManager_T brokerManager = null;
     private static LoggerManager_T loggerManager = null;
     private static TimeManager_T timeManager = null;
+    private static EmailManager_T emailManager = null;
 
     public static dtLogger_T dtLog;
 
@@ -96,6 +97,7 @@ public class DayTrader_T {
         brokerManager = new BrokerManager_T();
         loggerManager = new LoggerManager_T();
         timeManager = new TimeManager_T();
+        emailManager = new EmailManager_T();
         dtLog = new dtLogger_T();
 
         dtLogFilename = configurationManager.getConfigParam(XMLTags_T.CFG_DT_LOG_FILE_NAME);
@@ -107,10 +109,6 @@ public class DayTrader_T {
         d_getRTData = Boolean.parseBoolean(configurationManager.getConfigParam(XMLTags_T.CFG_GET_RT_DATA));
         d_useSystemTime = Boolean.parseBoolean(configurationManager.getConfigParam(XMLTags_T.CFG_USE_SYSTEM_TIME));
 
-
-//        EmailManager_T emailMgr = new EmailManager_T();
-//        emailMgr.sendEmail();
-        
         initialize();
         run();
         terminate();
@@ -127,6 +125,7 @@ public class DayTrader_T {
         //--SAL--
         serviceManager.put(timeManager.getClass(), timeManager);
         serviceManager.put(loggerManager.getClass(), loggerManager);
+        serviceManager.put(emailManager.getClass(), emailManager);
 
         dtLog.open(dtLogFilename); dtLog.setEcho(echoLog); dtLog.setTimeStamp(logTimestamp);
 
@@ -143,7 +142,7 @@ public class DayTrader_T {
             //Initialize each manager
             mgr.initialize();
         }
-
+        
     }
 
     public static void run() {

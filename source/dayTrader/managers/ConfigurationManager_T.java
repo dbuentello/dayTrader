@@ -3,10 +3,11 @@
  */
 package managers;
 
-import java.io.ByteArrayInputStream;
+import interfaces.Manager_IF;
+
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
 
 import javax.xml.parsers.DocumentBuilder;
@@ -20,7 +21,6 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
 import util.XMLTags_T;
-import interfaces.Manager_IF;
 
 /**
  * @author nathan
@@ -29,7 +29,7 @@ import interfaces.Manager_IF;
 public class ConfigurationManager_T implements Manager_IF {
 
     private HashMap<String, String> configParams = new HashMap<String, String>();
-    
+    private HashMap<String, ArrayList<String>> configParamsList = new HashMap<String, ArrayList<String>>();
     
     public ConfigurationManager_T(String filePath) {
         
@@ -51,7 +51,19 @@ public class ConfigurationManager_T implements Manager_IF {
                 Node node = configNodes.item(i);
                 if (node.getNodeType() == Node.ELEMENT_NODE) {
                     Element configParam = (Element) node;
-                    configParams.put(configParam.getTagName(), configParam.getTextContent());
+                    if (configParam.getTagName().equals(XMLTags_T.CFG_EMAIL_RECIPIENTS)) {
+                        
+                        configParamsList.put(XMLTags_T.CFG_EMAIL_RECIPIENTS, new ArrayList<String>());
+                        NodeList emails = configParam.getChildNodes();
+                        for (int j = 0; j < emails.getLength(); j++) {
+                            if (emails.item(j).getNodeType() == Node.ELEMENT_NODE) {
+                                configParamsList.get(XMLTags_T.CFG_EMAIL_RECIPIENTS).add(emails.item(j).getTextContent());
+                            }
+                        }
+                        
+                    } else {
+                        configParams.put(configParam.getTagName(), configParam.getTextContent());
+                    }
                 }
             }
             
@@ -69,6 +81,9 @@ public class ConfigurationManager_T implements Manager_IF {
         return configParams.get(paramName);
     }
     
+    public ArrayList<String> getConfigParamList(String paramName) {
+        return configParamsList.get(paramName);
+    }
     
     /* (non-Javadoc)
      * @see interfaces.Manager_IF#initialize()

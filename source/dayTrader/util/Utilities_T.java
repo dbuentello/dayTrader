@@ -9,8 +9,6 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.regex.Pattern;
 
-import dayTrader.DayTrader_T;
-
 /**
  * @author nathan
  *
@@ -90,8 +88,7 @@ public class Utilities_T {
      */
     public static double round(double n)
     {
-  	    double d = (double)((long)(n*1000.0+0.5))/1000.0;
-  	  
+  	    
     	  Double nd = ((n * 1000.0) + 0.5);
     	  int ni = nd.intValue();
     	  n = (double)ni/1000;

@@ -26,6 +26,13 @@
         <archive path="/home/nathan/dayTrader.git/source/lib/hibernate-search-4.3.0.Final/dist/lib/provided/hibernate-jpa-2.0-api-1.0.1.Final.jar"/>
         <archive path="/home/nathan/dayTrader.git/source/lib/hibernate-search-4.3.0.Final/dist/lib/provided/jta-1.1.jar"/>
     </library>
+    <library name="javamail" systemlibrary="false">
+        <archive path="/home/nathan/dayTrader.git/source/lib/javax.mail.jar"/>
+    </library>
+    <library name="jsonparser" systemlibrary="false">
+        <archive path="/home/nathan/Downloads/json-simple-1.1.1.jar"/>
+        <archive path="/home/nathan/Downloads/google-gson-2.2.4/gson-2.2.4.jar"/>
+    </library>
     <library name="log4j" systemlibrary="false">
         <archive path="/home/nathan/dayTrader.git/source/lib/apache-log4j-1.2.17/log4j-1.2.17.jar"/>
     </library>

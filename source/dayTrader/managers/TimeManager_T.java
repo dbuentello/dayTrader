@@ -4,12 +4,11 @@ import interfaces.Manager_IF;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
-
-import javax.persistence.Transient;
 
 import marketdata.RTData_T;
 import marketdata.Symbol_T;
@@ -206,9 +205,9 @@ if (DayTrader_T.d_getRTData) {
                     //what is we can't sell a position? how are we going to handle that?
 
 					// first, get the most recent RT data
-					List <RTData_T> rtData = marketDataManager.getRealTimeQuotes();
+					marketDataManager.getRealTimeQuotes();
 
-					int nLiquidated = trader.liquidateHoldings();
+					trader.liquidateHoldings();
 
 
 					// get todays closing market info from TD and store in EndOfDayQuotes
@@ -272,7 +271,7 @@ if (DayTrader_T.d_useIB) {
                     
                     // Now buy them - this will wait a bit for immediate fills
                     // TODO: but what do we do if they arent all filled now?
-                    int nBought = trader.buyHoldings();
+                    trader.buyHoldings();
                      
 					// hang around a while so we can check if the orders
 					// have been filled.If we wait around long enough, the unfilled
@@ -304,10 +303,16 @@ if (DayTrader_T.d_useIB) {
 					}
 }
 
-                    
+                    ArrayList<String> attachments = new ArrayList<String>();
+    
                     // DayTrader_YYYY-MM-DD.rpt
-                    tCalculator.DailyReport();
-                    tCalculator.ReconciliationReport();
+                    String report = tCalculator.dailyReport();
+                    if (report != null) { attachments.add(report); }
+                    report = tCalculator.reconciliationReport();
+                    if (report != null) { attachments.add(report); }
+                    
+                    EmailManager_T emailMgr = (EmailManager_T) DayTrader_T.getManager(EmailManager_T.class);
+                    emailMgr.sendEmail("Daily Reports", "Attached are the DayTrader daily reports.", attachments);
                     
                     //set buy_time to tomorrow so we don't execute this block again
                     //TODO: Check that this works
@@ -388,9 +393,9 @@ if (DayTrader_T.d_useIB) {
         boolean isOpen = false;
         
         calendar.setTime(time);
-        String date = calendar.get(Calendar.YEAR) + "-" 
-                + (calendar.get(Calendar.MONTH) + 1) + "-" 
-                + calendar.get(Calendar.DAY_OF_MONTH);
+//        String date = calendar.get(Calendar.YEAR) + "-" 
+//                + (calendar.get(Calendar.MONTH) + 1) + "-" 
+//                + calendar.get(Calendar.DAY_OF_MONTH);
         
         Calendar_T open = (Calendar_T) databaseManager.query(Calendar_T.class, time);
         
@@ -481,9 +486,8 @@ else  //SALxx - get system time
     
 	long now = System.currentTimeMillis();
 	setTime(now);
-	Date d = new Date(now);
-	
-//System.out.println("updateTime(): " + now + " " + d.toString());
+	//Date d = new Date(now);
+	//System.out.println("updateTime(): " + now + " " + d.toString());
 }
 
         return;
@@ -524,7 +528,7 @@ else  //SALxx - get system time
      * @param time the time to set
      */
     public void setTime(long time) {
-        this.time.setTime(time);
+        TimeManager_T.time.setTime(time);
     }
 
     /**
@@ -539,7 +543,7 @@ else  //SALxx - get system time
 
     	
     	//SELECT date, market_is_open FROM calendar WHERE date BETWEEN DATE_ADD(\"$date\", INTERVAL -7 DAY) AND \"$date\" ORDER BY date DESC
-        Session session = databaseManager.getSessionFactory().openSession();
+        Session session = DatabaseManager_T.getSessionFactory().openSession();
         
         Calendar c = Calendar.getInstance();
         c.setTime(Today());
@@ -577,7 +581,7 @@ else  //SALxx - get system time
     {
     	
     	//SELECT date, market_is_open FROM calendar WHERE date BETWEEN DATE_ADD(\"$date\", INTERVAL -8 DAY) AND DATE_ADD(\"$date\", INTERVAL -1 DAY) ORDER BY date DESC
-        Session session = databaseManager.getSessionFactory().openSession();
+        Session session = DatabaseManager_T.getSessionFactory().openSession();
         
         Calendar c = Calendar.getInstance();
         c.setTime(getCurrentTradeDate());
@@ -616,7 +620,7 @@ else  //SALxx - get system time
     {
    	
     	//SELECT date, market_is_open FROM calendar WHERE date BETWEEN DATE_ADD(\"$date\", INTERVAL 1 DAY) AND DATE_ADD(\"$date\", INTERVAL 8 DAY) AND market_is_open = 1 ORDER BY date LIMIT 1
-        Session session = databaseManager.getSessionFactory().openSession();
+        Session session = DatabaseManager_T.getSessionFactory().openSession();
         
         Calendar c = Calendar.getInstance();
         c.setTime(getCurrentTradeDate());

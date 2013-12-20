@@ -4,15 +4,10 @@ import interfaces.Connector_IF;
 import interfaces.Manager_IF;
 import interfaces.Persistable_IF;
 
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
-
-import javax.swing.text.Utilities;
 
 import marketdata.MarketData_T;
 import marketdata.RTData_T;
@@ -24,21 +19,20 @@ import org.hibernate.Query;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.Transaction;
-import org.hibernate.cfg.AnnotationConfiguration;
-import org.hibernate.cfg.Configuration;
 import org.hibernate.criterion.Order;
 import org.hibernate.criterion.Restrictions;
 import org.hibernate.metamodel.MetadataSources;
 import org.hibernate.service.ServiceRegistry;
 import org.hibernate.service.ServiceRegistryBuilder;
 
-import com.ib.controller.OrderStatus;
-
 import trader.Holding_T;
-import trader.Trader_T;
 import trader.TraderCalculator_T;
+import trader.Trader_T;
 import util.Utilities_T;
 import util.XMLTags_T;
+
+import com.ib.controller.OrderStatus;
+
 import dayTrader.DayTrader_T;
 
 /** 
@@ -334,7 +328,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
             Query query = session.createQuery(hql);
             query.setDate("date", date);
 
-            int nrows = query.executeUpdate();
+            query.executeUpdate();
  
             tx.commit();
         } catch (HibernateException e) {
@@ -364,7 +358,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
             // get the current ask(buy) price from EOD and calc number of shares to buy
             double buyPrice = getEODAskPrice(symbol);
             int buyVolume = (int)(buyTotal/buyPrice);
-            double adjustedBuyTotal = buyVolume * buyPrice;
+            //double adjustedBuyTotal = buyVolume * buyPrice;
             
             holding.setBuyPrice(buyPrice);
             holding.setVolume(buyVolume);

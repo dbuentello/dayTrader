@@ -1,6 +1,9 @@
 package managers;
 
 
+import interfaces.Connector_IF;
+import interfaces.Manager_IF;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -9,7 +12,6 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 
@@ -17,36 +19,23 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
-import org.apache.log4j.Level;
-import org.hibernate.Criteria;
-import org.hibernate.Session;
-import org.hibernate.criterion.Order;
-import org.hibernate.criterion.Restrictions;
+import marketdata.MarketData_T;
+import marketdata.RTData_T;
+import marketdata.Symbol_T;
+import marketdata.TDAmeritradeConnection_T;
+
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
-import dayTrader.DayTrader_T;
-import util.dtLogger_T;
-
-
-import trader.Trader_T;
 import util.Exchange_T;
 import util.Utilities_T;
 import util.XMLTags_T;
-
-import marketdata.MarketData_T;
-import marketdata.Symbol_T;
-import marketdata.RTData_T;
-import marketdata.TDAmeritradeConnection_T;
-
-import trader.TraderCalculator_T;
-
+import util.dtLogger_T;
+import dayTrader.DayTrader_T;
 import exceptions.ConnectionException;
-import interfaces.Connector_IF;
-import interfaces.Manager_IF;
 
 public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
 
@@ -57,9 +46,6 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
     /** A reference to the time manager. */
     private TimeManager_T timeManager;
     /** A reference to the LoggerManager class. */
-    private LoggerManager_T logger;
-    /** Map to hold the most recent snapshot taken of the market. **/
-    private HashMap<Long, MarketData_T> lastSnapshot = new HashMap<Long, MarketData_T>();
 
     private dtLogger_T Log;
 
@@ -71,7 +57,6 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
     @Override
     public void initialize() {
 
-        logger          = (LoggerManager_T) DayTrader_T.getManager(LoggerManager_T.class);
         databaseManager = (DatabaseManager_T) DayTrader_T.getManager(DatabaseManager_T.class);
         timeManager     = (TimeManager_T) DayTrader_T.getManager(TimeManager_T.class);
         dataSource      = new TDAmeritradeConnection_T();
@@ -384,8 +369,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
                 Node quote = quotes.item(i);
 
                 if (quote.getNodeType() == Node.ELEMENT_NODE) {
-                    MarketData_T marketData = new MarketData_T();
-
+                    
                     Element quoteData = (Element) quote;
 
                     RTData_T rtData = new RTData_T();
@@ -440,7 +424,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
         //TODO: Compute for all exchanges
         //symbols.addAll(databaseManager.getSymbolsByExchange(Exchange_T.AMEX));
         //symbols.addAll(databaseManager.getSymbolsByExchange(Exchange_T.NYSE));
-        int i = 0;
+        
         for(Symbol_T symbol : symbols) {
             
             ArrayList<MarketData_T> recentQuotes = (ArrayList<MarketData_T>) databaseManager.getRecentQuotes(symbol.getId(), 15);

@@ -2,17 +2,13 @@ package marketdata;
 
 import interfaces.Persistable_IF;
 
-import java.util.ArrayList;
 import java.util.Date;
 
-import javax.persistence.CascadeType;
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
-import javax.persistence.JoinColumn;
-import javax.persistence.ManyToOne;
 import javax.persistence.Table;
 import javax.persistence.Temporal;
 import javax.persistence.TemporalType;
@@ -161,9 +157,9 @@ public class MarketData_T implements Persistable_IF {
 
     @Override
     public void delete() {
-        Session session = DatabaseManager_T.getSessionFactory().openSession();
-        Transaction tx = null;
-        
+//        Session session = DatabaseManager_T.getSessionFactory().openSession();
+//        Transaction tx = null;
+//        
 //        try {
 //            tx = session.beginTransaction();
 //            marketData = (MarketData_T) session.get(MarketData_T.class, id);

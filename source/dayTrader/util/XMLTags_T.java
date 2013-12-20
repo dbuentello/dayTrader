@@ -60,6 +60,11 @@ public class XMLTags_T {
     public final static String CFG_MAX_BUY_POSITIONS = "maxBuyPositions";
     public final static String CFG_MAX_BUY_AMOUNT = "maxBuyAmount";
     public final static String CFG_MIN_ACCOUNT_BALANCE = "minAccountBalance";
+    public final static String CFG_SEND_EMAILS = "sendEmails";
+    public final static String CFG_EMAIL_RECIPIENTS = "emailRecipients";
+    public final static String CFG_IB_GATEWAY_HOST = "ibGatewayHost";
+    public final static String CFG_IB_GATEWAY_API_PORT = "ibGatewayApiPort";
+    public final static String CFG_IB_CLIENT_ID = "ibClientId";
     
     /**
      * 

@@ -3,11 +3,7 @@ package marketdata;
 import interfaces.Connector_IF;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.CookieHandler;
-import java.net.CookieManager;
-import java.net.CookiePolicy;
 import java.net.MalformedURLException;
 import java.net.ProtocolException;
 import java.net.SocketException;
@@ -15,15 +11,12 @@ import java.net.URL;
 
 import javax.net.ssl.HttpsURLConnection;
 
-import managers.DatabaseManager_T;
 import managers.LoggerManager_T;
 
 import org.apache.log4j.Level;
 
-import dayTrader.DayTrader_T;
-
 import util.XMLTags_T;
-
+import dayTrader.DayTrader_T;
 import exceptions.ConnectionException;
 
 
@@ -47,7 +40,6 @@ public class TDAmeritradeConnection_T implements Connector_IF {
     
     
     
-    @SuppressWarnings("finally")
     @Override
     public void connect() throws ConnectionException {
         if (!isConnected()) {

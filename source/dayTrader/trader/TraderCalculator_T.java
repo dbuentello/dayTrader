@@ -3,38 +3,28 @@ package trader;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Date;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
 
-import org.apache.log4j.Level;
+import managers.BrokerManager_T;
+import managers.ConfigurationManager_T;
+import managers.DatabaseManager_T;
+import managers.TimeManager_T;
+import marketdata.MarketData_T;
+
 import org.hibernate.Criteria;
-import org.hibernate.HibernateException;
-import org.hibernate.Query;
 import org.hibernate.Session;
-import org.hibernate.Transaction;
 import org.hibernate.criterion.Order;
 import org.hibernate.criterion.Restrictions;
 
-import dayTrader.DayTrader_T;
-import accounts.Portfolio_T;
+import util.Utilities_T;
 import util.XMLTags_T;
 import util.dtLogger_T;
-
-import managers.BrokerManager_T;
-import managers.DatabaseManager_T;
-import managers.LoggerManager_T;
-import managers.TimeManager_T;
-import marketdata.MarketData_T;
-import managers.ConfigurationManager_T;
-
-import trader.Holding_T;
-import trader.DailyNet_T;
-
-import util.Utilities_T;
+import accounts.Portfolio_T;
+import dayTrader.DayTrader_T;
 
 
 public class TraderCalculator_T {
@@ -113,7 +103,7 @@ if (DayTrader_T.d_useIB) {
 
     	Date buyDate = timeManager.getPreviousTradeDate();
     	
-        Session session = databaseManager.getSessionFactory().openSession();
+        Session session = DatabaseManager_T.getSessionFactory().openSession();
         
         // checking the net field makes sure we dont calculate it twice
         Criteria criteria = session.createCriteria(Holding_T.class)
@@ -183,7 +173,7 @@ if (DayTrader_T.d_useIB) {
     	Double cumNet = 0.00;
     	long   cumVol = 0;
     	
-        Session session = databaseManager.getSessionFactory().openSession();
+        Session session = DatabaseManager_T.getSessionFactory().openSession();
         
         // anull net field means it wasnt calculated - deferred will show up later
         Criteria criteria = session.createCriteria(Holding_T.class)
@@ -230,7 +220,7 @@ if (DayTrader_T.d_useIB) {
         }
         // end TODO
         
-        long id = dailyNet.get(0).getId();
+        dailyNet.get(0).getId();
         startCapital = dailyNet.get(0).getPrice();
 
         // update our net for today
@@ -307,7 +297,7 @@ if (DayTrader_T.d_useIB) {
     	long   cumVol = 0;
     	
     	//SELECT id, buy_volume, buy_total, sell_price FROM Holdings WHERE DATE(buy_date) = \"$buy_date\" AND net IS NULL
-        Session session = databaseManager.getSessionFactory().openSession();
+        Session session = DatabaseManager_T.getSessionFactory().openSession();
         
         // any holding with a null net field has not yet been realized
         // it does need a valid buy orderId, tho
@@ -372,7 +362,7 @@ if (DayTrader_T.d_useIB) {
     	Double cumNet = 0.00;
     	long   cumVol = 0;
     	
-        Session session = databaseManager.getSessionFactory().openSession();
+        Session session = DatabaseManager_T.getSessionFactory().openSession();
         
         // any holding with a null net field has not yet been realized
     	Date today = timeManager.getCurrentTradeDate();
@@ -452,7 +442,7 @@ if (DayTrader_T.d_useIB) {
        	// anything that was before this...
     	Date buyDate = timeManager.getPreviousTradeDate();
     	
-        Session session = databaseManager.getSessionFactory().openSession();
+        Session session = DatabaseManager_T.getSessionFactory().openSession();
 
         //======================================
     	// these are the ones that werent bought
@@ -616,14 +606,14 @@ if (DayTrader_T.d_useIB) {
     /**
      * Create End of Day Holdings Report
      */
-    public void DailyReport()
+    public String dailyReport()
     {
         ConfigurationManager_T cfgMgr = (ConfigurationManager_T) DayTrader_T.getManager(ConfigurationManager_T.class);
         String reportDir = cfgMgr.getConfigParam(XMLTags_T.CFG_DT_REPORT_DIR_PATH);
         DateFormat df = new SimpleDateFormat("yyyy-MM-dd"); 
-    	String reportName = "dayTrader_"+df.format(timeManager.getCurrentTradeDate());
+    	String reportName = reportDir + "/dayTrader_" + df.format(timeManager.getCurrentTradeDate() + ".rpt");
     	dtLogger_T report = new dtLogger_T();
-    	report.open(reportDir +"/"+reportName+".rpt");
+    	report.open(reportName);
 
     	report.println("\nDaily Trade Report for "+df.format(timeManager.getCurrentTradeDate())+"\n");
 
@@ -646,7 +636,7 @@ if (DayTrader_T.d_useIB) {
     	Date buyDate = timeManager.getPreviousTradeDate();
     	
     	//SELECT * FROM Holdings WHERE DATE(buy_date) = \"$buy_date\"
-        Session session = databaseManager.getSessionFactory().openSession();
+        Session session = DatabaseManager_T.getSessionFactory().openSession();
         
         Criteria criteria = session.createCriteria(Holding_T.class)
             .add(Restrictions.between("buyDate", buyDate, Utilities_T.tomorrow(buyDate)));
@@ -711,7 +701,7 @@ if (DayTrader_T.d_useIB) {
                 
         cumNet = Utilities_T.round(cumNet);
         //double netLessCommision =  Utilities_T.round(cumNet - (cumVol * 0.01));
-        double netLessCommision =  Utilities_T.round(cumNet - 50.00);
+        //double netLessCommision =  Utilities_T.round(cumNet - 50.00);
         //report.println("\nTotal Net: $"+netLessCommision+" on "+cumVol+" shares ($"+cumNet+" less commission)");
         report.println("\nTotal Net: $"+cumNet+" on "+cumVol+" shares");
 
@@ -774,23 +764,25 @@ if (DayTrader_T.d_useIB) {
         
         session.close();        
         report.close();
+        
+        return reportName;
     }
  
     /**
      * Reconcile our DB with IB - report differences in portfolio holdings
      */
-    public void ReconciliationReport()
+    public String reconciliationReport()
     {
 if (!DayTrader_T.d_useIB) {
-   return;    		
+   return null;    		
 }
 
         ConfigurationManager_T cfgMgr = (ConfigurationManager_T) DayTrader_T.getManager(ConfigurationManager_T.class);
         String reportDir = cfgMgr.getConfigParam(XMLTags_T.CFG_DT_REPORT_DIR_PATH);
         DateFormat df = new SimpleDateFormat("yyyy-MM-dd"); 
-    	String reportName = "Reconcile_"+df.format(timeManager.getCurrentTradeDate());
+    	String reportName = reportDir + "/Reconcile_" + df.format(timeManager.getCurrentTradeDate() + ".rpt");
     	dtLogger_T report = new dtLogger_T();
-    	report.open(reportDir +"/"+reportName+".rpt");
+    	report.open(reportName);
 
     	report.println("\nReconciliation Report for "+df.format(timeManager.getCurrentTradeDate())+"\n");
 
@@ -810,7 +802,7 @@ if (!DayTrader_T.d_useIB) {
     	
     	// these are the ones we expect to have closed
 
-        Session session = databaseManager.getSessionFactory().openSession();
+        Session session = DatabaseManager_T.getSessionFactory().openSession();
         
         Criteria criteria = session.createCriteria(Holding_T.class)
             .add(Restrictions.between("buyDate", buyDate, Utilities_T.tomorrow(buyDate)))
@@ -1014,9 +1006,9 @@ if (!DayTrader_T.d_useIB) {
         	while (its.hasNext()) { report.print(its.next()+" "); } report.newline();
         }
         else report.println("There are no differnces");
-  	
-        
-        
+         
         report.close();
+        
+        return reportName;
     }
 }

@@ -439,7 +439,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
             symbol.setAvgVolume15day(vol/15);
         }
         
-        databaseManager.bulkSymbolInsert(symbols);
+        databaseManager.bulkSymbolUpdate(symbols);
     }
 
 }

@@ -127,9 +127,9 @@ public class TimeManager_T implements Manager_IF, Runnable {
 //boolean b = trader.buyHoldings(); running = false;
 //trader.getOutstandingOrders();
 //boolean b = trader.liquidateHoldings();
-tCalculator.dailyReport();
-tCalculator.reconciliationReport();
-running = false;
+//tCalculator.dailyReport();
+//tCalculator.reconciliationReport();
+//running = false;
 //TEST        
 
 		// do any old holdings need attention?

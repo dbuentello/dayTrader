@@ -102,9 +102,12 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	public void error(Exception e) {
 		if (e!=null)
 		{
-			Log.println("[ERROR] exception="+e.getMessage());
+			Log.print("[ERROR] exception="+(e.getMessage()==null?"null":e.getMessage()));
+			if (e.getCause()!=null && e.getCause().getMessage()!=null ) { 
+				Log.println(" Cause: "+ e.getCause().getMessage());
+			} else Log.newline();
 			
-			if (!e.getMessage().isEmpty() && e.getMessage().equalsIgnoreCase("Connection reset")) {
+			if (e.getMessage()!= null && e.getMessage().equalsIgnoreCase("Connection reset")) {
 				resetNeeded = true;
 				// force a hard disconnect
 				disconnect();

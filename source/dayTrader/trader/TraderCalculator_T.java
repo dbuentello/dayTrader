@@ -228,9 +228,10 @@ if (DayTrader_T.d_useIB) {
         DailyNet_T dn = dailyNet.get(0);
         dn.setNet(cumNet);
         dn.setVolume(cumVol);
-        dn.update();					// nope
-        								// yup
-        dn.updateNet(cumNet, cumVol, dn.getId());
+        //dn.update();					// nope
+        
+        if (cumVol>=0)					// if not, something really went wrong			
+        	dn.updateNet(cumNet, cumVol, dn.getId());	// yup
        
 
         // tell us about it
@@ -610,8 +611,8 @@ if (DayTrader_T.d_useIB) {
     {
         ConfigurationManager_T cfgMgr = (ConfigurationManager_T) DayTrader_T.getManager(ConfigurationManager_T.class);
         String reportDir = cfgMgr.getConfigParam(XMLTags_T.CFG_DT_REPORT_DIR_PATH);
-        DateFormat df = new SimpleDateFormat("yyyy-MM-dd"); 
-    	String reportName = reportDir + "/dayTrader_" + df.format(timeManager.getCurrentTradeDate() + ".rpt");
+        DateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+        String reportName = reportDir + "/dayTrader_" + df.format(timeManager.getCurrentTradeDate()) + ".rpt";
     	dtLogger_T report = new dtLogger_T();
     	report.open(reportName);
 
@@ -701,9 +702,9 @@ if (DayTrader_T.d_useIB) {
                 
         cumNet = Utilities_T.round(cumNet);
         //double netLessCommision =  Utilities_T.round(cumNet - (cumVol * 0.01));
-        //double netLessCommision =  Utilities_T.round(cumNet - 50.00);
-        //report.println("\nTotal Net: $"+netLessCommision+" on "+cumVol+" shares ($"+cumNet+" less commission)");
-        report.println("\nTotal Net: $"+cumNet+" on "+cumVol+" shares");
+        double netLessCommision =  Utilities_T.round(cumNet - 50.00);
+        report.println("\nTotal Net: $"+netLessCommision+" on "+cumVol+" shares ($"+cumNet+" less commission)");
+
 
         //==================================
         // TODO: maybe we should report adjusted cancel orders new volume and old remaining
@@ -780,7 +781,7 @@ if (!DayTrader_T.d_useIB) {
         ConfigurationManager_T cfgMgr = (ConfigurationManager_T) DayTrader_T.getManager(ConfigurationManager_T.class);
         String reportDir = cfgMgr.getConfigParam(XMLTags_T.CFG_DT_REPORT_DIR_PATH);
         DateFormat df = new SimpleDateFormat("yyyy-MM-dd"); 
-    	String reportName = reportDir + "/Reconcile_" + df.format(timeManager.getCurrentTradeDate() + ".rpt");
+    	String reportName = reportDir + "/Reconcile_" + df.format(timeManager.getCurrentTradeDate()) + ".rpt";
     	dtLogger_T report = new dtLogger_T();
     	report.open(reportName);
 

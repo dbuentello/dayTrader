@@ -493,8 +493,10 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         
         Criteria criteria = session.createCriteria(MarketData_T.class)
             .add(Restrictions.between("lastTradeTimestamp", date, Utilities_T.tomorrow(date)))
-            .add(Restrictions.eq("symbolId", symbol.getId()));
-
+            .add(Restrictions.eq("symbolId", symbol.getId()))
+            .addOrder(Order.desc("lastTradeTimestamp"))
+            .setMaxResults(1); 
+            
         @SuppressWarnings("unchecked")
         List<MarketData_T> quoteData = criteria.list();
         
@@ -502,7 +504,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         
         if (quoteData.size() != 1) {
         	//Log.println("[ERROR] Bad EOD price for "+symbol.getSymbol());
-        	return -1.0;
+        	return 0.0;
         }
         
         double price = quoteData.get(0).getLastPrice();
@@ -526,8 +528,10 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         
         Criteria criteria = session.createCriteria(MarketData_T.class)
             .add(Restrictions.between("lastTradeTimestamp", date, Utilities_T.tomorrow(date)))
-            .add(Restrictions.eq("symbolId", symbol.getId()));
-
+            .add(Restrictions.eq("symbolId", symbol.getId()))
+            .addOrder(Order.desc("lastTradeTimestamp"))
+            .setMaxResults(1);
+        
         @SuppressWarnings("unchecked")
         List<MarketData_T> quoteData = criteria.list();
         
@@ -535,7 +539,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         
         if (quoteData.size() != 1) {
         	//Log.println("[ERROR] Bad EOD Ask price for "+symbol.getSymbol());
-        	return -1.0;
+        	return 0.0;
         }
         
         double price = quoteData.get(0).getAskPrice();
@@ -571,7 +575,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         
         if (quoteData.size() != 1) {
         	//Log.println("[ERROR] Bad Current Bid price for "+symbol.getSymbol());
-        	return -1.0;
+        	return 0.0;
         }
         
         double price = quoteData.get(0).getBidPrice();
@@ -592,8 +596,10 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         
         Criteria criteria = session.createCriteria(MarketData_T.class)
             .add(Restrictions.between("lastTradeTimestamp", date, Utilities_T.tomorrow(date)))
-            .add(Restrictions.eq("symbolId", symbolId));
-
+            .add(Restrictions.eq("symbolId", symbolId))
+            .addOrder(Order.desc("lastTradeTimestamp"))
+            .setMaxResults(1);
+        
         @SuppressWarnings("unchecked")
         List<MarketData_T> quoteData = criteria.list();
         

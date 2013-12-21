@@ -24,6 +24,10 @@ import marketdata.RTData_T;
 import marketdata.Symbol_T;
 import marketdata.TDAmeritradeConnection_T;
 
+import org.hibernate.HibernateException;
+import org.hibernate.Query;
+import org.hibernate.Session;
+import org.hibernate.Transaction;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -75,6 +79,12 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
     }
 
     @Override
+    public void run() {
+        // TODO Auto-generated method stub
+
+    }
+
+    @Override
     public void sleep() {
 
     }
@@ -119,10 +129,12 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
         String exchange = Exchange_T.NASDAQ;
         List<Symbol_T> symbols = databaseManager.getSymbolsByExchange(exchange);
 
-        //logger.logText("Found " + symbols.size() + " for exchange " + exchange, Level.DEBUG);
-
         Log.print("\n*** Getting End of Day Quote Data");
 
+        // delete any previous data for today
+        deletePreviousData();
+
+        
         List<String> quoteDataList = new ArrayList<String>();
         Iterator<Symbol_T> it = symbols.iterator();
         String symbolList = "";
@@ -165,11 +177,6 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
         return nQuotes;
     }
 
-    @Override
-    public void run() {
-        // TODO Auto-generated method stub
-
-    }
 
     /**
      * parse the quote data returned from TD
@@ -290,7 +297,38 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
 
     }
 
+    /**
+     * Delete any previous entries for today - we can only have one set of
+     * EOD data
+     */
+    private void deletePreviousData() {
+    	
+    	Date date = timeManager.getCurrentTradeDate();
+    	
+        Session session = databaseManager.getSessionFactory().openSession();
 
+        // deletes must be within a transaction
+        Transaction tx = null;
+        
+        try {
+            tx = session.beginTransaction();
+
+            //SALxx TODO date between??
+            String hql = "DELETE FROM marketdata.MarketData_T WHERE date >= :date";
+            Query query = session.createQuery(hql);
+            query.setDate("date", date);
+
+            query.executeUpdate();
+ 
+            tx.commit();
+        } catch (HibernateException e) {
+            //TODO: for now just print to stdout, we'll change this to a log file later
+            e.printStackTrace();
+            if (tx != null) tx.rollback();
+        } finally {
+            session.close();
+        }  
+    }
 
     /**
      * Get todays holdings symbols and query TD for latest data

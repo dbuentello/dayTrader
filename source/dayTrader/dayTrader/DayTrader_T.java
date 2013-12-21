@@ -15,7 +15,6 @@ import managers.EmailManager_T;
 import managers.LoggerManager_T;
 import managers.MarketDataManager_T;
 import managers.TimeManager_T;
-
 import util.XMLTags_T;
 import util.dtLogger_T;
 
@@ -87,6 +86,8 @@ public class DayTrader_T {
         }
         
         configurationManager = new ConfigurationManager_T(configFile);
+        
+        
         serviceManager.put(configurationManager.getClass(), configurationManager);
 
         databaseManager = new DatabaseManager_T();

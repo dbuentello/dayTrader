@@ -41,7 +41,7 @@
 	<takeSnapshot>TRUE</takeSnapshot>
 	<getRTData>TRUE</getRTData>
 	<useSystemTime>TRUE</useSystemTime>
-	<sendEmails>TRUE</sendEmails>
+	<sendEmails>FALSE</sendEmails>
 	
 	<emailRecipients>
 		<address>NathanALadd@gmail.com</address>

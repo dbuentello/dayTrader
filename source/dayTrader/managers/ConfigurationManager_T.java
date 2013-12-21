@@ -33,11 +33,13 @@ public class ConfigurationManager_T implements Manager_IF {
     
     public ConfigurationManager_T(String filePath) {
         
+        File configFile = new File(filePath);
+        if (configFile.exists() == false) {
+            configFile = new File(File.class.getResource("/Default_configuration_file.xml").getFile());
+        }
+        
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         DocumentBuilder dBuilder = null;
-        
-
-        File configFile = new File(filePath);
 
         try {
             dBuilder = dbFactory.newDocumentBuilder();

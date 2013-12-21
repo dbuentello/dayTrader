@@ -39,7 +39,10 @@ import dayTrader.DayTrader_T;
  */
 public class TimeManager_T implements Manager_IF, Runnable {
 
-    /** Time in minutes before the close of the market day that we want to capture our snapshot of the market
+	/* time zone offset from EST.  eg UTC = 5 hours */
+	private int TZOffset = 0;
+
+	/** Time in minutes before the close of the market day that we want to capture our snapshot of the market
      * and execute our buy orders.
      */
     private int MINUTES_BEFORE_CLOSE_TO_BUY = 30;
@@ -49,7 +52,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
     private final int MIN_IN_HOUR = 60;
     /** real time scan interval */
     private int RT_SCAN_INTERVAL = 5 * MS_IN_MINUTE;
-    /** how long we should wait MAX after liquidition and buying */
+    /** how long we should wait MAX after liquidation and buying */
     private int MINUTES_TO_WAIT_FOR_EXECUTION = 5;
     
 
@@ -97,7 +100,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
         boolean running = true;
 
         // TODO - replace w/config paramter
-        Log.println("\n*** Day Trader V.12.13.0 has started at "+TimeNow()+" ***\n");
+        Log.println("\n*** Day Trader V.12.20.0 has started at "+TimeNow()+" ***\n");
 
         if (!isMarketOpen()) {
         	Log.println("Market is not open.  Bye.");
@@ -124,9 +127,9 @@ public class TimeManager_T implements Manager_IF, Runnable {
 //boolean b = trader.buyHoldings(); running = false;
 //trader.getOutstandingOrders();
 //boolean b = trader.liquidateHoldings();
-//tCalculator.DailyReport();
-//tCalculator.ReconciliationReport();
-//running = false;
+tCalculator.dailyReport();
+tCalculator.reconciliationReport();
+running = false;
 //TEST        
 
 		// do any old holdings need attention?
@@ -171,7 +174,7 @@ if (DayTrader_T.d_getRTData) {
 		
 				// run every n minutes as define by RT_SCAN_INTERVAL
 				// sell a holding if it meets the criteria.  The Order is executed,
-				// but it may fill asychronously.  At the end of the day, we'll
+				// but it may fill asynchronously.  At the end of the day, we'll
 				// check that is has completely sold
             	if (time.after(prevScanTime))
             	{
@@ -223,9 +226,9 @@ if ( DayTrader_T.d_takeSnapshot) {
 }
 
 
-					// TODO? hang around a while so we can check if the orders
+					// hang around a while so we can check if the orders
 					// have been filled. If we still have partially/unfilled sell orders,
-					// what do we do????
+					// we'll deal with them tomorrow, or manually
 if (DayTrader_T.d_useIB) {
 					int nRemaining = 1;   // this is arbitrary
 					int retryCount = (MINUTES_TO_WAIT_FOR_EXECUTION * MIN_IN_HOUR)/10;
@@ -270,7 +273,7 @@ if (DayTrader_T.d_useIB) {
                     //---trader.updateBuyPositions(losers);
                     
                     // Now buy them - this will wait a bit for immediate fills
-                    // TODO: but what do we do if they arent all filled now?
+                    // any that arent bought will be cancelled
                     trader.buyHoldings();
                      
 					// hang around a while so we can check if the orders
@@ -319,7 +322,7 @@ if (DayTrader_T.d_useIB) {
                     buyTime.setTime(buyTime.getTime() + (MS_IN_MINUTE * MIN_IN_HOUR * 24));
                     
                     //re-calculate the 15 day moving average. This can take a while
-                    marketDataManager.calcAvgVol();
+                    //--!!!---marketDataManager.calcAvgVol();
                     
                     //TODO: For now terminate the application at the end of each day
                     Log.println("\n*** dayTrader is exiting at "+TimeNow()+"  Bye ***");
@@ -351,13 +354,22 @@ if (DayTrader_T.d_useIB) {
         MINUTES_BEFORE_CLOSE_TO_BUY = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_MINUTES_BEFORE_CLOSE_TO_BUY));
         MINUTES_TO_WAIT_FOR_EXECUTION = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_MINUTES_TO_WAIT_FOR_EXECUTION));
         RT_SCAN_INTERVAL = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_RT_SCAN_INTERVAL_MINUTES)) * MS_IN_MINUTE;
+        TZOffset = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_TZOFFSET));
 
         calendar_t = (Calendar_T) databaseManager.query(Calendar_T.class, time);
         
         updateTime();
 
         this.buyTime = new Date(calendar_t.getCloseTime().getTime() - MINUTES_BEFORE_CLOSE_TO_BUY * MS_IN_MINUTE);
-
+        
+        // compensate for timezone, if necessary
+        if (TZOffset != 0) {
+            Calendar c = Calendar.getInstance();
+            c.setTime(this.buyTime);
+            c.add(Calendar.HOUR, TZOffset);
+            this.buyTime = c.getTime();
+        }
+        
         // for simulation, buy date is always before now
         if (!DayTrader_T.d_useSimulateDate.isEmpty()) { this.buyTime.setTime(0); }
         
@@ -386,21 +398,29 @@ if (DayTrader_T.d_useIB) {
      * @return true if the market is open for trading, else false
      */
     public boolean isMarketOpen() {
-    	
+
+        //TODO: Can we use TDA or IB to determine if the market is open or not?
+    	 
     	if (DayTrader_T.d_ignoreMarketClosed)
     		return true;
         
         boolean isOpen = false;
         
         calendar.setTime(time);
-//        String date = calendar.get(Calendar.YEAR) + "-" 
-//                + (calendar.get(Calendar.MONTH) + 1) + "-" 
-//                + calendar.get(Calendar.DAY_OF_MONTH);
         
         Calendar_T open = (Calendar_T) databaseManager.query(Calendar_T.class, time);
         
-        //TODO: Can we use TDA or IB to determine if the market is open or not?
-        if (open.isMarketOpen() && time.compareTo(open.getCloseTime()) <= 0) {
+        Date closeTime = open.getCloseTime();
+
+        // compensate for timezone, if necessary
+        if (TZOffset != 0) {
+            Calendar c = Calendar.getInstance();
+            c.setTime(closeTime);
+            c.add(Calendar.HOUR, TZOffset);
+            closeTime = c.getTime();
+        }
+
+        if (open.isMarketOpen() && time.compareTo(closeTime) <= 0) {
             isOpen = true;
         }
         

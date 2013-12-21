@@ -48,10 +48,7 @@ public class DayTrader_T {
 
     // if not null, use this simulated time as current time
     public static String d_useSimulateDate = "";    
-    //public static String d_useSimulateDate = "2013-11-21 15:50:00";
 
-    // get EndOfDayQuotes from TD - only needs to be run once.  if you run it multiple
-    // times, first delete all of todays EOD data DELETE FROM EndOfDayQuotes WHERE DATE(date) = CURRENT_DATE()
     public static boolean d_takeSnapshot = true;
 
     // enable RT logic

@@ -20,6 +20,9 @@ import org.hibernate.property.Getter;
 import org.hibernate.property.PropertyAccessor;
 import org.hibernate.property.Setter;
 
+import org.hibernate.Session;
+import org.hibernate.Transaction;
+
 import dayTrader.DayTrader_T;
 
 /**
@@ -241,7 +244,21 @@ public class Symbol_T implements PropertyAccessor, Persistable_IF {
     
     @Override
     public void update() throws HibernateException {
-        
+//      Session session = DatabaseManager_T.getSessionFactory().openSession();
+//      Transaction tx = null;
+//      
+//      try {
+//          tx = session.beginTransaction();
+//          session.update(this);
+//          tx.commit();
+//      } catch (HibernateException e) {
+//          e.printStackTrace();
+//          if (tx != null) tx.rollback();
+//          throw e;
+//      } finally {
+//          session.close();
+//     }   
+       
     }
 
 

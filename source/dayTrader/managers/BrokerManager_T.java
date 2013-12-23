@@ -216,7 +216,7 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
 	        //e.printStackTrace();
 
 	        Log.println("[FATAL] Cant connect to IB");
-	        return;						// we cant do much w/o a connection
+	        //return;						// we cant do much w/o a connection
 	    }
 	    
 	    

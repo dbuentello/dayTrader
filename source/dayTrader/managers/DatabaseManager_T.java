@@ -13,9 +13,12 @@ import marketdata.MarketData_T;
 import marketdata.RTData_T;
 import marketdata.Symbol_T;
 
+import org.hibernate.CacheMode;
 import org.hibernate.Criteria;
 import org.hibernate.HibernateException;
 import org.hibernate.Query;
+import org.hibernate.ScrollMode;
+import org.hibernate.ScrollableResults;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.Transaction;
@@ -28,6 +31,7 @@ import org.hibernate.service.ServiceRegistryBuilder;
 import trader.Holding_T;
 import trader.TraderCalculator_T;
 import trader.Trader_T;
+import util.Exchange_T;
 import util.Utilities_T;
 import util.XMLTags_T;
 
@@ -663,24 +667,47 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
     }
     
     
-    public void bulkSymbolUpdate(ArrayList<Symbol_T> data) {
+    public void updateSymbolAverages() {
+        
+        long time = System.currentTimeMillis();
         
         Session session = DatabaseManager_T.getSessionFactory().openSession();
         Transaction tx = session.beginTransaction();
         
-        for (int i = 0; i < data.size(); i++) {
+        ScrollableResults symbols = session.getNamedQuery("getNasdaqSymbols")
+                .setString("exchange", Exchange_T.NASDAQ)
+                .setCacheMode(CacheMode.IGNORE)
+                .scroll(ScrollMode.FORWARD_ONLY);
+        int i = 0;
+        //for (int i = 0; i < symbols.size(); i++) {
+        while(symbols.next()) {
+            Symbol_T symbol = (Symbol_T) symbols.get(0);
             try {
-                session.update(data.get(i));
-                if ( i % 50 == 0 ) { //50, same as the JDBC batch size
-                    //flush a batch of inserts and release memory:
-                    session.flush();
-                    session.clear();
-                }
+                symbol.calcAverages();
+                String hql = "UPDATE marketdata.Symbol_T " +
+                        "SET avg_vol_15d = :avgVolume15day, avg_bid_ask_15d = :avgBidAsk15day " +
+                        "WHERE id = :id";
+                Query query = session.createQuery(hql)
+                        .setDouble("avgBidAsk15day", symbol.getAvgBidAsk15day())
+                        .setParameter("avgVolume15day", symbol.getAvgVolume15day())
+                        .setParameter("id", symbol.getId());
+
+                query.executeUpdate();
+               // session.update(symbol);
+//                if ( ++i % 50 == 0 ) { //50, same as the JDBC batch size
+//                    //flush a batch of inserts and release memory:
+//                    session.flush();
+//                    session.clear();
+//                }
             } catch (HibernateException e) {
                 //TODO: for now just print to stdout, we'll change this to a log file later
                 e.printStackTrace();
             }
         }
+        
+        time = System.currentTimeMillis() - time;
+        time /= 1000;
+        System.out.println("time to execute = " + time);
         tx.commit();
         session.close();
         

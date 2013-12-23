@@ -3,6 +3,8 @@
  */
 package marketdata;
 
+import java.util.ArrayList;
+
 import interfaces.Persistable_IF;
 
 import javax.persistence.Column;
@@ -10,6 +12,8 @@ import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import javax.persistence.NamedQueries;
+import javax.persistence.NamedQuery;
 import javax.persistence.Table;
 
 import managers.DatabaseManager_T;
@@ -26,6 +30,13 @@ import dayTrader.DayTrader_T;
  * @author nathan
  *
  */
+@NamedQueries({
+    @NamedQuery(
+    name = "getNasdaqSymbols",
+    query = "from marketdata.Symbol_T s where s.exchange = :exchange"
+    )
+})
+
 @Entity
 @Table(name="symbols")
 public class Symbol_T implements PropertyAccessor, Persistable_IF {
@@ -39,8 +50,10 @@ public class Symbol_T implements PropertyAccessor, Persistable_IF {
     private double market_cap;
     private String type;
     private Long avgVolume15day;
+    private Double avgBidAsk15day;
     //private Set<MarketData_T> quotes = new HashSet<MarketData_T>(0);
-    
+   
+
     /**
      * Constructor with no parameters. This is needed for hibernate to be able to instantiate the class
      */
@@ -76,6 +89,26 @@ public class Symbol_T implements PropertyAccessor, Persistable_IF {
         }
     }
    
+    public void calcAverages() {
+        DatabaseManager_T databaseManager = (DatabaseManager_T) DayTrader_T.getManager(DatabaseManager_T.class);
+        ArrayList<MarketData_T> recentQuotes = (ArrayList<MarketData_T>) databaseManager.getRecentQuotes(getId(), 15);
+        
+        long vol = 0;
+        double bidAskPer = 0;
+        if (recentQuotes != null) {
+            for(MarketData_T quote : recentQuotes) {
+                vol += quote.getVolume();
+                double ask = quote.getAskPrice();
+                double bid = quote.getBidPrice();
+                if ((ask+bid) != 0) {
+                    bidAskPer += (ask-bid) / ((ask+bid)/2);
+                }
+            }
+        }
+
+        setAvgVolume15day(vol/15);
+        setAvgBidAsk15day(bidAskPer/15.0);
+    }
     
     /**
      * @return the id
@@ -209,6 +242,21 @@ public class Symbol_T implements PropertyAccessor, Persistable_IF {
      */
     public void setAvgVolume15day(Long avgVolume) {
         this.avgVolume15day = avgVolume;
+    }
+    
+    /**
+     * @return the avgBidAsk15day
+     */
+    @Column (name = "avg_bid_ask_15d")
+    public Double getAvgBidAsk15day() {
+        return avgBidAsk15day;
+    }
+
+    /**
+     * @param avgBidAsk15day the avgBidAsk15day to set
+     */
+    public void setAvgBidAsk15day(Double avgBidAsk15day) {
+        this.avgBidAsk15day = avgBidAsk15day;
     }
     
     @Override

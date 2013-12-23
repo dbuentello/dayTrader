@@ -1,0 +1,52 @@
+<dayTraderConfig>
+
+	<version>V.default</version>
+
+	<!-- IB Configuration Parameters -->
+	<!-- Production account -->
+	<!-- <accountCode>U1235379</accountCode> -->
+	<!-- Paper trader account -->
+    <accountCode>DU171047</accountCode>
+	<!-- <ibGatewayHost>74.207.244.99<ibGatewayHost> -->
+	<ibGatewayHost>localhost</ibGatewayHost>
+	<ibGatewayApiPort>4001</ibGatewayApiPort>
+	<ibClientId>1</ibClientId>
+
+
+	<!-- Trading configuration parameters -->
+	<minTradeVolume>10000</minTradeVolume>
+	<minBuyPrice>.50</minBuyPrice>
+	<maxBuyPositions>5</maxBuyPositions>
+	<maxBuyAmount>10000</maxBuyAmount>
+	<minAccountBalance>25000</minAccountBalance>
+    <minutesToWaitForExecution>5</minutesToWaitForExecution>
+<timezoneOffset>5</timezoneOffset>
+
+    <databaseName>dayTrader_test</databaseName>
+	<databaseUser>root</databaseUser>
+	<databasePassword>r00t</databasePassword>
+
+	<!-- Logging config params -->
+	<dtLogFileName>/tmp/dayTrader_test.log</dtLogFileName>
+	<dtReportDirPath>/tmp/Reports</dtReportDirPath>
+
+	<!-- Timing config params -->
+	<minutesBeforeCloseToBuy>600</minutesBeforeCloseToBuy>
+	<rtScanIntervalMinutes>5</rtScanIntervalMinutes>
+
+	<!-- Debug config params -->
+	<useIB>TRUE</useIB>
+	<useTD>TRUE</useTD>
+	<ignoreMarketClosed>TRUE</ignoreMarketClosed>
+	<useSimulateDate></useSimulateDate>
+	<takeSnapshot>TRUE</takeSnapshot>
+	<getRTData>TRUE</getRTData>
+	<useSystemTime>TRUE</useSystemTime>
+	<sendEmails>TRUE</sendEmails>
+	
+	<emailRecipients>
+		<address>NathanALadd@gmail.com</address>
+		<address>stevenladd@comcast.net</address>
+	</emailRecipients>
+
+</dayTraderConfig>

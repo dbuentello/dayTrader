@@ -633,6 +633,7 @@ if (DayTrader_T.d_useIB) {
 
     	Double cumNet = 0.00;
     	long   cumVol = 0;
+    	double commission = 0.00;
     	
     	Date buyDate = timeManager.getPreviousTradeDate();
     	
@@ -694,6 +695,9 @@ if (DayTrader_T.d_useIB) {
         		cumNet += net;
         		cumVol += volume;
                	report.println("\t\t\t\t[net: $"+net+"]");
+               	
+               	commission += 1.00;		// per trade minimum
+               	if (volume > 200) commission += ((volume-200) *.005); // + .5 cents per share
         	} else {
                	report.println("\t\t\t[deferred net: $"+net+"]");
         	}
@@ -701,8 +705,7 @@ if (DayTrader_T.d_useIB) {
         }  // next Holding
                 
         cumNet = Utilities_T.round(cumNet);
-        //double netLessCommision =  Utilities_T.round(cumNet - (cumVol * 0.01));
-        double netLessCommision =  Utilities_T.round(cumNet - 50.00);
+        double netLessCommision =  Utilities_T.round(cumNet - commission);
         report.println("\nTotal Net: $"+netLessCommision+" on "+cumVol+" shares ($"+cumNet+" less commission)");
 
 
@@ -768,7 +771,57 @@ if (DayTrader_T.d_useIB) {
         
         return reportName;
     }
- 
+
+    /**
+     * Report from IBs portfolio
+     */
+    public void ibPNLReport()
+    {
+if (!DayTrader_T.d_useIB) {
+   return;    		
+}
+
+        ConfigurationManager_T cfgMgr = (ConfigurationManager_T) DayTrader_T.getManager(ConfigurationManager_T.class);
+        String reportDir = cfgMgr.getConfigParam(XMLTags_T.CFG_DT_REPORT_DIR_PATH);
+        DateFormat df = new SimpleDateFormat("yyyy-MM-dd"); 
+    	String reportName = reportDir + "/PNL_" + df.format(timeManager.getCurrentTradeDate()) + ".rpt";
+    	dtLogger_T report = new dtLogger_T();
+    	report.open(reportName);
+
+    	report.println("\nPNL Report for "+df.format(timeManager.getCurrentTradeDate())+"\n");
+
+
+        BrokerManager_T brokerManager = (BrokerManager_T) DayTrader_T.getManager(BrokerManager_T.class);
+
+        // get most recent portfolio?
+    	//brokerManager.updateAccount();
+
+    	Map <String, Portfolio_T> p = brokerManager.getPortfolio();
+
+    	// sort by symbol
+        Map<String, Portfolio_T> portfolio = new TreeMap<String, Portfolio_T>(p);
+
+        report.println("=== Closed Positions ===");
+    	for (Map.Entry<String, Portfolio_T> entry : portfolio.entrySet()) {
+    	    String symbol = entry.getKey();
+    	    Portfolio_T po = entry.getValue();
+    	    if (po.m_position==0)
+    	    	report.println(symbol+" AvgCost: $"+po.m_avgCost+" PNL: $"+po.m_PNL+" ($"+po.m_unrealizedPNL+")");
+    	}
+    	
+        report.println("=== Open Positions ===");
+    	for (Map.Entry<String, Portfolio_T> entry : portfolio.entrySet()) {
+    	    String symbol = entry.getKey();
+    	    Portfolio_T po = entry.getValue();
+    	    if (po.m_position!=0)
+    	    	report.println(symbol+" "+po.m_position+" shares AvgCost: $"+po.m_avgCost+" value: $"+
+    	    					po.m_marketValue+" PNL: $"+po.m_PNL+" ($"+po.m_unrealizedPNL+")");
+    	}
+    	
+    	report.close();
+
+    }
+    
     /**
      * Reconcile our DB with IB - report differences in portfolio holdings
      */

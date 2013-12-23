@@ -129,6 +129,8 @@ public class TimeManager_T implements Manager_IF, Runnable {
 //boolean b = trader.liquidateHoldings();
 //tCalculator.dailyReport();
 //tCalculator.reconciliationReport();
+//tCalculator.ibPNLReport();
+//marketDataManager.calcAvgVol();
 //running = false;
 //TEST        
 
@@ -314,6 +316,8 @@ if (DayTrader_T.d_useIB) {
                     report = tCalculator.reconciliationReport();
                     if (report != null) { attachments.add(report); }
                     
+                    tCalculator.ibPNLReport();
+                    
                     EmailManager_T emailMgr = (EmailManager_T) DayTrader_T.getManager(EmailManager_T.class);
                     emailMgr.sendEmail("Daily Reports", "Attached are the DayTrader daily reports.", attachments);
                     
@@ -323,6 +327,7 @@ if (DayTrader_T.d_useIB) {
                     
                     //re-calculate the 15 day moving average. This can take a while
                     databaseManager.updateSymbolAverages();
+
                     
                     //TODO: For now terminate the application at the end of each day
                     Log.println("\n*** dayTrader is exiting at "+TimeNow()+"  Bye ***");

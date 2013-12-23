@@ -220,7 +220,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
                         try {
                             date = df.parse(dateString);
                         } catch (ParseException e) {
-                            // TODO Auto-generated catch block
+                            // TODO
                             e.printStackTrace();
                         }  
                         marketData.setLastTradeTimestamp(date);
@@ -278,15 +278,15 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
 
 
         } catch (ParserConfigurationException e) {
-            // TODO Auto-generated catch block
+            // TODO
             e.printStackTrace();
             return 0;
         } catch (SAXException e) {
-            // TODO Auto-generated catch block
+            // TODO
             e.printStackTrace();
             return 0;
         } catch (IOException e) {
-            // TODO Auto-generated catch block
+            // TODO
             e.printStackTrace();
             return 0;
         }
@@ -383,7 +383,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
      * ask price, bid price and volume
      * 
      * @param quoteData returned from TD
-     * @return a list of RTData for each holding.  on error, the list will be empty
+     * @return a list of RTData for each holding.  on error, the list will be null
      */
     private List<RTData_T> parseRTQuote(String quoteString) {
 
@@ -410,7 +410,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
                     
                     Element quoteData = (Element) quote;
 
-                    RTData_T rtData = new RTData_T();
+                    Symbol_T symbol = new Symbol_T(quoteData.getElementsByTagName(XMLTags_T.TDA_SYMBOL).item(0).getTextContent());
 
                     String dateString = quoteData.getElementsByTagName(XMLTags_T.TDA_LAST_TRADE_DATE).item(0).getTextContent();
                     DateFormat df = new SimpleDateFormat("yyyy-MM-dd kk:mm:ss");
@@ -418,16 +418,24 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
                     try {
                         date = df.parse(dateString);
                     } catch (ParseException e) {
-                        // TODO Auto-generated catch block
+                        // TODO
                         e.printStackTrace();
+                        continue;
                     }  
-                    rtData.setDate(date);
-
-                    Symbol_T symbol = new Symbol_T(quoteData.getElementsByTagName(XMLTags_T.TDA_SYMBOL).item(0).getTextContent());
+                    
+                    // make sure last trade date is today (it still could be yesterday, if its too early for this stock
+                    if (date.before(timeManager.getCurrentTradeDate())) {
+                    	//Log.println("[DEBUG] "+symbol.getSymbol()+" lastTradeDate isnt today: "+date);
+                    	continue;
+                    }
+                    
+                    RTData_T rtData = new RTData_T();              
+                    
                     // TODO: this table still uses symbol, not symb id
                     //rtData.setSymbolId(symbol.getId());
                     rtData.setSymbol(symbol.getSymbol());
-
+                    
+                    rtData.setDate(date);
                     rtData.setPrice(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_LAST).item(0).getTextContent()));
                     rtData.setAskPrice(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_ASK).item(0).getTextContent()));
                     rtData.setBidPrice(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_BID).item(0).getTextContent()));
@@ -441,19 +449,21 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
                 } // next quote
             }
         } catch (ParserConfigurationException e) {
-            // TODO Auto-generated catch block
+            // TODO
             e.printStackTrace();
             return null;
         } catch (SAXException e) {
-            // TODO Auto-generated catch block
+            // TODO
             e.printStackTrace();
+            return null;
         } catch (IOException e) {
-            // TODO Auto-generated catch block
+            // TODO
             e.printStackTrace();
+            return null;
         }
 
         return retData;
     }
-   
+    
 
 }

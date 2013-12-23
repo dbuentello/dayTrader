@@ -242,6 +242,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
     
     /**
      * Query the database for all symbols in a given exchange
+     *  only include common stocks (eg, no warrants, options...)
      * 
      * @param exchange
      * @return all found symbols for that exchange
@@ -250,7 +251,8 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         
         Session session = getSessionFactory().openSession();
         Criteria criteria = session.createCriteria(Symbol_T.class)
-            .add(Restrictions.eq("exchange", exchange));
+            .add(Restrictions.eq("exchange", exchange))
+            .add(Restrictions.eq("type", "common"));
        
         @SuppressWarnings("unchecked")
         List<Symbol_T> results = criteria.list();
@@ -270,6 +272,8 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
      */
     public synchronized List<Symbol_T> determineBiggestLosers() {
         
+    	double MAX_SPREAD = .02 * 2;	// profit goal x2 for buy AND sell
+    	
         Session session = getSessionFactory().openSession();
         
         Date d2 = Utilities_T.tomorrow(timeManager.getCurrentTradeDate());
@@ -292,6 +296,18 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         Iterator<MarketData_T> it = loserQuotes.iterator();
         while (it.hasNext()) {
             MarketData_T quote = it.next();
+            
+            // additional criteria... min avg volume and spread
+//            if (quote.getSymbol().getAvgVolume15day() < Trader_T.MIN_TRADE_VOLUME) {
+//--            	continue;
+//            }
+            
+//            double spread = (quote.getAskPrice() - quote.getBidPrice())/((quote.getAskPrice() + quote.getBidPrice())/2);
+//            if (spread < MAX_SPREAD) {
+//System.out.println("[DEBUG] Spread "+spread+" is too large for "+quote.getSymbol().getSymbol()+" $"+quote.getLastPrice()+"  $"+quote.getAskPrice()+"/$"+quote.getBidPrice());
+//--            	continue;
+//            }
+            
             losers.add(quote.getSymbol());
         }
         

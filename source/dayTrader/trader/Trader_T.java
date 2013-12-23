@@ -354,7 +354,7 @@ Log.println("[DEBUG] >>"+sym.getSymbol()+": bid=$"+price+"(market= $"+market+" b
 	 			// if the initial upper limit has already been reached, sell if it falls below, increase upper limit if above
 	 			if (upper_limit != initial_upper_limit)
 	 			{
-	 				if (price >= upper_limit)
+	 				if (price > upper_limit)
 	 				{
 Log.println("[DEBUG] >>"+sym.getSymbol()+": Adjusting upper price limit from $"+upper_limit+" to $"+price);
 	 					setUpperSellLimit(sym.getId(), price);
@@ -362,7 +362,7 @@ Log.println("[DEBUG] >>"+sym.getSymbol()+": Adjusting upper price limit from $"+
 	 				else   // we'll tolerate a 1/2% deviation
 	 				{
 	 					double upper_threshhold = upper_limit - (upper_limit * .005);
-	 					if (price <= upper_threshhold)
+	 					if (price < upper_threshhold)
 	 					{
 Log.println("[DEBUG] >>"+sym.getSymbol()+": SELL (gain) at $"+price+" price fell below .005% tolerance: $"+upper_threshhold+" (initial: $"+initial_upper_limit);
 	 						sell = true;

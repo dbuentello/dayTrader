@@ -81,8 +81,9 @@ public class BrokerManager_T implements EWrapper, Manager_IF, Connector_IF, Runn
      * 
      */
     public BrokerManager_T() {
-        
-        String accountCode = ((ConfigurationManager_T) DayTrader_T.getManager(ConfigurationManager_T.class)).getConfigParam(XMLTags_T.CFG_ACCOUNT_CODE);
+        ConfigurationManager_T cfgMgr = (ConfigurationManager_T) DayTrader_T.getManager(ConfigurationManager_T.class);
+        String accountCode = cfgMgr.getConfigParam(XMLTags_T.CFG_ACCOUNT_CODE);
+        int CLIENT_ID = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_IB_CLIENT_ID));
         account = new Account_T(CLIENT_ID, accountCode);
         ibClientSocket = new EClientSocket(this);
         

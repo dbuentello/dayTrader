@@ -26,6 +26,7 @@ public class Account_T {
      * 
      */
     public Account_T(int clientId, String accountCode) {
+    	
         this.clientId = clientId;
         this.accountCode = accountCode;
     }

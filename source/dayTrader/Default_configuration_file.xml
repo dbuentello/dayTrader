@@ -5,8 +5,9 @@
 	<!-- IB Configuration Parameters -->
 	<!-- Production account -->
 	<!-- <accountCode>U1235379</accountCode> -->
+
 	<!-- Paper trader account -->
-    <accountCode>DU171047</accountCode>
+    	<accountCode>DU171047</accountCode>
 	<!-- <ibGatewayHost>74.207.244.99<ibGatewayHost> -->
 	<ibGatewayHost>localhost</ibGatewayHost>
 	<ibGatewayApiPort>4001</ibGatewayApiPort>
@@ -17,11 +18,16 @@
 	<minTradeVolume>10000</minTradeVolume>
 	<minBuyPrice>.50</minBuyPrice>
 	<maxBuyPositions>5</maxBuyPositions>
+
+	<buySpreadLimit>0.0</buySpreadLimit>
+	<percentIncrease>0.02</percentIncrease>
+	<percentDecrease>0.02</percentDecrease>
+	<percentDecline>.005</percentDecline>
+
 	<maxBuyAmount>10000</maxBuyAmount>
 	<minAccountBalance>25000</minAccountBalance>
-    <minutesToWaitForExecution>5</minutesToWaitForExecution>
-<timezoneOffset>5</timezoneOffset>
 
+	<!-- Database Connection -->
     <databaseName>dayTrader_test</databaseName>
 	<databaseUser>root</databaseUser>
 	<databasePassword>r00t</databasePassword>
@@ -30,9 +36,19 @@
 	<dtLogFileName>/tmp/dayTrader_test.log</dtLogFileName>
 	<dtReportDirPath>/tmp/Reports</dtReportDirPath>
 
+	<!-- email -->
+	<sendEmails>TRUE</sendEmails>
+
+	<emailRecipients>
+		<address>NathanALadd@gmail.com</address>
+		<address>steve.ladd@slsp.com</address>
+	</emailRecipients>
+
 	<!-- Timing config params -->
-	<minutesBeforeCloseToBuy>600</minutesBeforeCloseToBuy>
-	<rtScanIntervalMinutes>5</rtScanIntervalMinutes>
+	<minutesBeforeCloseToBuy>20</minutesBeforeCloseToBuy>
+	<rtScanIntervalMinutes>2</rtScanIntervalMinutes>
+	<minutesToWaitForExecution>7</minutesToWaitForExecution>
+	<timezoneOffset>5</timezoneOffset>
 
 	<!-- Debug config params -->
 	<useIB>TRUE</useIB>
@@ -42,11 +58,6 @@
 	<takeSnapshot>TRUE</takeSnapshot>
 	<getRTData>TRUE</getRTData>
 	<useSystemTime>TRUE</useSystemTime>
-	<sendEmails>TRUE</sendEmails>
-	
-	<emailRecipients>
-		<address>NathanALadd@gmail.com</address>
-		<address>stevenladd@comcast.net</address>
-	</emailRecipients>
+
 
 </dayTraderConfig>

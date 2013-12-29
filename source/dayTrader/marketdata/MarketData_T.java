@@ -205,7 +205,6 @@ public class MarketData_T implements Persistable_IF {
         Criteria criteria = session.createCriteria(MarketData_T.class)
                 .add(Restrictions.eq("symbolId", marketData.getSymbolId()))
                 .add(Restrictions.eq("lastTradeTimestamp", marketData.getLastTradeTimestamp()));
-                //.add(Restrictions.eq("date", marketData.getLastTradeTimestamp()));
         
         //If no symbol was found for this date, consider this MarketData object to be unique and safe to insert into the db
         if (criteria.list().size() == 0) {

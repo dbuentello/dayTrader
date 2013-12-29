@@ -46,8 +46,15 @@ public class Trader_T {
     public static double MIN_TRADE_VOLUME = 10000;  //SALxx was int - needs to agree w/ DB definition
     /** Minimum price for a security for us to buy it. */
     public static double MIN_BUY_PRICE = 0.50;
+    /** filter buy criterion by spread limit (as a fraction - less than PERCENT_INCREASE*/
+    public static double BUY_SPREAD_LIMIT = 0.0;
     /** The maximum number of positions we want to buy. */
-    public static int MAX_BUY_POSITIONS = 5;
+    public static int MAX_BUY_POSITIONS = 25;
+    /** max percent increase/decrease before selling (as a fraction)*/
+    public static double PERCENT_INCREASE = 0.02;
+    public static double PERCENT_DECREASE = 0.02;
+    /** threshhold for decline while stock is increasing (as a fraction)*/
+    public static double PERCENT_DECLINE = .005;
         
     /** our starting cash balance according to IB */
     private double startingBalance;
@@ -69,6 +76,8 @@ public class Trader_T {
         MIN_TRADE_VOLUME = Double.parseDouble(cfgMgr.getConfigParam(XMLTags_T.CFG_MIN_TRADE_VOLUME));
         MIN_BUY_PRICE = Double.parseDouble(cfgMgr.getConfigParam(XMLTags_T.CFG_MIN_BUY_PRICE));
         MAX_BUY_POSITIONS = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_MAX_BUY_POSITIONS));
+        BUY_SPREAD_LIMIT = Double.parseDouble(cfgMgr.getConfigParam(XMLTags_T.CFG_BUY_SPREAD_LIMIT));
+        PERCENT_DECLINE = Double.parseDouble(cfgMgr.getConfigParam(XMLTags_T.CFG_PERCENT_DECLINE));
         
         brokerManager     = (BrokerManager_T) DayTrader_T.getManager(BrokerManager_T.class);
 	    databaseManager   = (DatabaseManager_T) DayTrader_T.getManager(DatabaseManager_T.class);
@@ -318,8 +327,8 @@ if (DayTrader_T.d_useIB) {
 			// determine if we should sell using a hard stop loss limit
 			// and trailing sell algorithm to maximize gain while limiting
 			// losses and executing market orders to ensure fulfillment
-	 		double per_incr  = .02;
-	 		double per_decr  = .02;
+	 		double per_incr  = PERCENT_INCREASE;
+	 		double per_decr  = PERCENT_DECREASE;
 
 	 		// round real time price to 3 digits
 	 		// price = int(price*1000 + 0.5)/1000;
@@ -359,12 +368,12 @@ Log.println("[DEBUG] >>"+sym.getSymbol()+": bid=$"+price+"(market= $"+market+" b
 Log.println("[DEBUG] >>"+sym.getSymbol()+": Adjusting upper price limit from $"+upper_limit+" to $"+price);
 	 					setUpperSellLimit(sym.getId(), price);
 	 				}
-	 				else   // we'll tolerate a 1/2% deviation
+	 				else   // we'll tolerate some downward deviance from max so far (.5% -1% is typical)
 	 				{
-	 					double upper_threshhold = upper_limit - (upper_limit * .005);
+	 					double upper_threshhold = upper_limit - (upper_limit * PERCENT_DECLINE);
 	 					if (price < upper_threshhold)
 	 					{
-Log.println("[DEBUG] >>"+sym.getSymbol()+": SELL (gain) at $"+price+" price fell below .005% tolerance: $"+upper_threshhold+" (initial: $"+initial_upper_limit);
+Log.println("[DEBUG] >>"+sym.getSymbol()+": SELL (gain) at $"+price+" price fell below "+PERCENT_DECLINE+"% tolerance: $"+upper_threshhold+" (initial: $"+initial_upper_limit);
 	 						sell = true;
 	 					}
 	 				}      

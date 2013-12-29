@@ -234,6 +234,7 @@ public class MarketDataManager_T implements Manager_IF, Connector_IF, Runnable {
                     marketData.setClose(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_CLOSE).item(0).getTextContent()));
                     marketData.setOpen(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_OPEN).item(0).getTextContent()));
                     marketData.setHigh(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_HIGH).item(0).getTextContent()));
+                    marketData.setLow(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_LOW).item(0).getTextContent()));
                     marketData.setLastPrice(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_LAST).item(0).getTextContent()));
                     marketData.setVolume(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_VOLUME).item(0).getTextContent()));
                     marketData.setChange(Utilities_T.stringToDouble(quoteData.getElementsByTagName(XMLTags_T.TDA_CHANGE).item(0).getTextContent()));

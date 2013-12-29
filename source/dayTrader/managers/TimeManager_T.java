@@ -39,6 +39,9 @@ import dayTrader.DayTrader_T;
  */
 public class TimeManager_T implements Manager_IF, Runnable {
 
+	/* version as defined in the config file */
+	private String VERSION = "Unknown";
+	
 	/* time zone offset from EST.  eg UTC = 5 hours */
 	private int TZOffset = 0;
 
@@ -99,8 +102,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
         
         boolean running = true;
 
-        // TODO - replace w/config paramter
-        Log.println("\n*** Day Trader V.12.20.0 has started at "+TimeNow()+" ***\n");
+        Log.println("\n*** Day Trader "+VERSION+" has started at "+TimeNow()+" ***\n");
 
         if (!isMarketOpen()) {
         	Log.println("Market is not open.  Bye.");
@@ -122,15 +124,16 @@ public class TimeManager_T implements Manager_IF, Runnable {
          */
 
 //TEST
-//trader.TestCode(); running = false;
-//trader.liquidateHoldings(); running = false;
-//boolean b = trader.buyHoldings(); running = false;
+//trader.TestCode();
+//trader.liquidateHoldings();
+//boolean b = trader.buyHoldings();
 //trader.getOutstandingOrders();
 //boolean b = trader.liquidateHoldings();
 //tCalculator.dailyReport();
 //tCalculator.reconciliationReport();
 //tCalculator.ibPNLReport();
-//marketDataManager.calcAvgVol();
+//databaseManager.updateSymbolAverages();
+//List<Symbol_T> ls = databaseManager.determineBiggestLosers(); logCandidates(ls);
 //running = false;
 //TEST        
 
@@ -361,6 +364,8 @@ if (DayTrader_T.d_useIB) {
         RT_SCAN_INTERVAL = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_RT_SCAN_INTERVAL_MINUTES)) * MS_IN_MINUTE;
         TZOffset = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_TZOFFSET));
 
+        VERSION = cfgMgr.getConfigParam(XMLTags_T.CFG_VERSION);
+        		
         calendar_t = (Calendar_T) databaseManager.query(Calendar_T.class, time);
         
         updateTime();

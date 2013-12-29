@@ -705,7 +705,7 @@ if (DayTrader_T.d_useIB) {
         }  // next Holding
                 
         cumNet = Utilities_T.round(cumNet);
-        double netLessCommision =  Utilities_T.round(cumNet - commission);
+        double netLessCommision =  Utilities_T.round(cumNet - commission*2);  //*2 = buy/sell
         report.println("\nTotal Net: $"+netLessCommision+" on "+cumVol+" shares ($"+cumNet+" less commission)");
 
 
@@ -801,15 +801,21 @@ if (!DayTrader_T.d_useIB) {
     	// sort by symbol
         Map<String, Portfolio_T> portfolio = new TreeMap<String, Portfolio_T>(p);
 
+        double totalPNL = 0.00;
+        
         report.println("=== Closed Positions ===");
     	for (Map.Entry<String, Portfolio_T> entry : portfolio.entrySet()) {
     	    String symbol = entry.getKey();
     	    Portfolio_T po = entry.getValue();
-    	    if (po.m_position==0)
-    	    	report.println(symbol+" AvgCost: $"+po.m_avgCost+" PNL: $"+po.m_PNL+" ($"+po.m_unrealizedPNL+")");
+    	    if (po.m_position==0) {
+    	    	report.println(symbol+" PNL: $"+po.m_PNL);
+    	    	
+    	    	totalPNL += po.m_PNL;
+    	    }
     	}
+    	report.println("\nTotal Realized PNL: $"+totalPNL);
     	
-        report.println("=== Open Positions ===");
+        report.println("\n\n=== Open Positions ===");
     	for (Map.Entry<String, Portfolio_T> entry : portfolio.entrySet()) {
     	    String symbol = entry.getKey();
     	    Portfolio_T po = entry.getValue();

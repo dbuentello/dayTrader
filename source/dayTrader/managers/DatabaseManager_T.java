@@ -271,9 +271,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
      * @return List of the biggest losers
      */
     public synchronized List<Symbol_T> determineBiggestLosers() {
-        
-    	double MAX_SPREAD = .02 * 2;	// profit goal x2 for buy AND sell
-    	
+
         Session session = getSessionFactory().openSession();
         
         Date d2 = Utilities_T.tomorrow(timeManager.getCurrentTradeDate());
@@ -282,8 +280,8 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
             .add(Restrictions.between("lastTradeTimestamp", timeManager.getCurrentTradeDate(), d2 ))
         	.add(Restrictions.gt("volume", Trader_T.MIN_TRADE_VOLUME))
             .add(Restrictions.gt("lastPrice", Trader_T.MIN_BUY_PRICE))
-            .addOrder(Order.asc("percentChange"))
-            .setMaxResults(Trader_T.MAX_BUY_POSITIONS);
+            .addOrder(Order.asc("percentChange"));
+            //.setMaxResults(Trader_T.MAX_BUY_POSITIONS);
         
         
         @SuppressWarnings("unchecked")
@@ -303,12 +301,23 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
 //            }
             
 //            double spread = (quote.getAskPrice() - quote.getBidPrice())/((quote.getAskPrice() + quote.getBidPrice())/2);
-//            if (spread < MAX_SPREAD) {
+//            if (spread < Trader_T.BUY_SPREAD_LIMIT) {
 //System.out.println("[DEBUG] Spread "+spread+" is too large for "+quote.getSymbol().getSymbol()+" $"+quote.getLastPrice()+"  $"+quote.getAskPrice()+"/$"+quote.getBidPrice());
 //--            	continue;
 //            }
             
+            double todaysSpread = Math.abs(quote.getAskPrice() - quote.getBidPrice())/
+            								((quote.getAskPrice() + quote.getBidPrice())/2);
+            if (todaysSpread > Trader_T.BUY_SPREAD_LIMIT) {
+            	System.out.println("[DEBUG] Todays Spread "+todaysSpread+" is too large for "+quote.getSymbol().getSymbol()+" $"+quote.getLastPrice()+"  $"+quote.getAskPrice()+"/$"+quote.getBidPrice());
+            	continue;
+            }
+            
             losers.add(quote.getSymbol());
+            
+            // we got what we want
+            if (losers.size() == Trader_T.MAX_BUY_POSITIONS) break;
+            
         }
         
         return losers;   
@@ -694,8 +703,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
                 .setString("exchange", Exchange_T.NASDAQ)
                 .setCacheMode(CacheMode.IGNORE)
                 .scroll(ScrollMode.FORWARD_ONLY);
-        int i = 0;
-        //for (int i = 0; i < symbols.size(); i++) {
+
         while(symbols.next()) {
             Symbol_T symbol = (Symbol_T) symbols.get(0);
             try {
@@ -723,7 +731,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         
         time = System.currentTimeMillis() - time;
         time /= 1000;
-        System.out.println("time to execute = " + time);
+        System.out.println("time to execute = " + time + " sconds");
         tx.commit();
         session.close();
         

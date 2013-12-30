@@ -55,8 +55,9 @@ public class TimeManager_T implements Manager_IF, Runnable {
     private final int MIN_IN_HOUR = 60;
     /** real time scan interval */
     private int RT_SCAN_INTERVAL = 5 * MS_IN_MINUTE;
+    
     /** how long we should wait MAX after liquidation and buying */
-    private int MINUTES_TO_WAIT_FOR_EXECUTION = 5;
+    public static int MINUTES_TO_WAIT_FOR_EXECUTION = 5;	// TODO - move to Trader
     
 
     
@@ -200,7 +201,6 @@ if (DayTrader_T.d_getRTData) {
                  */
                 if (time.after(buyTime)) {
 
-
                 	// We need to conclude todays business by selling any remaining stocks
                 	// Then calculate our net position for today
                 	
@@ -212,8 +212,8 @@ if (DayTrader_T.d_getRTData) {
                     //if the money isn't instantly credited what do we do? how do we buy additional positions?
                     //what is we can't sell a position? how are we going to handle that?
 
-					// first, get the most recent RT data
-					marketDataManager.getRealTimeQuotes();
+					// first, get the most recent RT data (not necessary - we just got it)
+					//marketDataManager.getRealTimeQuotes();
 
 					trader.liquidateHoldings();
 
@@ -230,10 +230,13 @@ if ( DayTrader_T.d_takeSnapshot) {
 					}
 }
 
-
 					// hang around a while so we can check if the orders
 					// have been filled. If we still have partially/unfilled sell orders,
 					// we'll deal with them tomorrow, or manually
+					// (they'll be in the daily reports and email)
+					trader.waitForLiquidateCompletion();
+
+if (false) {
 if (DayTrader_T.d_useIB) {
 					int nRemaining = 1;   // this is arbitrary
 					int retryCount = (MINUTES_TO_WAIT_FOR_EXECUTION * MIN_IN_HOUR)/10;
@@ -250,6 +253,8 @@ if (DayTrader_T.d_useIB) {
 					}
 					trader.logRemaining("SELL", remaining);	
 }  // useIB
+}
+
 					// for what we just liquidated
 					tCalculator.calculateNet();
 					
@@ -269,24 +274,21 @@ if (DayTrader_T.d_useIB) {
                     // save in log file
                     logCandidates(losers);
 
-                    
-                    // TODO: combine these two methods?
                     // Finally, update Holdings Table w/tomorrows candidates
-                    databaseManager.addHoldings(losers);
+                    // positions are calculated here based on EOD prices
+                    databaseManager.addHoldings(losers);          
                     
-                    // calculate buy positions (buy price and volume) and set initial fill/remaining
-                    //---trader.updateBuyPositions(losers);
-                    
-                    // Now buy them - this will wait a bit for immediate fills
-                    // any that arent bought will be cancelled
+                    // Now buy them
                     trader.buyHoldings();
                      
 					// hang around a while so we can check if the orders
-					// have been filled.If we wait around long enough, the unfilled
-                    // ones should fill  but if we're too close to the end of the day,
+					// have been filled. If we wait around long enough, the unfilled
+                    // ones should fill but if we're too close to the end of the day,
                     // and we still have partially/unfilled buy orders,
 					// cancel the remaining and adjust buy volume/remaining
-                    
+                    trader.waitForBuyCompletion();
+
+if (false) {                    
 if (DayTrader_T.d_useIB) {
 					int nRemaining = 1;   // this is arbitrary
 					int retryCount = (MINUTES_TO_WAIT_FOR_EXECUTION * MIN_IN_HOUR)/10;
@@ -310,10 +312,11 @@ if (DayTrader_T.d_useIB) {
 						trader.cancelBuyOrders();
 					}
 }
+}
 
+					// reports and emails
                     ArrayList<String> attachments = new ArrayList<String>();
     
-                    // DayTrader_YYYY-MM-DD.rpt
                     String report = tCalculator.dailyReport();
                     if (report != null) { attachments.add(report); }
                     report = tCalculator.reconciliationReport();
@@ -323,7 +326,8 @@ if (DayTrader_T.d_useIB) {
                     
                     EmailManager_T emailMgr = (EmailManager_T) DayTrader_T.getManager(EmailManager_T.class);
                     emailMgr.sendEmail("Daily Reports", "Attached are the DayTrader daily reports.", attachments);
-                    
+
+
                     //set buy_time to tomorrow so we don't execute this block again
                     //TODO: Check that this works
                     buyTime.setTime(buyTime.getTime() + (MS_IN_MINUTE * MIN_IN_HOUR * 24));

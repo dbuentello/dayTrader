@@ -536,45 +536,7 @@ public class Holding_T implements Persistable_IF {
      * @throws HibernateException
      */
 
- 
-    // we need to update by symbol and date rather by holding id
-    // TODO: addHoldings could return the holdingIds
-    public int updateBuyPosition(long symId, Double price, int volume, Date date)  throws HibernateException {
-
-    	Session session = DatabaseManager_T.getSessionFactory().openSession();
-        Transaction tx = null;
-        
-        int nrows = 0;
-
-        try {
-        	tx = session.beginTransaction();
-
-        	String hql = "UPDATE trader.Holding_T " +
-        			"SET buyPrice = :buyPrice, volume = :buyVolume, " +
-        			"remaining = :buyVolume, orderStatus = :presubmitted " + 
-        			"WHERE symbolId = :sym AND buyDate >= :date";
-        	Query query = session.createQuery(hql);
-        	query.setDouble("buyPrice", price);
-        	query.setInteger("buyVolume", volume);
-           	query.setParameter("presubmitted", OrderStatus.PreSubmitted.toString());
-        	query.setParameter("sym", symId);
-        	query.setDate("date", date);
-
-        	int n = query.executeUpdate();
-             
-        	tx.commit();
-        } catch (HibernateException e) {
-        	//TODO: for now just print to stdout, we'll change this to a log file later
-        	e.printStackTrace();
-        	if (tx != null) tx.rollback();
-        } finally {
-        	session.close();
-        }        
-        
-        return nrows;
-    	
-    }   
-    
+   
     
     /**
      * Update the sell parameters (desired price and date) in the Holdings table

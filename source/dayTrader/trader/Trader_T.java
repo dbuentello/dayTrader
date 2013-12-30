@@ -42,6 +42,8 @@ import exceptions.ConnectionException;
 public class Trader_T {
   /* {src_lang=Java}*/
 
+    private final int MIN_IN_HOUR = 60;
+    
     /** Minimum number of shares a security has to trade for us to buy. */
     public static double MIN_TRADE_VOLUME = 10000;  //SALxx was int - needs to agree w/ DB definition
     /** Minimum price for a security for us to buy it. */
@@ -283,6 +285,31 @@ if (DayTrader_T.d_useIB) {
         return nOrdersPlaced;
     }
 
+    /**
+     * Wait until all remaining holdings are sold
+     *
+     */
+    public void waitForLiquidateCompletion() {
+    	
+if (!DayTrader_T.d_useIB) return;
+
+		int nRemaining = 1;   			// TODO move \/ from tmgr
+		int retryCount = (TimeManager_T.MINUTES_TO_WAIT_FOR_EXECUTION * MIN_IN_HOUR)/10;
+					
+		List<Holding_T> remaining=null;
+		while (nRemaining != 0 && retryCount != 0) {
+			try { Thread.sleep(10000); }
+			catch (InterruptedException e) { e.printStackTrace(); }
+			retryCount--;
+
+			remaining = allSold();
+			nRemaining = remaining.size();
+		}
+		
+		logRemaining("SELL", remaining);
+		
+    }
+    
     
     /**
      * Determine if we should sell - trailing sell algorithm
@@ -519,76 +546,7 @@ else
         return nrows;
     }
    
-    // TODO - remove this
-    /**
-     * update our Holdings db with buy position of the the stocks we want to buy today
- 	 * buy price, #of share, [from total $ amt]
-	 * calculate how much of each stock to buy
-	 * volume is declared as INT so only full shares are bought
-	 * initialized filled to 0 (DB default) and remaining to volume
-	 * (fill is counted up on buy, remaining is counted down on sell)
-     */
-    public synchronized void updateBuyPositions(List<Symbol_T> losers)
-    {
-    	// how much $$ do we have to work with?
-    	// use equal dollar amount for each holding (rounded to full shares)
-        
-        //calculate the amount in dollars that we're allowed to buy
-        // TODO: we should do this before we get here and have it stored in the DB
-        //double buyAmount = (acct.getBalance() - MIN_ACCOUNT_BALANCE) / MAX_BUY_POSITIONS;  
 
- 
-    	double totalCapital = tCalculator.getCapital();
-    	double buyTotal = totalCapital/Trader_T.MAX_BUY_POSITIONS;
-
-        Iterator<Symbol_T> it = losers.iterator();
-        while (it.hasNext()) {
-            Symbol_T symbol = it.next();
-      
-            // get the current ask/buy price from EOD
-            double buyPrice = databaseManager.getEODAskPrice(symbol);
-            int buyVolume = (int)(buyTotal/buyPrice);
-            double adjustedBuyTotal = buyVolume * buyPrice;
-    	
-
-           // TODO/DONE: put this as a Holding_T method updateBuyPosition(symId, price, vol, date)
-/***SALxx
-            Holding_T h = new Holding_T();		// just a container
-            h.updateBuyPosition(symbol.getId(), buyPrice, buyVolume, timeManager.getCurrentTradeDate());
-***/           
-            Session session = DatabaseManager_T.getSessionFactory().openSession();
-
-            // updates must be within a transaction
-            Transaction tx = null;
-        
-            try {
-            	tx = session.beginTransaction();
-
-            	String hql = "UPDATE trader.Holding_T " +
-            			"SET buyPrice = :buyPrice, volume = :buyVolume, " +
-            			"remaining = :buyVolume, orderStatus = :presubmitted  " + 
-            			"WHERE symbolId = :sym AND buyDate >= :date";
-            	Query query = session.createQuery(hql);
-            	query.setDouble("buyPrice", buyPrice);
-            	query.setInteger("buyVolume", buyVolume);
-            	query.setParameter("presubmitted", OrderStatus.PreSubmitted.toString());
-            	query.setParameter("sym", symbol.getId());
-            	query.setDate("date", timeManager.getCurrentTradeDate());
-
-            	int n = query.executeUpdate();
-                 
-            	tx.commit();
-            } catch (HibernateException e) {
-            	//TODO: for now just print to stdout, we'll change this to a log file later
-            	e.printStackTrace();
-            	if (tx != null) tx.rollback();
-            } finally {
-            	session.close();
-            }
-            
-        }
-        
-    }
 
     /**
      * Buy todays holdings
@@ -639,7 +597,38 @@ if (DayTrader_T.d_useIB) {
         return holdings.size();
         
     }
+    /**
+	 * check if the buy orders have been filled. If we wait around long enough,
+     * the unfilled ones should fill in a reasonable amount of time.
+     * If we still have partially/unfilled buy orders,
+	 * cancel the remaining and adjust buy volume/remaining
+	 */
+    public void waitForBuyCompletion() {
+    
+if (!DayTrader_T.d_useIB) return;
 
+		int nRemaining = 1;				// TODO move \/ from tmgr
+		int retryCount = (TimeManager_T.MINUTES_TO_WAIT_FOR_EXECUTION * MIN_IN_HOUR)/10;
+	
+		List<Holding_T> remaining= null;
+	
+		while (nRemaining != 0 && retryCount != 0) {
+	    	try { Thread.sleep(10000); }
+	        catch (InterruptedException e) { e.printStackTrace(); }
+	    	retryCount--;
+		
+	    	remaining = allBought();
+	    	nRemaining = remaining.size();
+		}
+		logRemaining("BUY", remaining);
+	
+		if (nRemaining > 0 ) {
+
+			// Cancel remainder of the open buys and adjust volume
+			cancelBuyOrders();
+		}
+
+    }
 
     
     /***************** Trade Execution ************************/

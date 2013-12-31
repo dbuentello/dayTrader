@@ -564,12 +564,16 @@ else
      */
     public int buyHoldings() {
     	
+    	int nHoldingsBought = 0;
+    	
     	List<Holding_T> holdings = databaseManager.getCurrentHoldings(timeManager.getCurrentTradeDate());
  
         Iterator<Holding_T> it = holdings.iterator();
         while (it.hasNext()) {
             Holding_T holding = it.next();
 
+            // this is to ensure we dont sell it again (eg on a restart)
+            if (!holding.isSellPending()) continue;
             
 if (DayTrader_T.d_useIB) {
    			// update the holding with the order and contract
@@ -595,10 +599,11 @@ if (DayTrader_T.d_useIB) {
             Log.println("[DEBUG] Placing BUY order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") ");
 
 }
-            
+			nHoldingsBought++;
+			
         }  // next holding
         
-        return holdings.size();
+        return nHoldingsBought;
         
     }
     /**

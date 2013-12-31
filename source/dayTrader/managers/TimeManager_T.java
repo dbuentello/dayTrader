@@ -59,7 +59,10 @@ public class TimeManager_T implements Manager_IF, Runnable {
     /** how long we should wait MAX after liquidation and buying */
     public static int MINUTES_TO_WAIT_FOR_EXECUTION = 5;	// TODO - move to Trader
     
-
+//SALxx
+    public static boolean g_buyToday = true;
+    public static boolean g_useMarketPrice = true;
+//SALxx
     
     /** A reference to the java Calendar class used to format and convert Date objects. */
     private static Calendar calendar;
@@ -129,7 +132,8 @@ public class TimeManager_T implements Manager_IF, Runnable {
 //trader.liquidateHoldings();
 //boolean b = trader.buyHoldings();
 //trader.getOutstandingOrders();
-//boolean b = trader.liquidateHoldings();
+//boolean b = trader.liquidateHoldings();            		
+//tCalculator.calculateRealizedNet();
 //tCalculator.dailyReport();
 //tCalculator.reconciliationReport();
 //tCalculator.ibPNLReport();
@@ -150,6 +154,19 @@ if (DayTrader_T.d_useIB) {
    		Log.println("There are "+nOutstandingOrders+" Outstanding Orders");
 }
 
+//SALxx
+	if (g_buyToday) {
+        // first thing, buy the holdings we identified yesterday
+		// this has a failsafe to be sure we dont buy twice
+        if (trader.buyHoldings() != 0) {
+         
+        	// wait a reasonable amount of time for buys to complete
+        	// if we still have partially/unfilled buy orders,
+        	// cancel the remaining and adjust buy volume/remaining
+        	trader.waitForBuyCompletion();
+        }
+	}
+//SALxx
 
         while (running) {
 
@@ -236,24 +253,6 @@ if ( DayTrader_T.d_takeSnapshot) {
 					// (they'll be in the daily reports and email)
 					trader.waitForLiquidateCompletion();
 
-if (false) {
-if (DayTrader_T.d_useIB) {
-					int nRemaining = 1;   // this is arbitrary
-					int retryCount = (MINUTES_TO_WAIT_FOR_EXECUTION * MIN_IN_HOUR)/10;
-					// TODO: wait until 10 minutes? before market close
-					
-					List<Holding_T> remaining=null;
-					while (nRemaining != 0 && retryCount != 0) {
-						try { Thread.sleep(10000); }
-						catch (InterruptedException e) { e.printStackTrace(); }
-						retryCount--;
-		
-						remaining = trader.allSold();
-						nRemaining = remaining.size();
-					}
-					trader.logRemaining("SELL", remaining);	
-}  // useIB
-}
 
 					// for what we just liquidated
 					tCalculator.calculateNet();
@@ -277,7 +276,10 @@ if (DayTrader_T.d_useIB) {
                     // Finally, update Holdings Table w/tomorrows candidates
                     // positions are calculated here based on EOD prices
                     databaseManager.addHoldings(losers);          
-                    
+                  
+//SALxx
+if (!g_buyToday) {
+
                     // Now buy them
                     trader.buyHoldings();
                      
@@ -287,34 +289,11 @@ if (DayTrader_T.d_useIB) {
                     // and we still have partially/unfilled buy orders,
 					// cancel the remaining and adjust buy volume/remaining
                     trader.waitForBuyCompletion();
+} //SALxx
 
-if (false) {                    
-if (DayTrader_T.d_useIB) {
-					int nRemaining = 1;   // this is arbitrary
-					int retryCount = (MINUTES_TO_WAIT_FOR_EXECUTION * MIN_IN_HOUR)/10;
-					// TODO: or wait until 2 minutes before market close
-					
-					List<Holding_T> remaining= null;
-					
-					while (nRemaining != 0 && retryCount != 0) {
-			   	    	try { Thread.sleep(10000); }
-			   	        catch (InterruptedException e) { e.printStackTrace(); }
-						retryCount--;
-						
-						remaining = trader.allBought();
-						nRemaining = remaining.size();
-					}
-					trader.logRemaining("BUY", remaining);
-					
-					if (nRemaining > 0 ) {
-
-						// Cancel remainder of the open buys and adjust volume
-						trader.cancelBuyOrders();
-					}
-}
-}
 
 					// reports and emails
+					Log.println("Creating reports and emails...");
                     ArrayList<String> attachments = new ArrayList<String>();
     
                     String report = tCalculator.dailyReport();
@@ -613,7 +592,10 @@ else  //SALxx - get system time
      */
     public Date getPreviousTradeDate()
     {
-    	
+//SALxx
+    	if (g_buyToday) return getCurrentTradeDate();
+//SALxx
+ 
     	//SELECT date, market_is_open FROM calendar WHERE date BETWEEN DATE_ADD(\"$date\", INTERVAL -8 DAY) AND DATE_ADD(\"$date\", INTERVAL -1 DAY) ORDER BY date DESC
         Session session = DatabaseManager_T.getSessionFactory().openSession();
         

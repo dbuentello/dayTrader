@@ -226,7 +226,10 @@ if (!DayTrader_T.d_useIB) {
         	// update these two fields... the date is a trigger field, desired price is for stats
         	// (and place order if we ever do a LMT order)
             double desiredPrice  = databaseManager.getCurrentBidPrice(holding.getSymbol());	// the price now
-	           
+//SALxx
+    if (TimeManager_T.g_useMarketPrice) desiredPrice = databaseManager.getCurrentPrice(holding.getSymbol());
+//SALxx
+            
             holding.setSellDate(date);
             holding.setSellPrice(desiredPrice);
             //holding.insertOrUpdate(); //SAL why dont either of these worK??? TODO
@@ -344,12 +347,13 @@ if (!DayTrader_T.d_useIB) return;
         	// check if its already sold or sell has been initiated
         	if (holding.isSelling() || holding.isSold())
         		continue;
-        	
-        	//double price = data.getPrice();			// current RT price
-        	double price = data.getBidPrice();			// current RT Bid (sell) price
-        	        	
-        	double buyPrice = holding.getActualBuyPrice();		// our holdings buy (ask) price
-        	
+
+        	double price = data.getBidPrice();				// current RT Bid (sell) price
+//SALxx
+   if (TimeManager_T.g_useMarketPrice) price = data.getPrice();	// current RT price
+//SALxx
+     	        	
+        	double buyPrice = holding.getActualBuyPrice();	// our holdings buy (ask) price
 
 			// determine if we should sell using a hard stop loss limit
 			// and trailing sell algorithm to maximize gain while limiting

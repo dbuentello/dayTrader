@@ -522,27 +522,10 @@ public class Holding_T implements Persistable_IF {
         return exists;
     }
 
-    // TODO - replace from trader.updateBuyPositions
-    /**
-     * Update the buy parameters (desired price, volume and date) for this symbol for the most
-     * recent entry for this symbol in the Holdings table.
-     * Also set the status to "PreSubmitted"
-     * 
-     * @param symId
-     * @param price
-     * @param volume
-     * @param date
-     * @return
-     * @throws HibernateException
-     */
-
-   
+  
     
     /**
      * Update the sell parameters (desired price and date) in the Holdings table
-     * SALxx---for this symbol for the most
-     * ---recent entry for this symbol.  Its sell date will be null
-     * ---before it is updated - that is the trigger
      * Also set the status to "PreSubmitted"
      * 
      * @param symId

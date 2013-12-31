@@ -1059,7 +1059,6 @@ public class Holding_T implements Persistable_IF {
         
     }
 
-
     /**
      * Return true if we are in the process of selling this position, otherwise return false
      * we're selling if there is a sell date and there are still shares remaining
@@ -1068,6 +1067,15 @@ public class Holding_T implements Persistable_IF {
     public boolean isSelling() {
         
         return ((orderId2 != 0) && (sellDate != null) && (remaining != 0));
+    }
+
+    /**
+     * Return true if we have not yet initiated or completed a Sell, otherwise return false
+     */
+    @Transient
+    public boolean isSellPending() {
+        
+        return (orderId == 0);
     }
 
     /**

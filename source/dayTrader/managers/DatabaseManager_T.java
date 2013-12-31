@@ -300,8 +300,9 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
 //--            	continue;
 //            }
             
+//			WHAT does a - spread indicate?  (bid(Sell) is > ask(Buy) - thats good isnt it?
 //            double spread = (quote.getAskPrice() - quote.getBidPrice())/((quote.getAskPrice() + quote.getBidPrice())/2);
-//            if (spread < Trader_T.BUY_SPREAD_LIMIT) {
+//            if (Math.abs(spread) > Trader_T.BUY_SPREAD_LIMIT) {
 //System.out.println("[DEBUG] Spread "+spread+" is too large for "+quote.getSymbol().getSymbol()+" $"+quote.getLastPrice()+"  $"+quote.getAskPrice()+"/$"+quote.getBidPrice());
 //--            	continue;
 //            }
@@ -342,6 +343,10 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
     		date = timeManager.getCurrentTradeDate();
     	else
     		date = timeManager.TimeNow();
+
+//SALxx
+    if (TimeManager_T.g_buyToday) date = timeManager.getNextTradeDate();
+//SALxx
     	
     	// TODO - move this to a delete method
         Session session = getSessionFactory().openSession();
@@ -386,6 +391,9 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
             
             // get the current ask(buy) price from EOD and calc number of shares to buy
             double buyPrice = getEODAskPrice(symbol);
+//SALxx
+     if (TimeManager_T.g_useMarketPrice) buyPrice = getEODPrice(symbol);
+//SALxx
             int buyVolume = (int)(buyTotal/buyPrice);
             //double adjustedBuyTotal = buyVolume * buyPrice;
             
@@ -508,11 +516,11 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
     }
     
     /**
-     * Get todays End of Day Price for this symbol from EODQuote database
+     * Get End of Day Price for this symbol from EODQuote database
+     * This is the desired buy price (alternative to getEODAskPrice)
      * 
      * @return (double) price
-     */ 
-/*** NOT USED    
+     */   
     public double getEODPrice(Symbol_T symbol)
     {
     	Date date = timeManager.getCurrentTradeDate();
@@ -540,8 +548,43 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         return price;
             	
     }
-***/
-    
+
+    /**
+     * Get todays most recent Price for this symbol from RealTimeQuote database
+     * This is the desired sell price (alternative to getCurrentBidPrice)
+     * 
+     * @return (double) price
+     */ 
+    public double getCurrentPrice(Symbol_T symbol)
+    {
+    	Date date = timeManager.getCurrentTradeDate();
+    	
+    	//"SELECT price from EndOfDayQuotes where symbol = \"$symbol\" AND DATE(date) = \"$date\"";
+        Session session = getSessionFactory().openSession();
+        
+        Criteria criteria = session.createCriteria(RTData_T.class)
+            .add(Restrictions.between("date", date, Utilities_T.tomorrow(date)))
+            // TODO: RT still uses symbol, not symbolId!
+            .add(Restrictions.eq("symbol", symbol.getSymbol()))
+            .addOrder(Order.desc("date"))
+            .setMaxResults(1); 
+
+
+        @SuppressWarnings("unchecked")
+        List<RTData_T> quoteData = criteria.list();
+        
+        session.close();
+        
+        if (quoteData.size() != 1) {
+        	//Log.println("[ERROR] Bad Current Bid price for "+symbol.getSymbol());
+        	return 0.0;
+        }
+        
+        double price = quoteData.get(0).getPrice();
+        return price;
+            	
+    }
+
     /**
      * Get todays End of Day Ask Price for this symbol from EODQuote database
      * This is the desired buy price
@@ -551,7 +594,11 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
     public double getEODAskPrice(Symbol_T symbol)
     {
     	Date date = timeManager.getCurrentTradeDate();
-    	
+
+//SALxx
+    if (TimeManager_T.g_buyToday) date = timeManager.getPreviousTradeDate();
+//SALxx
+    
     	//"SELECT price from EndOfDayQuotes where symbol = \"$symbol\" AND DATE(date) = \"$date\"";
         Session session = getSessionFactory().openSession();
         
@@ -731,7 +778,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         
         time = System.currentTimeMillis() - time;
         time /= 1000;
-        System.out.println("time to execute = " + time + " sconds");
+        System.out.println("time to execute updateSymbolAverages = " + time + " seconds");
         tx.commit();
         session.close();
         

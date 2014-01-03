@@ -52,6 +52,13 @@ my $db_passwd = "r00t";
   print "\nconnecting to $db_name database...";
   my $connection = DBI->connect( "DBI:mysql:database=$db_name;host=localhost", $db_user, $db_passwd, {'RaiseError' => 1} );
 
+	#before we do anything, lets make sure the market is open today...
+  my $isOpen = isMarketOpen();
+  if ($isOpen != 1) {
+    print "\nMarket is not open today.  Bye.\n";
+    exit;
+  }
+
 	###################################
   # connect to TD Ameritrade
 	###################################
@@ -550,4 +557,18 @@ sub getMarketClose
 
   return $data[1];
 
+}
+
+
+sub isMarketOpen
+{
+
+  my $stmt = "SELECT date, is_market_open FROM calendar WHERE date=CURRENT_DATE()";
+
+  my $db = $connection->prepare($stmt);
+  $db->execute();
+  my $sql_result = $db->fetchrow_hashref();
+  $db->finish();
+
+  return ($sql_result->{'is_market_open'});
 }

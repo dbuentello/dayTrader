@@ -53,8 +53,8 @@ my $db_passwd = "r00t";
   my $connection = DBI->connect( "DBI:mysql:database=$db_name;host=localhost", $db_user, $db_passwd, {'RaiseError' => 1} );
 
 	#before we do anything, lets make sure the market is open today...
-  my $isOpen = isMarketOpen();
-  if ($isOpen != 1) {
+  my $isMarketOpen = isMarketOpen();
+  if ($isMarketOpen != 1) {
     print "\nMarket is not open today.  Bye.\n";
     exit;
   }
@@ -163,11 +163,11 @@ print "Retrieving RealTimeQuotes...\n";
 
   # get EndOfDay Quotes and update EODQuotes table (using last-trade-date and last trade price)
   print "\nGetting todays quotes...\n";
-#  getEODQuotes();
+  getEODQuotes();
 
 
   # now we can calculate todays biggest losers
- # biggestLosers();
+  biggestLosers();
 
   #logout from TD Ameritrade
 	$url = $tdapi_base.'LogOut;jsessionId='.$sessionId.'?'.$sourceId;
@@ -563,7 +563,7 @@ sub getMarketClose
 sub isMarketOpen
 {
 
-  my $stmt = "SELECT date, is_market_open FROM calendar WHERE date=CURRENT_DATE()";
+  my $stmt = "SELECT date, is_market_open FROM calendar WHERE date = DATE(CONVERT_TZ(CURRENT_TIMESTAMP(), \"+00:00\", \"-05:00\"))";
 
   my $db = $connection->prepare($stmt);
   $db->execute();

@@ -97,6 +97,8 @@ my $db_passwd = "r00t";
 	);
 	my $marketOpen = $parser->parse_datetime(getMarketOpen());
 	my $marketClose = $parser->parse_datetime(getMarketClose());
+	my $preMarketClose = $parser->parse_datetime(getMarketClose());
+	$preMarketClose->subtract(minutes => 18);
 
 	while ($currentTime < $marketOpen) {
 		sleep(30);
@@ -158,13 +160,13 @@ print "Retrieving RealTimeQuotes...\n";
 	
 		sleep(5*60);		
 		$currentTime = DateTime->now(time_zone => "-0500");
+
+		if ($currentTime > $preMarketClose) {
+  		# get EndOfDay Quotes and update EODQuotes table (using last-trade-date and last trade price)
+		  print "\nGetting todays quotes at $currentTime...\n";
+		  getEODQuotes();
+		}
 	}
-
-
-  # get EndOfDay Quotes and update EODQuotes table (using last-trade-date and last trade price)
-  print "\nGetting todays quotes...\n";
-  getEODQuotes();
-
 
   # now we can calculate todays biggest losers
   biggestLosers();

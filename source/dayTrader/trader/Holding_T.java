@@ -1070,12 +1070,21 @@ public class Holding_T implements Persistable_IF {
     }
 
     /**
+     * Return true if we have not yet initiated or completed a Buy, otherwise return false
+     */
+    @Transient
+    public boolean isBuyPending() {
+        
+        return (orderId == 0);
+    }
+
+    /**
      * Return true if we have not yet initiated or completed a Sell, otherwise return false
      */
     @Transient
     public boolean isSellPending() {
         
-        return (orderId == 0);
+        return (orderId2 == 0);
     }
 
     /**

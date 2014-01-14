@@ -60,8 +60,12 @@ public class TimeManager_T implements Manager_IF, Runnable {
     public static int MINUTES_TO_WAIT_FOR_EXECUTION = 5;	// TODO - move to Trader
     
 //SALxx
-    public static boolean g_buyToday = true;
+    public static boolean g_buyToday = false;
+    public static boolean g_buyOnSpread = true;		// mutually exclusive with above
+    												// but we still buy today
     public static boolean g_useMarketPrice = true;
+    
+    private static boolean d_simulate = false;		// mutually exclusive with useIB
 //SALxx
     
     /** A reference to the java Calendar class used to format and convert Date objects. */
@@ -103,7 +107,12 @@ public class TimeManager_T implements Manager_IF, Runnable {
     
 
     public void run() {
-        
+
+if (d_simulate) {
+	Simulate();
+	return;
+}
+
         boolean running = true;
 
         Log.println("\n*** Day Trader "+VERSION+" has started at "+TimeNow()+" ***\n");
@@ -201,8 +210,16 @@ if (DayTrader_T.d_getRTData) {
 				// check that is has completely sold
             	if (time.after(prevScanTime))
             	{
-            		List <RTData_T> rtData = marketDataManager.getRealTimeQuotes();
             		
+            		List <RTData_T> rtData = marketDataManager.getRealTimeQuotes();
+
+if (g_buyOnSpread) {
+					// determine if its time to buy... maybe we need to put a limit
+					// on this, like before noon.  We still need to cancel any orders
+					// that were placed, but werent filled.
+					trader.shouldWeBuy(rtData);
+}
+
             		trader.shouldWeSell(rtData);
 					tCalculator.calculateNet();
             		
@@ -210,7 +227,7 @@ if (DayTrader_T.d_getRTData) {
             	}
 }
                 /*
-                 * At the dtConfig_test.xml~end of the market day, perform the following 
+                 * At the end of the market day, perform the following 
                  * 1. get a market snapshot
                  * 2. sell any outstanding positions we're still holding 
                  * 3. identify the positions we want to buy
@@ -231,6 +248,12 @@ if (DayTrader_T.d_getRTData) {
 
 					// first, get the most recent RT data (not necessary - we just got it)
 					//marketDataManager.getRealTimeQuotes();
+
+if (g_buyOnSpread) {
+					// If there were any outstanding buys that didnt fill
+					trader.cancelBuyOrders();
+}
+
 
 					trader.liquidateHoldings();
 
@@ -278,7 +301,7 @@ if ( DayTrader_T.d_takeSnapshot) {
                     databaseManager.addHoldings(losers);          
                   
 //SALxx
-if (!g_buyToday) {
+if (!g_buyToday && !g_buyOnSpread) {
 
                     // Now buy them
                     trader.buyHoldings();
@@ -312,6 +335,7 @@ if (!g_buyToday) {
                     buyTime.setTime(buyTime.getTime() + (MS_IN_MINUTE * MIN_IN_HOUR * 24));
                     
                     //re-calculate the 15 day moving average. This can take a while
+                    System.out.println("Calculating moving averages.  Pleas wait.");
                     databaseManager.updateSymbolAverages();
 
                     
@@ -593,11 +617,9 @@ else  //SALxx - get system time
     public Date getPreviousTradeDate()
     {
 //SALxx
-    	if (g_buyToday) return getCurrentTradeDate();
+    	if (g_buyToday || g_buyOnSpread) return getCurrentTradeDate();
 //SALxx
- 
-    	//SELECT date, market_is_open FROM calendar WHERE date BETWEEN DATE_ADD(\"$date\", INTERVAL -8 DAY) AND DATE_ADD(\"$date\", INTERVAL -1 DAY) ORDER BY date DESC
-        Session session = DatabaseManager_T.getSessionFactory().openSession();
+    	
         
         Calendar c = Calendar.getInstance();
         c.setTime(getCurrentTradeDate());
@@ -606,6 +628,9 @@ else  //SALxx - get system time
         
         c.add(Calendar.DATE, -7);
         Date lastWeek = c.getTime();      
+
+    	//SELECT date, market_is_open FROM calendar WHERE date BETWEEN DATE_ADD(\"$date\", INTERVAL -8 DAY) AND DATE_ADD(\"$date\", INTERVAL -1 DAY) ORDER BY date DESC
+        Session session = DatabaseManager_T.getSessionFactory().openSession();
 
         Criteria criteria = session.createCriteria(Calendar_T.class)
             .add(Restrictions.between("date", lastWeek, yesterday))        		
@@ -679,5 +704,92 @@ else  //SALxx - get system time
     }
 
 
-}
 
+
+/************************************************************************/
+    private void Simulate()
+    {
+        boolean running = true;
+
+        Log.println("\n*** Simulated Day Trader "+VERSION+" has started at "+TimeNow()+" ***\n");
+
+        /*
+         * This loop will update the application time every three seconds and when a trigger time is reached
+         * execute the appropriate actions. Triggers times can be the market open, a specified buy time,
+         * and the market close.
+         */
+
+
+        // get the list of symbols for todays Holdings
+        List<Symbol_T> symbols = databaseManager.getHoldingsSymbols();
+        
+        // for each symbol
+        Iterator<Symbol_T> it = symbols.iterator();
+        while (it.hasNext()) {
+            Symbol_T symbol = it.next();
+        		
+            List<RTData_T> simulatedRTData = getSimulatedRTData(symbol.getSymbol());
+            
+            // for each RT scan
+            Iterator<RTData_T> itd = simulatedRTData.iterator();
+            while (itd.hasNext()) {
+                RTData_T d = itd.next();    
+       			
+                // we need a list of one...
+                ArrayList<RTData_T> rtData = new ArrayList<RTData_T>();
+                rtData.add(d);
+               
+
+//if (g_buyOnSpread) {
+					// determine if its time to buy... maybe we need to put a limit
+					// on this, like before noon.  We still need to cancel any orders
+					// that were placed, but werent filled.
+					trader.shouldWeBuy(rtData);
+//}
+
+            	trader.shouldWeSell(rtData);
+
+            } // next scan
+            
+			tCalculator.calculateNet();
+			
+        } // next symbol
+            	
+        trader.liquidateHoldings();
+
+		// for what we just liquidated
+		tCalculator.calculateNet();
+					
+        // now we can calculate total net (how much we gained/lost)
+		// for the end of the day
+		tCalculator.calculateRealizedNet();
+
+		tCalculator.dailyReport();
+   	
+    }
+    
+    /*  select * from RealTimeQuotes where DATE(date) = "date" and symbol = "symbol" order by date;
+    */
+    public List <RTData_T>  getSimulatedRTData(String symbol)
+	{
+    	Date date = getCurrentTradeDate();  	
+    	
+
+    	Session session = databaseManager.getSessionFactory().openSession();
+          
+    	Criteria criteria = session.createCriteria(RTData_T.class)
+        .add(Restrictions.between("date", date, Utilities_T.tomorrow(date) ))
+        .add(Restrictions.eq("symbol", symbol));         
+          
+         @SuppressWarnings("unchecked")
+         List<RTData_T> rtData = criteria.list();
+          
+         session.close();
+    	
+    	 return rtData;
+	}
+
+
+/**************************************************************************/
+    
+}

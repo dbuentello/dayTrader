@@ -345,7 +345,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
     		date = timeManager.TimeNow();
 
 //SALxx
-    if (TimeManager_T.g_buyToday) date = timeManager.getNextTradeDate();
+    if (TimeManager_T.g_buyToday || TimeManager_T.g_buyOnSpread) date = timeManager.getNextTradeDate();
 //SALxx
     	
     	// TODO - move this to a delete method
@@ -596,7 +596,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
     	Date date = timeManager.getCurrentTradeDate();
 
 //SALxx
-    if (TimeManager_T.g_buyToday) date = timeManager.getPreviousTradeDate();
+    if (TimeManager_T.g_buyToday || TimeManager_T.g_buyOnSpread) date = timeManager.getPreviousTradeDate();
 //SALxx
     
     	//"SELECT price from EndOfDayQuotes where symbol = \"$symbol\" AND DATE(date) = \"$date\"";

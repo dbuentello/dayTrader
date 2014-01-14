@@ -313,6 +313,58 @@ if (!DayTrader_T.d_useIB) return;
 		
     }
     
+    /**
+     * Determine if we should buy this stock - the spread must be small enough
+     * to make it worth while
+     */
+    public void shouldWeBuy(List<RTData_T> rtData)
+    {
+    	// for development only
+    	Date date;
+    	if (!DayTrader_T.d_useSimulateDate.isEmpty())
+    		date = timeManager.getCurrentTradeDate();
+    	else
+    		date = timeManager.TimeNow();
+
+    	//for each holding
+        Iterator<RTData_T> it = rtData.iterator();
+        while (it.hasNext()) {
+        	RTData_T data = it.next();
+        	
+        	String symbol = data.getSymbol();		// TODO change RT table to symId!!
+        	Symbol_T sym = new Symbol_T(symbol);
+        	
+ 			// retrieve this holding
+ 			Holding_T holding = databaseManager.getCurrentHolding(sym.getId(), timeManager.getPreviousTradeDate());
+
+        	// first, determine if we can buy this holding - it must be a "new" holding
+        	if (!holding.isBuyPending()) {
+        		//Log.println("[INFO] Holding "+holding.getSymbolId()+" is already owned");
+        		continue;
+        	}
+
+        	double spread = (data.getAskPrice() - data.getBidPrice())/((data.getAskPrice() + data.getBidPrice())/2);
+        	
+        	double MAX_BUY_SPREAD = .0025;
+        	// dont buy if the spread is too large
+        	if (spread > MAX_BUY_SPREAD) {
+        		continue;
+        	}
+        	
+        	// OK, lets buy this one - this is asynchronous, but we cant sell until
+        	// we own it, so thats fine.  At some point during the day (or at the end)
+        	// we need to cancel outstanding buys.
+        	
+        	// update w/ desired buy price
+        	holding.setBuyPrice(data.getAskPrice());
+        	holding.updateOrderPosition();
+        	
+        	buyHolding(holding);
+        	
+        	
+        } // next holding
+        
+    }
     
     /**
      * Determine if we should sell - trailing sell algorithm
@@ -572,8 +624,8 @@ else
         while (it.hasNext()) {
             Holding_T holding = it.next();
 
-            // this is to ensure we dont sell it again (eg on a restart)
-            if (!holding.isSellPending()) continue;
+            // this is to ensure we dont buy it again (eg on a restart)
+            if (!holding.isBuyPending()) continue;
             
 if (DayTrader_T.d_useIB) {
    			// update the holding with the order and contract
@@ -606,6 +658,45 @@ if (DayTrader_T.d_useIB) {
         return nHoldingsBought;
         
     }
+    
+    /**
+     * buy one Holding
+     * @param holding
+     * @return true if buy order is placed
+     */
+    public boolean buyHolding(Holding_T holding) {
+    	
+            // this is to ensure we dont buy it again (eg on a restart)
+            if (!holding.isBuyPending()) return false;
+            
+if (DayTrader_T.d_useIB) {
+   			// update the holding with the order and contract
+   			holding = createMarketOrder(holding, Action.BUY);
+    		   			
+   			// place a sell order
+   	        brokerManager.placeOrder(holding);
+   	        
+            Log.println("[DEBUG] Placing BUY order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") "+
+        			"OrderId: "+holding.getOrderId());
+            
+            // persist
+            holding.updateOrderId("BUY", holding.getOrderId());
+ 	        
+} else {
+			// simulate the fields IB would fill in..
+			holding.setOrderId(-1);
+			holding.setActualBuyPrice(holding.getBuyPrice());
+			holding.setFilled(holding.getVolume());
+			holding.setOrderStatus("Filled");
+			holding.updateOrderPosition();
+	
+            Log.println("[DEBUG] Placing BUY order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") ");
+
+}
+
+		return true;     
+    }
+     
     /**
 	 * check if the buy orders have been filled. If we wait around long enough,
      * the unfilled ones should fill in a reasonable amount of time.
@@ -1139,6 +1230,10 @@ if (!DayTrader_T.d_useIB) return;
         Iterator<Holding_T> it = holdingData.iterator();
         while (it.hasNext()) {
         	Holding_T holding = it.next();
+        	
+        	// make sure its not a sell
+        	if (holding.getOrderId2() != 0)
+        		continue;
         	
        	    // do it - and check for response from orderStatus cb
     	    if (holding.getOrderId()!= 0)

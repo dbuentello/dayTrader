@@ -204,9 +204,9 @@ if (DayTrader_T.d_useIB) {
 	
         // TODO: use the following getLatestDailyNet() method
         
-        //"SELECT id, price from DailyNet ORDER BY date DESC LIMIT 1";
+        // get the most recent dailynet record
         criteria = session.createCriteria(DailyNet_T.class)
-        	.addOrder(Order.desc("date"))
+        	.addOrder(Order.desc("id"))
         	.setMaxResults(1);
 
         @SuppressWarnings("unchecked")
@@ -634,6 +634,7 @@ if (DayTrader_T.d_useIB) {
     	Double cumNet = 0.00;
     	long   cumVol = 0;
     	double commission = 0.00;
+    	long nStocks = 0;			// number actually transacted
     	
     	Date buyDate = timeManager.getPreviousTradeDate();
     	
@@ -692,6 +693,7 @@ if (DayTrader_T.d_useIB) {
         	report.println("\t$"+sellData.getLastPrice()+"\t$"+sellData.getAskPrice()+"/$"+sellData.getBidPrice()+"\t"+sellData.getVolume().longValue()+"\t"+holding.getOrderId2());
          	
         	if (holding.getNet() != null) {	// this order hasnt filled yet, dont count it
+        		nStocks++;
         		cumNet += net;
         		cumVol += volume;
                	report.println("\t\t\t\t[net: $"+net+"]");
@@ -706,7 +708,7 @@ if (DayTrader_T.d_useIB) {
                 
         cumNet = Utilities_T.round(cumNet);
         double netLessCommision =  Utilities_T.round(cumNet - commission*2);  //*2 = buy/sell
-        report.println("\nTotal Net: $"+netLessCommision+" on "+cumVol+" shares ($"+cumNet+" less commission)");
+        report.println("\nTotal Net: $"+netLessCommision+" on "+cumVol+" shares ($"+cumNet+" less commission) on "+nStocks+" holdings");
 
 
         //==================================

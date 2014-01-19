@@ -22,6 +22,7 @@ import trader.Holding_T;
 import trader.TraderCalculator_T;
 import trader.Trader_T;
 import util.Calendar_T;
+import util.MovingAverage_T;
 import util.Utilities_T;
 import util.XMLTags_T;
 import util.dtLogger_T;
@@ -48,7 +49,9 @@ public class TimeManager_T implements Manager_IF, Runnable {
 	/** Time in minutes before the close of the market day that we want to capture our snapshot of the market
      * and execute our buy orders.
      */
-    private int MINUTES_BEFORE_CLOSE_TO_BUY = 30;
+    private int MINUTES_BEFORE_CLOSE_TO_BUY = 20;			// TODO - not to buy, but to close todays transactions
+    private int LATEST_BUY_TIME = 45;						// minutes before close
+    
     /** The number of milliseconds in one minute. */
     private final int MS_IN_MINUTE = 1000 * 60;
     /** The number of minutes in one hour. */
@@ -59,13 +62,14 @@ public class TimeManager_T implements Manager_IF, Runnable {
     /** how long we should wait MAX after liquidation and buying */
     public static int MINUTES_TO_WAIT_FOR_EXECUTION = 5;	// TODO - move to Trader
     
-//SALxx
+//SALxx - testing
     public static boolean g_buyToday = false;
-    public static boolean g_buyOnSpread = true;		// mutually exclusive with above
-    												// but we still buy today
-    public static boolean g_useMarketPrice = true;
+    public static boolean g_buyOnSpread = false;		// mutually exclusive with above
+    													// but we still buy today
+    public static boolean g_useMarketPrice = true;	// for sells
+    public static boolean g_useRollingAvg = false;
     
-    private static boolean d_simulate = false;		// mutually exclusive with useIB
+    private static boolean d_simulate = true;		// mutually exclusive with useIB
 //SALxx
     
     /** A reference to the java Calendar class used to format and convert Date objects. */
@@ -80,6 +84,8 @@ public class TimeManager_T implements Manager_IF, Runnable {
     private static Date prevScanTime;
     /** The time we want to execute our buys. buyTime = calendar_t.marketClose() - MINUTES_BEFORE_CLOSE_TO_BUY */
     private Date buyTime;
+    /** latest time to execute buys */
+    private Date latestBuyTime;
     /** A reference to the MarketDataManager used to retrieve market information. */
     private MarketDataManager_T marketDataManager;
     /** A reference to the BrokerManager. */
@@ -217,7 +223,11 @@ if (g_buyOnSpread) {
 					// determine if its time to buy... maybe we need to put a limit
 					// on this, like before noon.  We still need to cancel any orders
 					// that were placed, but werent filled.
-					trader.shouldWeBuy(rtData);
+	
+    				// but not too late in the day
+					if (time.before(latestBuyTime)) {
+						trader.shouldWeBuy(rtData);
+					}
 }
 
             		trader.shouldWeSell(rtData);
@@ -298,7 +308,7 @@ if ( DayTrader_T.d_takeSnapshot) {
 
                     // Finally, update Holdings Table w/tomorrows candidates
                     // positions are calculated here based on EOD prices
-                    databaseManager.addHoldings(losers);          
+                    databaseManager.addHoldings(losers);
                   
 //SALxx
 if (!g_buyToday && !g_buyOnSpread) {
@@ -378,6 +388,7 @@ if (!g_buyToday && !g_buyOnSpread) {
         updateTime();
 
         this.buyTime = new Date(calendar_t.getCloseTime().getTime() - MINUTES_BEFORE_CLOSE_TO_BUY * MS_IN_MINUTE);
+        this.latestBuyTime = new Date(calendar_t.getCloseTime().getTime() - LATEST_BUY_TIME * MS_IN_MINUTE);
         
         // compensate for timezone, if necessary
         if (TZOffset != 0) {
@@ -385,6 +396,10 @@ if (!g_buyToday && !g_buyOnSpread) {
             c.setTime(this.buyTime);
             c.add(Calendar.HOUR, TZOffset);
             this.buyTime = c.getTime();
+            
+            c.setTime(this.latestBuyTime);
+            c.add(Calendar.HOUR, TZOffset);
+            this.latestBuyTime = c.getTime();
         }
         
         // for simulation, buy date is always before now
@@ -709,7 +724,12 @@ else  //SALxx - get system time
 /************************************************************************/
     private void Simulate()
     {
-        boolean running = true;
+    	
+    	time = Utilities_T.StringToDate(DayTrader_T.d_useSimulateDate);
+        calendar_t = (Calendar_T) databaseManager.query(Calendar_T.class, time);
+
+        latestBuyTime = new Date(calendar_t.getCloseTime().getTime() - LATEST_BUY_TIME * MS_IN_MINUTE);
+        
 
         Log.println("\n*** Simulated Day Trader "+VERSION+" has started at "+TimeNow()+" ***\n");
 
@@ -738,14 +758,18 @@ else  //SALxx - get system time
                 // we need a list of one...
                 ArrayList<RTData_T> rtData = new ArrayList<RTData_T>();
                 rtData.add(d);
+                
+                // add the prices to the rolling average
+                trader.rollingAverage(rtData);
                
-
-//if (g_buyOnSpread) {
-					// determine if its time to buy... maybe we need to put a limit
-					// on this, like before noon.  We still need to cancel any orders
-					// that were placed, but werent filled.
+				// determine if its time to buy... maybe we need to put a limit
+				// on this, like before noon.  We still need to cancel any orders
+				// that were placed, but werent filled.
+               
+                // but not too late in the day
+				if (d.getDate().before(latestBuyTime)) {
 					trader.shouldWeBuy(rtData);
-//}
+				}
 
             	trader.shouldWeSell(rtData);
 
@@ -765,8 +789,9 @@ else  //SALxx - get system time
 		tCalculator.calculateRealizedNet();
 
 		tCalculator.dailyReport();
-   	
+
     }
+
     
     /*  select * from RealTimeQuotes where DATE(date) = "date" and symbol = "symbol" order by date;
     */

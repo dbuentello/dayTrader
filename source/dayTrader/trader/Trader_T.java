@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 
 import managers.BrokerManager_T;
@@ -38,6 +39,7 @@ import com.ib.controller.Types.SecType;
 import dayTrader.DayTrader_T;
 import exceptions.ConnectionException;
 
+import util.MovingAverage_T;
 
 public class Trader_T {
   /* {src_lang=Java}*/
@@ -64,13 +66,11 @@ public class Trader_T {
     /** References to other classes we need */
     private BrokerManager_T     brokerManager;
     private DatabaseManager_T   databaseManager;
-    private MarketDataManager_T marketDataManager;
     private TimeManager_T       timeManager;
-    
-    private TraderCalculator_T  tCalculator;
     
     private dtLogger_T Log;  // shorthand
     
+    private Map<String, MovingAverage_T> movingAverages = new HashMap<String, MovingAverage_T>();
     
     public Trader_T() {
         
@@ -79,16 +79,15 @@ public class Trader_T {
         MIN_BUY_PRICE = Double.parseDouble(cfgMgr.getConfigParam(XMLTags_T.CFG_MIN_BUY_PRICE));
         MAX_BUY_POSITIONS = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_MAX_BUY_POSITIONS));
         BUY_SPREAD_LIMIT = Double.parseDouble(cfgMgr.getConfigParam(XMLTags_T.CFG_BUY_SPREAD_LIMIT));
+        PERCENT_INCREASE = Double.parseDouble(cfgMgr.getConfigParam(XMLTags_T.CFG_PERCENT_INCREASE));
+        PERCENT_DECREASE = Double.parseDouble(cfgMgr.getConfigParam(XMLTags_T.CFG_PERCENT_DECREASE));
         PERCENT_DECLINE = Double.parseDouble(cfgMgr.getConfigParam(XMLTags_T.CFG_PERCENT_DECLINE));
         
         brokerManager     = (BrokerManager_T) DayTrader_T.getManager(BrokerManager_T.class);
 	    databaseManager   = (DatabaseManager_T) DayTrader_T.getManager(DatabaseManager_T.class);
-	    marketDataManager = (MarketDataManager_T) DayTrader_T.getManager(MarketDataManager_T.class);
 	    timeManager       = (TimeManager_T) DayTrader_T.getManager(TimeManager_T.class);
 	    
-	    Log = DayTrader_T.dtLog;
-	    
-        tCalculator = new TraderCalculator_T(); 
+	    Log = DayTrader_T.dtLog; 
     }
 
     /**
@@ -317,6 +316,8 @@ if (!DayTrader_T.d_useIB) return;
      * Determine if we should buy this stock - the spread must be small enough
      * to make it worth while
      */
+    
+/***
     public void shouldWeBuy(List<RTData_T> rtData)
     {
     	// for development only
@@ -365,6 +366,80 @@ if (!DayTrader_T.d_useIB) return;
         } // next holding
         
     }
+***/
+    
+    /**
+     * Determine if we should buy this stock
+     *  - use a rolling average for trending and only buy on the positive trend
+     *  - the spread must be small enough to make it worth while
+     */
+
+    public void shouldWeBuy(List<RTData_T> rtData)
+    {
+    	// for each holding
+        Iterator<RTData_T> it = rtData.iterator();
+        while (it.hasNext()) {
+        	RTData_T data = it.next();
+        	
+        	String symbol = data.getSymbol();		// TODO change RT table to symId!!
+        	Symbol_T sym = new Symbol_T(symbol);
+        	
+ 			// retrieve this holding
+ 			Holding_T holding = databaseManager.getCurrentHolding(sym.getId(), timeManager.getPreviousTradeDate());
+
+        	// first, determine if we can buy this holding - it must be a "new" holding
+        	if (!holding.isBuyPending()) {
+        		//Log.println("[INFO] Holding "+holding.getSymbolId()+" is already owned");
+        		continue;
+        	}
+
+        	double spread = (data.getAskPrice() - data.getBidPrice())/((data.getAskPrice() + data.getBidPrice())/2);
+// extra debugging
+//Log.println("[DEBUG] >>"+data.getSymbol()+": spread= "+spread);
+
+        	double MAX_BUY_SPREAD = .0025;
+        	// dont buy if the spread is too large
+        	if (spread > MAX_BUY_SPREAD) {
+        		continue;
+        	}
+        	
+        	// OK, lets see if we should buy this one - only on a positive trend
+        	// the buy is asynchronous, but we cant sell until we own it, so thats fine.
+        	// At some point during the day (or at the end) we need to cancel outstanding buys.
+        	double MIN_TREND = 0;
+        	double MIN_CHANGE = .0025;
+        	
+        	double trend = getRollingTrend(holding.getSymbol().getSymbol());
+        	double rateOfChange = getRateOfChange(holding.getSymbol().getSymbol());
+// extra debugging
+//Log.println("[DEBUG] >>"+data.getSymbol()+": trend= "+trend+" RoC="+rateOfChange);
+
+        	if (trend <= MIN_TREND) {
+        		continue;
+        	}
+        	
+        	// ignore if not much change in either direction
+        	if (Math.abs(rateOfChange) <= MIN_CHANGE) {
+        		continue;
+        	}
+        	
+        	Log.println("[DEBUG]"+holding.getSymbol().getSymbol()+" ("+holding.getSymbolId()+"): Passed BUY criteria at "+data.getDate()+
+        			" trend= "+trend+" RoC="+rateOfChange); 
+        	
+        	// TODO: update w/ desired buy price and actual time of buy
+        	//holding.setBuyDate(data.getDate()); TODO... will only work if "buy_tdoay"
+        	holding.setBuyPrice(data.getAskPrice());
+        	
+        	// TODO: update DB with new desired price - cant use updatePosition,
+        	// as that only fills in actual price
+        	
+        	buyHolding(holding);
+        	
+        	
+        } // next holding
+        
+    }
+    
     
     /**
      * Determine if we should sell - trailing sell algorithm
@@ -403,6 +478,8 @@ if (!DayTrader_T.d_useIB) return;
         	double price = data.getBidPrice();				// current RT Bid (sell) price
 //SALxx
    if (TimeManager_T.g_useMarketPrice) price = data.getPrice();	// current RT price
+   if (TimeManager_T.g_useRollingAvg) price = getAvgPrice(data.getSymbol());	// most recent rolling avg price
+
 //SALxx
      	        	
         	double buyPrice = holding.getActualBuyPrice();	// our holdings buy (ask) price
@@ -431,8 +508,8 @@ if (!DayTrader_T.d_useIB) return;
 
 	 		boolean sell = false;
 
-double market = data.getPrice();
-Log.println("[DEBUG] >>"+sym.getSymbol()+": bid=$"+price+"(market= $"+market+" buy= $"+buyPrice+" range: $"+lower_limit+" - $"+upper_limit);
+// extra debugging
+//Log.println("[DEBUG] >>"+sym.getSymbol()+": bid=$"+data.getBidPrice()+"(market= $"+data.getPrice()+" avg= $"+getAvgPrice(data.getSymbol())+") buy= $"+buyPrice+" range: [$"+lower_limit+" - $"+upper_limit+"]");
 
 	 		// hard stop - limit losses
 	 		if (price < lower_limit) {
@@ -473,6 +550,7 @@ Log.println("[DEBUG] >>"+sym.getSymbol()+": Adjusting upper price limit from $"+
 	 		if (sell)
 	 		{	        	
 	        	// update these two fields... the date is a trigger field, desired price is for stats
+	 			
 	            holding.setSellDate(date);
 	            holding.setSellPrice(price);		// desired bid price - may be different when the trade is executed
 
@@ -514,12 +592,13 @@ else
 {
 				// fake it... set the status to filled, etc order id will be -1 to 
 				// indicate simulation, and other ids will be null (we could keep a simId variable in this class)
+				holding.setSellDate(data.getDate());
 				holding.setOrderId2(-1);
 				holding.setOrderStatus("Filled");
 		        holding.setRemaining(0);
 		        holding.setAvgFillPrice(holding.getSellPrice());
 
-	            Log.print("[DEBUG] Placing SELL order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") ");
+	            Log.println("[DEBUG] Placing SELL order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") ");
 
 		        if (holding.updateOrderPosition() == 0)
 		        	System.out.println("[WARNING] order status not updated in DB");
@@ -677,7 +756,7 @@ if (DayTrader_T.d_useIB) {
    	        brokerManager.placeOrder(holding);
    	        
             Log.println("[DEBUG] Placing BUY order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") "+
-        			"OrderId: "+holding.getOrderId());
+        			"OrderId: "+holding.getOrderId()+" at "+holding.getBuyDate());
             
             // persist
             holding.updateOrderId("BUY", holding.getOrderId());
@@ -690,7 +769,7 @@ if (DayTrader_T.d_useIB) {
 			holding.setOrderStatus("Filled");
 			holding.updateOrderPosition();
 	
-            Log.println("[DEBUG] Placing BUY order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") ");
+            Log.println("[DEBUG] Placing BUY order for " + holding.getSymbolId() + " ("+holding.getSymbol().getSymbol()+") at "+holding.getBuyDate());
 
 }
 
@@ -1253,7 +1332,54 @@ if (!DayTrader_T.d_useIB) return;
         return holdingData.size();
     }
 
+    /************  Averaging ************************/
     
+    /**
+     * add data to rolling averages - use actual price
+     *   an alternative is to use ask price during buy, bid price during sell
+     *   
+     * @param rtData
+     */
+    public void rollingAverage(ArrayList<RTData_T> rtData) {
+    	int WINDOW_SIZE = 5;
+    	
+    	Iterator <RTData_T> it = rtData.iterator();
+    	while (it.hasNext()) {
+    		RTData_T d = it.next();
+    		
+    		// first time - initialize
+    		if (!movingAverages.containsKey(d.getSymbol())) {
+    			MovingAverage_T sma = new MovingAverage_T(WINDOW_SIZE);
+    			movingAverages.put(d.getSymbol(), sma);
+    		}
+    		
+    		MovingAverage_T sma = movingAverages.get(d.getSymbol());
+    		sma.newNum(d.getPrice());
+    		movingAverages.put(d.getSymbol(), sma);
+    	}
+    }
+    
+    public double getAvgPrice(String symbol)
+    {
+    	MovingAverage_T sma = movingAverages.get(symbol);
+    	
+    	return sma.getAvg();
+    }
+    
+    public double getRollingTrend(String symbol)
+    {
+    	MovingAverage_T sma = movingAverages.get(symbol);
+    	
+    	return sma.getRollingTrend();
+    }
+
+    public double getRateOfChange(String symbol)
+    {
+    	MovingAverage_T sma = movingAverages.get(symbol);
+    	
+    	return sma.getRateOfChange();
+    }
+
     
 //TEST===========================
     public void TestCode() {

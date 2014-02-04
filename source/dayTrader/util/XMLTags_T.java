@@ -42,6 +42,7 @@ public class XMLTags_T {
     public final static String CFG_DT_LOG_FILE_NAME = "dtLogFileName";
     public final static String CFG_DT_REPORT_DIR_PATH = "dtReportDirPath";
     public final static String CFG_MINUTES_BEFORE_CLOSE_TO_BUY = "minutesBeforeCloseToBuy";
+    public final static String CFG_LATEST_BUY_TIME = "latestBuyTime";
     public final static String CFG_MINUTES_TO_WAIT_FOR_EXECUTION = "minutesToWaitForExecution";
     public final static String CFG_RT_SCAN_INTERVAL_MINUTES = "rtScanIntervalMinutes";
     public final static String CFG_USE_IB = "useIB";
@@ -59,18 +60,28 @@ public class XMLTags_T {
     public final static String CFG_MIN_TRADE_VOLUME = "minTradeVolume";
     public final static String CFG_MIN_BUY_PRICE = "minBuyPrice";
     public final static String CFG_BUY_SPREAD_LIMIT="buySpreadLimit";
-    public final static String CFG_MAX_BUY_POSITIONS = "maxBuyPositions";
+    public final static String CFG_MAX_HOLDINGS_CANDIDATES = "maxHoldingsCandidates";
+    public final static String CFG_MAX_HOLDINGS = "maxHoldings";
     public final static String CFG_MAX_BUY_AMOUNT = "maxBuyAmount";
     public final static String CFG_PERCENT_INCREASE = "percentIncrease";
     public final static String CFG_PERCENT_DECREASE = "percentDecrease";
     public final static String CFG_PERCENT_DECLINE = "percentDecline";
+    public final static String CFG_MAX_BUY_SPREAD = "maxBuySpread";
+    public final static String CFG_MIN_BUY_TREND = "minBuyTrend";
+    public final static String CFG_MIN_BUY_CHANGE = "minBuyChange";
     public final static String CFG_MIN_ACCOUNT_BALANCE = "minAccountBalance";
     public final static String CFG_SEND_EMAILS = "sendEmails";
     public final static String CFG_EMAIL_RECIPIENTS = "emailRecipients";
     public final static String CFG_IB_GATEWAY_HOST = "ibGatewayHost";
     public final static String CFG_IB_GATEWAY_API_PORT = "ibGatewayApiPort";
     public final static String CFG_IB_CLIENT_ID = "ibClientId";
-    
+    public final static String CFG_SMAWindowLength = "SMAWindowLength";
+    public final static String CFG_tBuyToday = "tBuyToday";
+    public final static String CFG_tBuyOnTrend = "tBuyOnTrend";
+    public final static String CFG_tUseMarketPrice = "tUseMarketPrice";
+    public final static String CFG_tUseRollingAvg = "tUseRollingAvg";
+    public final static String CFG_tCandidates = "tCandidates";
+    public final static String CFG_tBackTest = "tBackTest";   
     /**
      * 
      * @param xml

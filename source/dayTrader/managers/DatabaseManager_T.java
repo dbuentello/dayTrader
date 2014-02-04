@@ -281,7 +281,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         	.add(Restrictions.gt("volume", Trader_T.MIN_TRADE_VOLUME))
             .add(Restrictions.gt("lastPrice", Trader_T.MIN_BUY_PRICE))
             .addOrder(Order.asc("percentChange"));
-            //.setMaxResults(Trader_T.MAX_BUY_POSITIONS);
+            //.setMaxResults(Trader_T.MAX_HOLDINGS_CANDIDATES);
         
         
         @SuppressWarnings("unchecked")
@@ -317,7 +317,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
             losers.add(quote.getSymbol());
             
             // we got what we want
-            if (losers.size() == Trader_T.MAX_BUY_POSITIONS) break;
+            if (losers.size() == Trader_T.MAX_HOLDINGS_CANDIDATES) break;
             
         }
         
@@ -325,6 +325,110 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         
     }
 
+    /**
+     * Query the database for the day's biggest winners - limit between $1 - $100
+     * 
+     * @return List of the biggest winners
+     */
+    public synchronized List<Symbol_T> determineBiggestWinners() {
+
+    	double MAX_BUY_PRICE = 100.00;
+    	
+        Session session = getSessionFactory().openSession();
+        
+        Date d2 = Utilities_T.tomorrow(timeManager.getCurrentTradeDate());
+        
+        Criteria criteria = session.createCriteria(MarketData_T.class)
+            .add(Restrictions.between("lastTradeTimestamp", timeManager.getCurrentTradeDate(), d2 ))
+        	.add(Restrictions.gt("volume", Trader_T.MIN_TRADE_VOLUME))
+            .add(Restrictions.ge("lastPrice", Trader_T.MIN_BUY_PRICE))
+            .add(Restrictions.le("lastPrice", MAX_BUY_PRICE))           
+            .addOrder(Order.desc("percentChange"));
+            //.setMaxResults(Trader_T.MAX_HOLDINGS_CANDIDATES);
+        
+        
+        @SuppressWarnings("unchecked")
+        List<MarketData_T> quotes = criteria.list();
+        
+        session.close();
+        
+        List<Symbol_T> winners = new ArrayList<Symbol_T>();
+        
+        Iterator<MarketData_T> it = quotes.iterator();
+        while (it.hasNext()) {
+            MarketData_T quote = it.next();
+            
+            double todaysSpread = Math.abs(quote.getAskPrice() - quote.getBidPrice())/
+            								((quote.getAskPrice() + quote.getBidPrice())/2);
+            if (todaysSpread > Trader_T.BUY_SPREAD_LIMIT) {
+            	System.out.println("[DEBUG] Todays Spread "+todaysSpread+" is too large for "+quote.getSymbol().getSymbol()+" $"+quote.getLastPrice()+"  $"+quote.getAskPrice()+"/$"+quote.getBidPrice());
+            	continue;
+            }
+            
+            winners.add(quote.getSymbol());
+            
+            // we got what we want
+            if (winners.size() == Trader_T.MAX_HOLDINGS_CANDIDATES) break;
+            
+        }
+        
+        return winners;   
+        
+    }
+ 
+    /**
+     * Query the database for the day's most active (largest volume) - limit between $1 - $100
+     * optional, with positive change
+     * 
+     * @return List of the most active
+     */
+    public synchronized List<Symbol_T> determineMostActive() {
+
+    	double MAX_BUY_PRICE = 100.00;
+    	
+        Session session = getSessionFactory().openSession();
+        
+        Date d2 = Utilities_T.tomorrow(timeManager.getCurrentTradeDate());
+        
+        Criteria criteria = session.createCriteria(MarketData_T.class)
+            .add(Restrictions.between("lastTradeTimestamp", timeManager.getCurrentTradeDate(), d2 ))
+        	.add(Restrictions.gt("volume", Trader_T.MIN_TRADE_VOLUME))
+            .add(Restrictions.ge("lastPrice", Trader_T.MIN_BUY_PRICE))
+            .add(Restrictions.le("lastPrice", MAX_BUY_PRICE))
+            //.addRestrictions.gt("percentChange", 0));
+            .addOrder(Order.desc("volume"));
+            //.setMaxResults(Trader_T.MAX_HOLDINGS_CANDIDATES);
+        
+        
+        @SuppressWarnings("unchecked")
+        List<MarketData_T> quotes = criteria.list();
+        
+        session.close();
+        
+        List<Symbol_T> mostActive = new ArrayList<Symbol_T>();
+        
+        Iterator<MarketData_T> it = quotes.iterator();
+        while (it.hasNext()) {
+            MarketData_T quote = it.next();
+            
+            double todaysSpread = Math.abs(quote.getAskPrice() - quote.getBidPrice())/
+            								((quote.getAskPrice() + quote.getBidPrice())/2);
+            if (todaysSpread > Trader_T.BUY_SPREAD_LIMIT) {
+            	System.out.println("[DEBUG] Todays Spread "+todaysSpread+" is too large for "+quote.getSymbol().getSymbol()+" $"+quote.getLastPrice()+"  $"+quote.getAskPrice()+"/$"+quote.getBidPrice());
+            	continue;
+            }
+            
+            mostActive.add(quote.getSymbol());
+            
+            // we got what we want
+            if (mostActive.size() == Trader_T.MAX_HOLDINGS_CANDIDATES) break;
+            
+        }
+        
+        return mostActive;   
+        
+    }
+    
     /**
      * Update the Holdings database with the symbolIds for the day's biggest losers.
      * Only todays date as buy-date, buy action and symbol id are populated to indicate
@@ -345,9 +449,10 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
     		date = timeManager.TimeNow();
 
 //SALxx
-    if (TimeManager_T.g_buyToday || TimeManager_T.g_buyOnSpread) date = timeManager.getNextTradeDate();
+    if (TimeManager_T.g_buyToday || TimeManager_T.g_buyOnTrend) date = timeManager.getNextTradeDate();
 //SALxx
-    	
+
+
     	// TODO - move this to a delete method
         Session session = getSessionFactory().openSession();
 
@@ -372,14 +477,15 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
         } finally {
             session.close();
         }      
-       
+
+    
         // create initial holdings entries in the DB.  All it contains is the
         // symbol and buy date.  All other information (including the orderid) will
         // need to be filled in before submission
         TraderCalculator_T tCalc = new TraderCalculator_T();
         
     	double totalCapital = tCalc.getCapital();
-    	double buyTotal = totalCapital/Trader_T.MAX_BUY_POSITIONS;
+    	double buyTotal = totalCapital/Trader_T.MAX_HOLDINGS;
     	
         Iterator<Symbol_T> it = losers.iterator();
         while (it.hasNext()) {
@@ -596,7 +702,7 @@ public class DatabaseManager_T implements Manager_IF, Connector_IF {
     	Date date = timeManager.getCurrentTradeDate();
 
 //SALxx
-    if (TimeManager_T.g_buyToday || TimeManager_T.g_buyOnSpread) date = timeManager.getPreviousTradeDate();
+    if (TimeManager_T.g_buyToday || TimeManager_T.g_buyOnTrend) date = timeManager.getPreviousTradeDate();
 //SALxx
     
     	//"SELECT price from EndOfDayQuotes where symbol = \"$symbol\" AND DATE(date) = \"$date\"";

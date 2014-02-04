@@ -62,15 +62,15 @@ public class TimeManager_T implements Manager_IF, Runnable {
     /** how long we should wait MAX after liquidation and buying */
     public static int MINUTES_TO_WAIT_FOR_EXECUTION = 5;	// TODO - move to Trader
     
-//SALxx - testing
+    /** for testing algorithms */
     public static boolean g_buyToday = false;
-    public static boolean g_buyOnSpread = false;		// mutually exclusive with above
-    													// but we still buy today
-    public static boolean g_useMarketPrice = true;	// for sells
+    public static boolean g_buyOnTrend = true;		// mutually exclusive with above
+    												// but we still buy today
+    public static boolean g_useMarketPrice = false;	// for sells; false = use bid price
     public static boolean g_useRollingAvg = false;
     
-    private static boolean d_simulate = true;		// mutually exclusive with useIB
-//SALxx
+    private static boolean d_backTest = false;		// mutually exclusive with useIB/useTD
+    private static int     d_candidates = 1;		// which candidates algorithm
     
     /** A reference to the java Calendar class used to format and convert Date objects. */
     private static Calendar calendar;
@@ -114,7 +114,7 @@ public class TimeManager_T implements Manager_IF, Runnable {
 
     public void run() {
 
-if (d_simulate) {
+if (d_backTest) {
 	Simulate();
 	return;
 }
@@ -219,7 +219,10 @@ if (DayTrader_T.d_getRTData) {
             		
             		List <RTData_T> rtData = marketDataManager.getRealTimeQuotes();
 
-if (g_buyOnSpread) {
+                    // add the prices to the rolling average
+                    trader.rollingAverage(rtData);
+                    
+if (g_buyOnTrend) {
 					// determine if its time to buy... maybe we need to put a limit
 					// on this, like before noon.  We still need to cancel any orders
 					// that were placed, but werent filled.
@@ -259,7 +262,7 @@ if (g_buyOnSpread) {
 					// first, get the most recent RT data (not necessary - we just got it)
 					//marketDataManager.getRealTimeQuotes();
 
-if (g_buyOnSpread) {
+if (g_buyOnTrend) {
 					// If there were any outstanding buys that didnt fill
 					trader.cancelBuyOrders();
 }
@@ -299,19 +302,32 @@ if ( DayTrader_T.d_takeSnapshot) {
             		tCalculator.calculateDeferredNet();
 
             		
-                    // Now we can determine todays holdings candidates (biggest losers for today)
-                    Log.println("** Determing todays candidates ***");
-                    List<Symbol_T> losers = databaseManager.determineBiggestLosers();
-                    
+                    // Now we can determine todays holdings candidates
+            		Log.println("** Determing todays candidates ***");
+            		
+            		// test algorithms 1_ losers, 2) winners, 3) most active...
+            		List<Symbol_T> candidates = new ArrayList<Symbol_T>();
+            		switch (d_candidates) {
+            		  case 1:
+            			candidates = databaseManager.determineBiggestLosers();
+            		    break;
+            		  case 2:
+            			candidates = databaseManager.determineBiggestWinners();
+            			break;
+            		  case 3:
+                        candidates = databaseManager.determineMostActive();
+                        break;
+            		}
+
                     // save in log file
-                    logCandidates(losers);
+                    logCandidates(candidates);
 
                     // Finally, update Holdings Table w/tomorrows candidates
                     // positions are calculated here based on EOD prices
-                    databaseManager.addHoldings(losers);
-                  
+                    databaseManager.addHoldings(candidates);
+                
 //SALxx
-if (!g_buyToday && !g_buyOnSpread) {
+if (!g_buyToday && !g_buyOnTrend) {
 
                     // Now buy them
                     trader.buyHoldings();
@@ -345,7 +361,7 @@ if (!g_buyToday && !g_buyOnSpread) {
                     buyTime.setTime(buyTime.getTime() + (MS_IN_MINUTE * MIN_IN_HOUR * 24));
                     
                     //re-calculate the 15 day moving average. This can take a while
-                    System.out.println("Calculating moving averages.  Pleas wait.");
+                    System.out.println("Calculating moving averages.  Please wait.");
                     databaseManager.updateSymbolAverages();
 
                     
@@ -377,12 +393,27 @@ if (!g_buyToday && !g_buyOnSpread) {
         
         ConfigurationManager_T cfgMgr = (ConfigurationManager_T) DayTrader_T.getManager(ConfigurationManager_T.class);
         MINUTES_BEFORE_CLOSE_TO_BUY = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_MINUTES_BEFORE_CLOSE_TO_BUY));
+        LATEST_BUY_TIME = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_LATEST_BUY_TIME));
         MINUTES_TO_WAIT_FOR_EXECUTION = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_MINUTES_TO_WAIT_FOR_EXECUTION));
         RT_SCAN_INTERVAL = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_RT_SCAN_INTERVAL_MINUTES)) * MS_IN_MINUTE;
         TZOffset = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_TZOFFSET));
 
         VERSION = cfgMgr.getConfigParam(XMLTags_T.CFG_VERSION);
-        		
+
+        // these are for algorithm testing
+        g_buyToday = Boolean.parseBoolean(cfgMgr.getConfigParam(XMLTags_T.CFG_tBuyToday));
+        g_buyOnTrend = Boolean.parseBoolean(cfgMgr.getConfigParam(XMLTags_T.CFG_tBuyOnTrend));
+        g_useMarketPrice = Boolean.parseBoolean(cfgMgr.getConfigParam(XMLTags_T.CFG_tUseMarketPrice));
+        g_useRollingAvg = Boolean.parseBoolean(cfgMgr.getConfigParam(XMLTags_T.CFG_tUseRollingAvg));
+        d_backTest = Boolean.parseBoolean(cfgMgr.getConfigParam(XMLTags_T.CFG_tBackTest));
+        String cand = cfgMgr.getConfigParam(XMLTags_T.CFG_tCandidates);
+        if (cand.equalsIgnoreCase("LOSERS")) d_candidates = 1;
+        else if (cand.equalsIgnoreCase("WINNERS")) d_candidates = 2;
+        else if (cand.equalsIgnoreCase("VOLUME")) d_candidates = 3;
+        else if (cand.equalsIgnoreCase("SMA")) d_candidates = 4;
+        // end testing params
+    
+        
         calendar_t = (Calendar_T) databaseManager.query(Calendar_T.class, time);
         
         updateTime();
@@ -632,7 +663,7 @@ else  //SALxx - get system time
     public Date getPreviousTradeDate()
     {
 //SALxx
-    	if (g_buyToday || g_buyOnSpread) return getCurrentTradeDate();
+    	if (g_buyToday || g_buyOnTrend) return getCurrentTradeDate();
 //SALxx
     	
         
@@ -710,7 +741,7 @@ else  //SALxx - get system time
      */
     private void logCandidates(List<Symbol_T> losers) {
     	Iterator<Symbol_T> it = losers.iterator();
-    	Log.print("Biggest Losers are: ");
+    	Log.print("Todays candidates are: ");
     	while (it.hasNext()) {
     		Symbol_T symbol = it.next();
     		Log.print(symbol.getSymbol()+ " ");
@@ -720,24 +751,38 @@ else  //SALxx - get system time
 
 
 
-
+/************************************************************************/
+/*
+ * for backtesting, you must have Holdings and RT data for the simulation date
+ * and set the config file params accordingly.
+ * 
+ * NOTE: the actual RT data will have data for every scan interval, whereas
+ * duplicate data is not saved in the DB. EG, RTdata could be flat whereas
+ * simulated data will show a trend more readily
+ * 
+ * To prepare the database,
+ * CREATE DATABASE test_database;
+ * mysqldump -u root -psal dayTrader_beta | mysql -u root -psal test_database
+ * 
+ * update Holdings set sell_date = null, sell_price=0, net=null, order_id=0, order_id2=0, actual_buy_price = 0, filled = 0, remaining = volume, avg_fill_price = 0, order_status="PreSubmitted";
+ * make sure there is a non-zero volume
+ *
+ * NOTE: for buytoday/buyonspread/buyontrend, buy_price is filled on AddHoldings with the price
+ * at the time the holdings were added (when candidates are calculated the day before).  This is only used
+ * to get the approx number of shares to buy.  It will be updated again when we have a desired price to
+ * sell (in shouldWebuy).  The actual_buy_price (and time) is filled in when the order is placed (or simulated)
+ * 
+ */
 /************************************************************************/
     private void Simulate()
-    {
-    	
+    {    	
     	time = Utilities_T.StringToDate(DayTrader_T.d_useSimulateDate);
         calendar_t = (Calendar_T) databaseManager.query(Calendar_T.class, time);
 
         latestBuyTime = new Date(calendar_t.getCloseTime().getTime() - LATEST_BUY_TIME * MS_IN_MINUTE);
         
 
-        Log.println("\n*** Simulated Day Trader "+VERSION+" has started at "+TimeNow()+" ***\n");
-
-        /*
-         * This loop will update the application time every three seconds and when a trigger time is reached
-         * execute the appropriate actions. Triggers times can be the market open, a specified buy time,
-         * and the market close.
-         */
+        Log.println("\n*** Simulated Day Trader "+VERSION+" has started for "+TimeNow()+" ***\n");
 
 
         // get the list of symbols for todays Holdings
@@ -751,6 +796,13 @@ else  //SALxx - get system time
             List<RTData_T> simulatedRTData = getSimulatedRTData(symbol.getSymbol());
             
             // for each RT scan
+            
+            // initialize these (as a list of one)
+            RTData_T prevRTData = new RTData_T();
+            prevRTData.setPrice(0.0); prevRTData.setDate(time);
+            ArrayList<RTData_T> prevData = new ArrayList<RTData_T>();
+            prevData.add(prevRTData);
+            
             Iterator<RTData_T> itd = simulatedRTData.iterator();
             while (itd.hasNext()) {
                 RTData_T d = itd.next();    
@@ -759,7 +811,17 @@ else  //SALxx - get system time
                 ArrayList<RTData_T> rtData = new ArrayList<RTData_T>();
                 rtData.add(d);
                 
-                // add the prices to the rolling average
+                // add the prices to the rolling average - use last
+                // if nothings changed (as we get rt data every scan interval
+                long timeDiff = d.getDate().getTime() - prevData.get(0).getDate().getTime();
+                int  n = (int)(timeDiff/RT_SCAN_INTERVAL)-1;
+                if (prevData.get(0).getPrice().floatValue() != 0.0 && n > 0) {
+                	for (int i=0; i<n; i++) { trader.rollingAverage(prevData); }
+                }
+                // save for next time
+                prevData.get(0).setPrice(d.getPrice()); prevData.get(0).setDate(d.getDate());
+                
+                // add this one
                 trader.rollingAverage(rtData);
                
 				// determine if its time to buy... maybe we need to put a limit

@@ -52,16 +52,29 @@ public class Trader_T {
     public static double MIN_BUY_PRICE = 0.50;
     /** filter buy criterion by spread limit (as a fraction - less than PERCENT_INCREASE*/
     public static double BUY_SPREAD_LIMIT = 0.0;
+    /** The maximum number of positions we want to consider. */
+    public static int MAX_HOLDINGS_CANDIDATES = 25;
     /** The maximum number of positions we want to buy. */
-    public static int MAX_BUY_POSITIONS = 25;
+    public static int MAX_HOLDINGS = 25;
     /** max percent increase/decrease before selling (as a fraction)*/
     public static double PERCENT_INCREASE = 0.02;
     public static double PERCENT_DECREASE = 0.02;
     /** threshhold for decline while stock is increasing (as a fraction)*/
     public static double PERCENT_DECLINE = .005;
-        
+	/** Buy parameters - percent as a fraction */
+    public static double MAX_BUY_SPREAD = .0025;
+    public static double MIN_BUY_TREND = 0;
+    public static double MIN_BUY_CHANGE = .0025;
+	
+    /** rolling avg (SMA) size */
+    public static int SMA_WINDOW_SIZE = 10;
+    
     /** our starting cash balance according to IB */
     private double startingBalance;
+    
+    /** need to stop buying when we reached MAX_HOLDINGS */
+    private static boolean maxBuyLimitReached = false;
+    private static int buyCounter=0;
  
     /** References to other classes we need */
     private BrokerManager_T     brokerManager;
@@ -77,16 +90,25 @@ public class Trader_T {
         ConfigurationManager_T cfgMgr = (ConfigurationManager_T) DayTrader_T.getManager(ConfigurationManager_T.class);
         MIN_TRADE_VOLUME = Double.parseDouble(cfgMgr.getConfigParam(XMLTags_T.CFG_MIN_TRADE_VOLUME));
         MIN_BUY_PRICE = Double.parseDouble(cfgMgr.getConfigParam(XMLTags_T.CFG_MIN_BUY_PRICE));
-        MAX_BUY_POSITIONS = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_MAX_BUY_POSITIONS));
+        MAX_HOLDINGS_CANDIDATES = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_MAX_HOLDINGS_CANDIDATES));
+        MAX_HOLDINGS = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_MAX_HOLDINGS));
         BUY_SPREAD_LIMIT = Double.parseDouble(cfgMgr.getConfigParam(XMLTags_T.CFG_BUY_SPREAD_LIMIT));
         PERCENT_INCREASE = Double.parseDouble(cfgMgr.getConfigParam(XMLTags_T.CFG_PERCENT_INCREASE));
         PERCENT_DECREASE = Double.parseDouble(cfgMgr.getConfigParam(XMLTags_T.CFG_PERCENT_DECREASE));
         PERCENT_DECLINE = Double.parseDouble(cfgMgr.getConfigParam(XMLTags_T.CFG_PERCENT_DECLINE));
+        MAX_BUY_SPREAD = Double.parseDouble(cfgMgr.getConfigParam(XMLTags_T.CFG_MAX_BUY_SPREAD));
+        MIN_BUY_TREND = Double.parseDouble(cfgMgr.getConfigParam(XMLTags_T.CFG_MIN_BUY_TREND));
+        MIN_BUY_CHANGE = Double.parseDouble(cfgMgr.getConfigParam(XMLTags_T.CFG_MIN_BUY_CHANGE));
         
         brokerManager     = (BrokerManager_T) DayTrader_T.getManager(BrokerManager_T.class);
 	    databaseManager   = (DatabaseManager_T) DayTrader_T.getManager(DatabaseManager_T.class);
 	    timeManager       = (TimeManager_T) DayTrader_T.getManager(TimeManager_T.class);
 	    
+        int scanInterval = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_RT_SCAN_INTERVAL_MINUTES));
+        // duration (mins) / scan inverval (mins)
+        SMA_WINDOW_SIZE = Integer.parseInt(cfgMgr.getConfigParam(XMLTags_T.CFG_SMAWindowLength));
+        SMA_WINDOW_SIZE = SMA_WINDOW_SIZE/scanInterval;
+
 	    Log = DayTrader_T.dtLog; 
     }
 
@@ -372,10 +394,15 @@ if (!DayTrader_T.d_useIB) return;
      * Determine if we should buy this stock
      *  - use a rolling average for trending and only buy on the positive trend
      *  - the spread must be small enough to make it worth while
+     *  
+     *  We may have more candidates than we can actually buy, so limit
      */
 
     public void shouldWeBuy(List<RTData_T> rtData)
     {
+    	// if we already hit our limit
+    	if (maxBuyLimitReached) return;
+    	
     	// for each holding
         Iterator<RTData_T> it = rtData.iterator();
         while (it.hasNext()) {
@@ -397,7 +424,6 @@ if (!DayTrader_T.d_useIB) return;
 // extra debugging
 //Log.println("[DEBUG] >>"+data.getSymbol()+": spread= "+spread);
 
-        	double MAX_BUY_SPREAD = .0025;
         	// dont buy if the spread is too large
         	if (spread > MAX_BUY_SPREAD) {
         		continue;
@@ -405,21 +431,18 @@ if (!DayTrader_T.d_useIB) return;
         	
         	// OK, lets see if we should buy this one - only on a positive trend
         	// the buy is asynchronous, but we cant sell until we own it, so thats fine.
-        	// At some point during the day (or at the end) we need to cancel outstanding buys.
-        	double MIN_TREND = 0;
-        	double MIN_CHANGE = .0025;
-        	
+        	// At some point during the day (or at the end) we need to cancel outstanding buys.       	
         	double trend = getRollingTrend(holding.getSymbol().getSymbol());
         	double rateOfChange = getRateOfChange(holding.getSymbol().getSymbol());
 // extra debugging
 //Log.println("[DEBUG] >>"+data.getSymbol()+": trend= "+trend+" RoC="+rateOfChange);
 
-        	if (trend <= MIN_TREND) {
+        	if (trend <= MIN_BUY_TREND) {
         		continue;
         	}
         	
         	// ignore if not much change in either direction
-        	if (Math.abs(rateOfChange) <= MIN_CHANGE) {
+        	if (Math.abs(rateOfChange) <= MIN_BUY_CHANGE) {
         		continue;
         	}
         	
@@ -435,6 +458,12 @@ if (!DayTrader_T.d_useIB) return;
         	
         	buyHolding(holding);
         	
+        	// we can only buy this many
+        	buyCounter++;
+        	if (buyCounter == MAX_HOLDINGS) {
+        		maxBuyLimitReached = true;
+        		break;
+        	}
         	
         } // next holding
         
@@ -479,7 +508,6 @@ if (!DayTrader_T.d_useIB) return;
 //SALxx
    if (TimeManager_T.g_useMarketPrice) price = data.getPrice();	// current RT price
    if (TimeManager_T.g_useRollingAvg) price = getAvgPrice(data.getSymbol());	// most recent rolling avg price
-
 //SALxx
      	        	
         	double buyPrice = holding.getActualBuyPrice();	// our holdings buy (ask) price
@@ -1337,11 +1365,11 @@ if (!DayTrader_T.d_useIB) return;
     /**
      * add data to rolling averages - use actual price
      *   an alternative is to use ask price during buy, bid price during sell
+     *   WINDOW_SIZE is a config parameter calculated by dividing the duration param by scan interval
      *   
      * @param rtData
      */
-    public void rollingAverage(ArrayList<RTData_T> rtData) {
-    	int WINDOW_SIZE = 5;
+    public void rollingAverage(List<RTData_T> rtData) {
     	
     	Iterator <RTData_T> it = rtData.iterator();
     	while (it.hasNext()) {
@@ -1349,7 +1377,7 @@ if (!DayTrader_T.d_useIB) return;
     		
     		// first time - initialize
     		if (!movingAverages.containsKey(d.getSymbol())) {
-    			MovingAverage_T sma = new MovingAverage_T(WINDOW_SIZE);
+    			MovingAverage_T sma = new MovingAverage_T(SMA_WINDOW_SIZE);
     			movingAverages.put(d.getSymbol(), sma);
     		}
     		

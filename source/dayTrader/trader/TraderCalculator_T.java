@@ -648,8 +648,8 @@ if (DayTrader_T.d_useIB) {
         List<Holding_T> holdingData = criteria.list();
         
         
-        if (holdingData.size() != Trader_T.MAX_BUY_POSITIONS) {
-        	Log.println("[WARNING] CreateReports() something is fishy in Holdings... "+holdingData.size()+" rows retrieved.  Should be "+Trader_T.MAX_BUY_POSITIONS);
+        if (holdingData.size() != Trader_T.MAX_HOLDINGS_CANDIDATES) {
+        	Log.println("[WARNING] CreateReports() something is fishy in Holdings... "+holdingData.size()+" rows retrieved.  Should be "+Trader_T.MAX_HOLDINGS_CANDIDATES);
         }
         
         //                                  actual    desired

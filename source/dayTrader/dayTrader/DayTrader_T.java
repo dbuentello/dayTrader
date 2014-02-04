@@ -56,9 +56,10 @@ public class DayTrader_T {
     // use system time instead of IB time
     public static boolean d_useSystemTime = true;
 
+
     /*** end development defines ***/
 
-    /* our one and only log file */
+    /** our one and only log file */
     private static String dtLogFilename = "";
     private static boolean echoLog = true;
     private static boolean logTimestamp = false;
@@ -106,7 +107,7 @@ public class DayTrader_T {
         d_takeSnapshot = Boolean.parseBoolean(configurationManager.getConfigParam(XMLTags_T.CFG_TAKE_SNAPSHOT));
         d_getRTData = Boolean.parseBoolean(configurationManager.getConfigParam(XMLTags_T.CFG_GET_RT_DATA));
         d_useSystemTime = Boolean.parseBoolean(configurationManager.getConfigParam(XMLTags_T.CFG_USE_SYSTEM_TIME));
-
+        
         initialize();
         run();
         terminate();
@@ -219,7 +220,8 @@ class GlobalExceptionHandler implements Thread.UncaughtExceptionHandler {
     public void uncaughtException(Thread t, Throwable e) {
         dtLogger_T Log  = DayTrader_T.dtLog;
         
-        Log.println("[ERROR] An exception was thrown and caught by the GlobalExceptionHandler!!!!");
+        Log.println("[ERROR] An exception was thrown and caught by the GlobalExceptionHandler: "+e.getMessage());
+
         e.printStackTrace();
         
         DayTrader_T.terminate();

@@ -14,10 +14,8 @@ public class MovingAverage_T {
     // the new rolling averages
     private final Queue<Double> rollingAvg = new LinkedList<Double>();
     
-    // the minimum needed to initialize
-    private int INIT_MIN = 5;		// cannot be less than 2 or greater than period
- 
     public MovingAverage_T(int period) {
+    	
         assert period > 0 : "Period must be a positive integer";
         this.period = period;
     }
@@ -47,7 +45,10 @@ public class MovingAverage_T {
      * @return
      */
     public double getTrend() {
-    	if (window.size() < INIT_MIN) return 0;
+    	
+    	// dont return a trend until we have a full period (the alternative
+    	// would be to return values as they are being built)
+    	if (window.size() < period) return 0;
     	
     	double x=0, y=0, x2=0, xy=0;
     	double trend=0;
@@ -55,7 +56,6 @@ public class MovingAverage_T {
     	Iterator<Double> it = window.iterator();
     	
     	int n=0;
-    	double first=0;
     	while (it.hasNext()) {
     		n++;
     		double v = it.next();
@@ -65,10 +65,6 @@ public class MovingAverage_T {
     		y += v;
     		x2 += (n*n);
     		xy += (n*v);
-    		
-    		// simple trend
-    		//if (n==1) first = v;
-    		//trend = v - first;
     	}
     	
     	trend = ((n*xy)-(x*y))/((n*x2)-(x*x));
@@ -82,7 +78,9 @@ public class MovingAverage_T {
      * @return
      */
     public double getRollingTrend() {
-    	if (rollingAvg.size() < INIT_MIN) return 0;
+    	
+    	// must be fully initialized
+    	if (rollingAvg.size() < period) return 0;
     	
     	double x=0, y=0, x2=0, xy=0;
     	double trend=0;
@@ -90,7 +88,6 @@ public class MovingAverage_T {
     	Iterator<Double> it = rollingAvg.iterator();
     	
     	int n=0;
-    	double first=0;
     	while (it.hasNext()) {
     		n++;
     		double v = it.next();
@@ -100,10 +97,6 @@ public class MovingAverage_T {
     		y += v;
     		x2 += (n*n);
     		xy += (n*v);
-    		
-    		// simple trend
-    		if (n==1) first = v;
-    		trend = v - first;
     	}
     	
     	trend = ((n*xy)-(x*y))/((n*x2)-(x*x));
@@ -113,9 +106,10 @@ public class MovingAverage_T {
     
     
     // return the percent change from end to start of rolling average (alt)
-    public double getRateOfChange()
-    {
-    	if (rollingAvg.size() < INIT_MIN) return 0;
+    public double getRateOfChange() {
+    	
+    	// must be fully initialized
+    	if (rollingAvg.size() < period) return 0;
 
     	Double[] change = (Double[])rollingAvg.toArray(new Double[rollingAvg.size()]);
     	

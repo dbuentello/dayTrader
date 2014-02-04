@@ -17,13 +17,18 @@
 	<!-- Trading configuration parameters -->
 	<minTradeVolume>10000</minTradeVolume>
 	<minBuyPrice>.50</minBuyPrice>
-	<maxBuyPositions>5</maxBuyPositions>
+    <!-- deprecated <maxBuyPositions>25</maxBuyPositions> -->
+    <maxHoldingsCandidates>25</maxHoldingsCandidates>
+    <maxHoldings>25</maxHoldings>
 
 	<buySpreadLimit>0.0</buySpreadLimit>
 	<percentIncrease>0.02</percentIncrease>
 	<percentDecrease>0.02</percentDecrease>
 	<percentDecline>.005</percentDecline>
-
+    <maxBuySpread>0.0025</maxBuySpread>
+    <minBuyTrend>0.0</minBuyTrend>
+    <minBuyChange>0.0025</minBuyChange>
+    
 	<maxBuyAmount>10000</maxBuyAmount>
 	<minAccountBalance>25000</minAccountBalance>
 
@@ -46,6 +51,7 @@
 
 	<!-- Timing config params -->
 	<minutesBeforeCloseToBuy>20</minutesBeforeCloseToBuy>
+	<latestBuyTime>45</latestBuyTime>
 	<rtScanIntervalMinutes>2</rtScanIntervalMinutes>
 	<minutesToWaitForExecution>7</minutesToWaitForExecution>
 	<timezoneOffset>5</timezoneOffset>
@@ -59,5 +65,23 @@
 	<getRTData>TRUE</getRTData>
 	<useSystemTime>TRUE</useSystemTime>
 
+    <!-- rolling average window size in minutes -->
+    <SMAWindowLength>10</SMAWindowLength>
+
+    <!-- buy algortihm: these are mutually exclusive, or both are FALSE for buying previous day -->
+    <tBuyToday>FALSE</tBuyToday>
+    <tBuyOnTrend>TRUE</tBuyOnTrend>
+
+    <!-- if TRUE, use the market price for sell algorthm, else use ask (sell) price -->
+    <tUseMarketPrice>TRUE</tUseMarketPrice>
+
+    <!-- use a rolling avg price for sell algorthm - mutually exclusive with above -->
+    <tUseRollingAvg>FALSE</tUseRollingAvg>
+
+    <!-- which candidates algorithm to use LOSERS, WINNERS, VOLUME, SMA -->
+    <tCandidates>LOSERS</tCandidates>
+    
+    <!-- to run in backtest mode - simulate date must be specified.  Disables IB and TD -->
+    <tBackTest>FALSE</tBackTest>
 
 </dayTraderConfig>

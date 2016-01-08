@@ -1,0 +1,52 @@
+<dayTraderConfig>
+
+	<version>V.11.26.0</version>
+
+  <accountCode></accountCode>
+	<ibGatewayHost></ibGatewayHost>
+	<ibGatewayApiPort>4001</ibGatewayApiPort>
+	<ibClientId>2</ibClientId>
+	
+
+	<!-- Trading configuration parameters -->
+	<maxBuyPositions>5</maxBuyPositions>
+	<maxBuyAmount>10000</maxBuyAmount>
+	<minAccountBalance>25000</minAccountBalance>
+  <minutesToWaitForExecution>5</minutesToWaitForExecution>
+  <timezoneOffset>5</timezoneOffset>
+
+	<minTradeVolume>10000</minTradeVolume>
+	<minBuyPrice>.50</minBuyPrice>
+	<buySpreadLimit>0.0</buySpreadLimit>
+	<percentIncrease>0.02</percentIncrease>
+	<percentDecrease>0.02</percentDecrease>
+	<percentDecline>.005</percentDecline>
+
+  <databaseName></databaseName>
+	<databaseUser></databaseUser>
+	<databasePassword></databasePassword>
+
+	<!-- Logging config params -->
+	<dtLogFileName>/home/nathan/temp/dayTrader_test.log</dtLogFileName>
+	<dtReportDirPath>/home/nathan/temp/Reports</dtReportDirPath>
+
+	<!-- Timing config params -->
+	<minutesBeforeCloseToBuy>600</minutesBeforeCloseToBuy>
+	<rtScanIntervalMinutes>5</rtScanIntervalMinutes>
+
+	<!-- Debug config params -->
+	<useIB>TRUE</useIB>
+	<useTD>TRUE</useTD>
+	<ignoreMarketClosed>TRUE</ignoreMarketClosed>
+	<useSimulateDate></useSimulateDate>
+	<takeSnapshot>TRUE</takeSnapshot>
+	<getRTData>TRUE</getRTData>
+	<useSystemTime>TRUE</useSystemTime>
+	<sendEmails>FALSE</sendEmails>
+	
+	<emailRecipients>
+		<address></address>
+		<address></address>
+	</emailRecipients>
+
+</dayTraderConfig>
